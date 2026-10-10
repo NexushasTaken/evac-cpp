@@ -13,7 +13,7 @@ static Gtk::Label* make_heading(const Glib::ustring& text)
     return label;
 }
 
-TabSettings::TabSettings(AppContext& ctx) : ctx_(ctx), updating_(false)
+TabSettings::TabSettings(AppContext& ctx, Gtk::Window& parent) : ctx_(ctx), parent_(parent), updating_(false)
 {
     build_ui();
     load_from_settings();
@@ -67,6 +67,8 @@ void TabSettings::build_ui()
               "Shorten release names to just the date and number\n(e.g. \"2021-09-08-1927\" instead of\n"
               "\"Cataclysm-DDA experimental build 2021-09-08-1927\").",
               "shorten_release_names");
+    add_check(*box, "Print tips of the day on startup", "Print a random tip in the status pane when the launcher starts.",
+              "print_tips_of_the_day");
     add_check(*box, "Always show installs list",
               "Show the installs list even when just one\ncopy of the game is installed, or none at all.", "always_show_installs");
 
@@ -133,6 +135,16 @@ void TabSettings::build_ui()
 
     box->append(*make_heading("Other"));
     add_check(*box, "Debug mode", "Enables debug messages in the status pane\n(useful for troubleshooting).", "debug_mode");
+
+    Gtk::Button* licenses_button = Gtk::make_managed<Gtk::Button>("View opensource licenses");
+    licenses_button->add_css_class("link");  // A style of the theme, it looks like a link.
+    licenses_button->set_halign(Gtk::Align::START);
+    licenses_button->signal_clicked().connect([this]() {
+        if (!licenses_dialog_)
+            licenses_dialog_.reset(new LicensesDialog(parent_, ctx_.paths.data_dir()));
+        licenses_dialog_->present();
+    });
+    box->append(*licenses_button);
 
     Gtk::Label* note = Gtk::make_managed<Gtk::Label>("The launcher uses your system's GTK theme and display scale.");
     note->set_xalign(0.0f);

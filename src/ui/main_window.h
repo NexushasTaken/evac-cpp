@@ -20,6 +20,7 @@ public:
 
 private:
     bool on_close();
+    void save_window_state();
     void on_switch_page(Gtk::Widget* page, guint page_number);
     void on_task_finished();
     void show_page(Gtk::Widget* page);
