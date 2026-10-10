@@ -1,6 +1,7 @@
 #ifndef CATAPULT_SETTINGS_H
 #define CATAPULT_SETTINGS_H
 
+#include <mutex>
 #include <string>
 
 #include <nlohmann/json.hpp>
@@ -8,6 +9,7 @@
 #include "core/status.h"
 
 // Reads and writes catapult_settings.json (same keys as the original launcher).
+// It may be used from several threads at once (the UI and a worker).
 // Keys that are missing from the file fall back to the defaults. Keys that we
 // don't know about (like launcher_theme) are kept in the file untouched.
 class Settings
@@ -40,6 +42,7 @@ private:
 
     std::string file_;
     Status& status_;
+    std::mutex mutex_;  // Guards current_.
     nlohmann::json current_;
 };
 

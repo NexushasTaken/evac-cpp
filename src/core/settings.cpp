@@ -50,17 +50,25 @@ nlohmann::json Settings::defaults()
 
 void Settings::load()
 {
-    if (std::filesystem::exists(file_))
+    bool created = false;
     {
-        nlohmann::json data;
-        if (load_json_file(file_, data, status_) && data.is_object())
-            current_ = data;
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (std::filesystem::exists(file_))
+        {
+            nlohmann::json data;
+            if (load_json_file(file_, data, status_) && data.is_object())
+                current_ = data;
+            else
+                current_ = nlohmann::json::object();
+        }
         else
-            current_ = nlohmann::json::object();
+        {
+            current_ = defaults();
+            created = true;
+        }
     }
-    else
+    if (created)
     {
-        current_ = defaults();
         status_.post("Creating settings file: " + file_);
         save();
     }
@@ -69,11 +77,13 @@ void Settings::load()
 
 bool Settings::save()
 {
+    std::lock_guard<std::mutex> lock(mutex_);
     return save_json_file(current_, file_, status_);
 }
 
 nlohmann::json Settings::lookup(const std::string& name)
 {
+    std::lock_guard<std::mutex> lock(mutex_);
     nlohmann::json def = defaults();
     if (!def.contains(name))
     {
@@ -126,27 +136,34 @@ nlohmann::json Settings::get_json(const std::string& name)
 
 void Settings::set_string(const std::string& name, const std::string& value)
 {
+    std::lock_guard<std::mutex> lock(mutex_);
     current_[name] = value;
 }
 
 void Settings::set_bool(const std::string& name, bool value)
 {
-    current_[name] = value;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        current_[name] = value;
+    }
     if (name == "debug_mode")
         status_.set_debug_enabled(value);
 }
 
 void Settings::set_int(const std::string& name, int value)
 {
+    std::lock_guard<std::mutex> lock(mutex_);
     current_[name] = value;
 }
 
 void Settings::set_double(const std::string& name, double value)
 {
+    std::lock_guard<std::mutex> lock(mutex_);
     current_[name] = value;
 }
 
 void Settings::set_json(const std::string& name, const nlohmann::json& value)
 {
+    std::lock_guard<std::mutex> lock(mutex_);
     current_[name] = value;
 }
