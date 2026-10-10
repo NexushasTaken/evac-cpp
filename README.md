@@ -71,6 +71,9 @@ cmake --build --preset conan-debug
 For an optimized build use `-s build_type=Release` in the `conan install` line and the `conan-release` presets.
 The binary ends up in `build/Debug/` (or `build/Release/`), and the build copies `data/` next to it.
 
+Configuring also writes `compile_commands.json` into the build folder. The `.clangd` file in the project root
+points clangd at `build/Debug`; change it if you work in the Release build.
+
 ## Running
 
 ```sh
