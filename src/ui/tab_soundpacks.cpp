@@ -250,7 +250,9 @@ void TabSoundpacks::on_install_from_file_clicked()
 
     Glib::RefPtr<Gtk::FileDialog> dialog = Gtk::FileDialog::create();
     dialog->set_title("Choose the soundpack archive");
-    dialog->set_initial_folder(Gio::File::create_for_path(ctx_.paths.own_dir()));
+    std::string downloads = Glib::get_user_special_dir(Glib::UserDirectory::DOWNLOAD);
+    if (!downloads.empty())
+        dialog->set_initial_folder(Gio::File::create_for_path(downloads));
     dialog->open(parent_, [this, dialog](const Glib::RefPtr<Gio::AsyncResult>& result) {
         try
         {

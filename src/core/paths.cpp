@@ -1,6 +1,7 @@
 #include "core/paths.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <filesystem>
 
 #include "core/helpers.h"
@@ -13,8 +14,59 @@ namespace fs = std::filesystem;
 
 static const char* const GAMES[] = {"dda", "bn", "eod", "tish", "tlg"};
 
-Paths::Paths(const std::string& own_dir, Settings& settings, Status& status)
-    : own_dir_(own_dir), settings_(settings), status_(status)
+static std::string env_or_empty(const char* name)
+{
+    const char* value = std::getenv(name);
+    return value ? value : "";
+}
+
+Locations portable_locations(const std::string& dir)
+{
+    Locations loc;
+    loc.config_dir = dir;
+    loc.games_dir = dir;
+    loc.cache_dir = dir + "/cache";
+    return loc;
+}
+
+// The spec says to ignore values that are not absolute paths.
+static std::string xdg_base(const std::string& value, const std::string& fallback)
+{
+    if (!value.empty() && value[0] == '/')
+        return value;
+    return fallback;
+}
+
+Locations xdg_locations(const std::string& home, const std::string& config_home,
+                        const std::string& data_home, const std::string& cache_home)
+{
+    Locations loc;
+    loc.config_dir = xdg_base(config_home, home + "/.config") + "/catapult";
+    loc.games_dir = xdg_base(data_home, home + "/.local/share") + "/catapult";
+    loc.cache_dir = xdg_base(cache_home, home + "/.cache") + "/catapult";
+    return loc;
+}
+
+Locations default_locations()
+{
+    std::string exe_dir = Paths::executable_dir();
+    if (fs::exists(exe_dir + "/catapult_settings.json"))
+        return portable_locations(exe_dir);
+
+    std::string home = env_or_empty("HOME");
+    if (home.empty())
+        return portable_locations(exe_dir);
+    return xdg_locations(home, env_or_empty("XDG_CONFIG_HOME"), env_or_empty("XDG_DATA_HOME"),
+                         env_or_empty("XDG_CACHE_HOME"));
+}
+
+Paths::Paths(const Locations& locations, Settings& settings, Status& status)
+    : games_dir_(locations.games_dir), cache_dir_(locations.cache_dir), settings_(settings), status_(status)
+{
+}
+
+Paths::Paths(const std::string& root, Settings& settings, Status& status)
+    : games_dir_(root), cache_dir_(root + "/cache"), settings_(settings), status_(status)
 {
 }
 
@@ -50,7 +102,7 @@ Paths::InstallsSummary Paths::installs_summary()
     for (size_t g = 0; g < sizeof(GAMES) / sizeof(GAMES[0]); ++g)
     {
         std::string game = GAMES[g];
-        std::string base_dir = own_dir_ + "/" + game;
+        std::string base_dir = games_dir_ + "/" + game;
         std::map<std::string, std::string> installs;
 
         std::vector<std::string> subdirs = list_dir(base_dir);
@@ -84,16 +136,14 @@ Paths::InstallsSummary Paths::installs_summary()
 
 std::string Paths::game_base_dir()
 {
-    return own_dir_ + "/" + settings_.get_string("game");
+    return games_dir_ + "/" + settings_.get_string("game");
 }
 
-std::string Paths::own_dir() const { return own_dir_; }
-std::string Paths::cache_dir() const { return own_dir_ + "/cache"; }
-std::string Paths::utils_dir() const { return own_dir_ + "/utils"; }
+std::string Paths::cache_dir() const { return cache_dir_; }
 
 std::string Paths::data_dir() const
 {
-    std::string local = own_dir_ + "/data";
+    std::string local = executable_dir() + "/data";
     if (fs::is_directory(local))
         return local;
     return CATAPULT_DATA_DIR;

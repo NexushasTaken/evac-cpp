@@ -41,6 +41,7 @@ Differences from the original:
 - The launcher always uses your system GTK theme and display scaling. There are no launcher themes and no scale
   setting; the old `launcher_theme` and `ui_scale_*` keys in the settings file are kept but ignored.
 - It is not a single self-contained executable. The `data/` folder (bundled fonts, licenses) has to be next to it.
+- Files go to the XDG directories by default instead of next to the executable (see Running).
 - Restoring a backup unpacks it to a staging folder first and asks for confirmation, so a broken backup can't
   destroy your current saves.
 
@@ -80,9 +81,28 @@ points clangd at `build/Debug`; change it if you work in the Release build.
 build/Debug/catapult
 ```
 
-The launcher keeps everything in the folder of the executable, like the original: `catapult_settings.json`, the
-download `cache/`, and a folder per game (`dda/`, `bn/`, ...) with the installs, user data and backups. Make sure
-you can write to that folder. To keep a separate set of games, copy the program and `data/` to another folder.
+The launcher follows the XDG base directory spec:
+
+| What                                                        | Where                                              |
+|-------------------------------------------------------------|----------------------------------------------------|
+| `catapult_settings.json`                                    | `$XDG_CONFIG_HOME/catapult` (`~/.config/catapult`) |
+| Games: a folder per game (`dda/`, `bn/`, ...) with the installs, user data, mod repository and save backups | `$XDG_DATA_HOME/catapult` (`~/.local/share/catapult`) |
+| Downloaded archives                                         | `$XDG_CACHE_HOME/catapult` (`~/.cache/catapult`)   |
+
+**Portable mode:** if a `catapult_settings.json` sits next to the executable, the launcher keeps everything in
+that folder instead, like the original (`cache/` and the game folders next to it). To go back to the XDG
+folders, move or delete that file. The `data/` folder (bundled fonts, licenses) always has to be next to the
+executable for now.
+
+If you used an earlier build that kept its files next to the executable, move them by hand, for example:
+
+```sh
+mkdir -p ~/.config/catapult ~/.local/share/catapult ~/.cache/catapult
+cd build/Debug
+mv catapult_settings.json ~/.config/catapult/
+mv dda bn eod tish tlg ~/.local/share/catapult/   # only the ones that exist
+mv cache/* ~/.cache/catapult/                     # optional, they can be downloaded again
+```
 
 ## Tests
 

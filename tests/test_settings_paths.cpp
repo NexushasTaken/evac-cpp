@@ -98,3 +98,38 @@ TEST_CASE("installs summary finds installs and sets the active one")
     REQUIRE(s.get_string("active_install_dda") == "0.H Herbert");
     REQUIRE(p.game_dir() == dir + "/dda/game0");
 }
+
+TEST_CASE("xdg locations")
+{
+    Locations loc = xdg_locations("/home/u", "", "", "");
+    REQUIRE(loc.config_dir == "/home/u/.config/catapult");
+    REQUIRE(loc.games_dir == "/home/u/.local/share/catapult");
+    REQUIRE(loc.cache_dir == "/home/u/.cache/catapult");
+
+    loc = xdg_locations("/home/u", "/c", "/d", "/k");
+    REQUIRE(loc.config_dir == "/c/catapult");
+    REQUIRE(loc.games_dir == "/d/catapult");
+    REQUIRE(loc.cache_dir == "/k/catapult");
+
+    // Relative values must be ignored.
+    loc = xdg_locations("/home/u", "rel", "also/rel", "");
+    REQUIRE(loc.config_dir == "/home/u/.config/catapult");
+    REQUIRE(loc.games_dir == "/home/u/.local/share/catapult");
+}
+
+TEST_CASE("portable locations keep everything in one directory")
+{
+    Locations loc = portable_locations("/x");
+    REQUIRE(loc.config_dir == "/x");
+    REQUIRE(loc.games_dir == "/x");
+    REQUIRE(loc.cache_dir == "/x/cache");
+}
+
+TEST_CASE("settings are saved into a config directory that does not exist yet")
+{
+    std::string dir = make_temp_dir("settings_newdir");
+    Status status;
+    Settings s(dir + "/a/b/catapult_settings.json", status);
+    s.load();
+    REQUIRE(fs::exists(dir + "/a/b/catapult_settings.json"));
+}

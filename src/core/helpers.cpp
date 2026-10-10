@@ -1,5 +1,6 @@
 #include "core/helpers.h"
 
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 
@@ -30,6 +31,8 @@ bool load_json_file(const std::string& file, nlohmann::json& out, Status& status
 
 bool save_json_file(const nlohmann::json& data, const std::string& file, Status& status)
 {
+    std::error_code ec;
+    std::filesystem::create_directories(std::filesystem::path(file).parent_path(), ec);
     std::ofstream f(file);
     if (!f)
     {

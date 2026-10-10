@@ -5,7 +5,7 @@
 
 int main(int argc, char* argv[])
 {
-    AppContext ctx(Paths::executable_dir());
+    AppContext ctx(default_locations());
 
     Glib::RefPtr<Gtk::Application> app = Gtk::Application::create("org.catapult.launcher");
     return app->make_window_and_run<MainWindow>(argc, argv, std::ref(ctx));

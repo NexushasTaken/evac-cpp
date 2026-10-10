@@ -18,9 +18,9 @@
 // The order of the members matters: they use the ones above them.
 struct AppContext
 {
-    explicit AppContext(const std::string& own_dir)
-        : settings(own_dir + "/catapult_settings.json", status),
-          paths(own_dir, settings, status),
+    explicit AppContext(const Locations& locations)
+        : settings(locations.config_dir + "/catapult_settings.json", status),
+          paths(locations, settings, status),
           releases(settings, status),
           installer(settings, paths, status),
           launcher(settings, paths, status),
