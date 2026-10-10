@@ -32,9 +32,19 @@ static void write_file(const std::string& path, const std::string& content)
 
 TEST_CASE("stable releases")
 {
-    REQUIRE(stable_releases("dda", "linux").size() == 10);
-    REQUIRE(stable_releases("dda", "linux")[0].name == "0.H Herbert");
-    REQUIRE(stable_releases("bn", "win").size() == 14);
+    // The tables grow with every stable release, so don't count them.
+    std::vector<Release> dda = stable_releases("dda", "linux");
+    REQUIRE(dda.size() >= 10);
+    bool found_herbert = false;
+    for (size_t i = 0; i < dda.size(); ++i)
+    {
+        REQUIRE(!dda[i].url.empty());
+        REQUIRE(!dda[i].filename.empty());
+        if (dda[i].name == "0.H Herbert")
+            found_herbert = true;
+    }
+    REQUIRE(found_herbert);
+    REQUIRE(stable_releases("bn", "win").size() >= 14);
     REQUIRE(stable_releases("eod", "linux").empty());
 }
 
@@ -77,7 +87,7 @@ TEST_CASE("fetch stable list")
 
     REQUIRE(mgr.get("dda-stable").empty());
     REQUIRE(mgr.fetch("dda-stable"));
-    REQUIRE(mgr.get("dda-stable").size() == 10);
+    REQUIRE(mgr.get("dda-stable").size() >= 10);
     REQUIRE(!mgr.fetch("garbage"));
 }
 
