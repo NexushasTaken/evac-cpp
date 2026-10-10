@@ -40,8 +40,8 @@ private:
     void on_game_selected();
     void on_channel_toggled();
     void on_build_selected();
-    void on_update_current_toggled();
-    void on_install_clicked();
+    void on_install_new_clicked();
+    void on_update_clicked();
     void on_play_clicked();
     void on_resume_clicked();
     void on_make_active_clicked();
@@ -49,6 +49,7 @@ private:
     void on_installs_row_selected(Gtk::ListBoxRow* row);
     void on_installs_row_activated(Gtk::ListBoxRow* row);
 
+    void install_selected(bool update_active);
     void confirm_game_safe_to_delete(const std::string& install_name, const std::function<void(bool)>& answer);
     void start_game(const std::string& world);
     void open_folder(const std::string& dir);
@@ -61,6 +62,7 @@ private:
     Gtk::Window& parent_;
 
     bool updating_;  // True while we change widgets ourselves, so handlers do nothing.
+    int had_install_;  // -1 before the first refresh, then 0 or 1. Used to open/close the install section once.
     std::vector<Release> releases_;
     Paths::InstallsSummary installs_;
     std::vector<std::string> install_names_;  // Same order as the rows in installs_list_.
@@ -68,21 +70,28 @@ private:
     Gtk::Box content_;
     Gtk::DropDown game_dropdown_;
     Gtk::Label description_;
-    Gtk::CheckButton stable_button_;
-    Gtk::CheckButton experimental_button_;
-    Gtk::Button refresh_button_;
-    Gtk::DropDown builds_dropdown_;
-    Gtk::CheckButton update_current_check_;
-    Gtk::Button install_button_;
-    Gtk::Label active_install_label_;
-    Gtk::Button game_dir_button_;
-    Gtk::Button user_dir_button_;
+
+    // Play section.
+    Gtk::Label active_title_;
     Gtk::Button play_button_;
     Gtk::Button resume_button_;
+    Gtk::MenuButton folder_menu_button_;
+    Gtk::Box play_box_;
+
+    // Installed versions.
     Gtk::Box installs_box_;
     Gtk::ListBox installs_list_;
     Gtk::Button make_active_button_;
     Gtk::Button delete_button_;
+
+    // Install / update section.
+    Gtk::Expander install_expander_;
+    Gtk::CheckButton stable_button_;
+    Gtk::CheckButton experimental_button_;
+    Gtk::Button refresh_button_;
+    Gtk::DropDown builds_dropdown_;
+    Gtk::Button install_new_button_;
+    Gtk::Button update_button_;
 };
 
 #endif

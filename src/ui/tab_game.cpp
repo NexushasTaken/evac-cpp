@@ -15,7 +15,9 @@ TabGame::TabGame(AppContext& ctx, TaskRunner& runner, Gtk::Window& parent)
       runner_(runner),
       parent_(parent),
       updating_(false),
-      content_(Gtk::Orientation::VERTICAL, 8),
+      had_install_(-1),
+      content_(Gtk::Orientation::VERTICAL, 12),
+      play_box_(Gtk::Orientation::VERTICAL, 8),
       installs_box_(Gtk::Orientation::VERTICAL, 4)
 {
     build_ui();
@@ -26,7 +28,7 @@ void TabGame::build_ui()
     content_.set_margin(12);
     append(content_);
 
-    // Game choice and description.
+    // 1. Game choice and description.
     Glib::RefPtr<Gtk::StringList> games = Gtk::StringList::create(std::vector<Glib::ustring>());
     const std::vector<GameInfo>& all = all_games();
     for (size_t i = 0; i < all.size(); ++i)
@@ -46,70 +48,49 @@ void TabGame::build_ui()
     description_.set_selectable(true);
     content_.append(description_);
 
-    // Channel and build choice.
-    stable_button_.set_label("Stable");
-    stable_button_.set_tooltip_text("Stable release channel (DDA and BN only).");
-    experimental_button_.set_label("Experimental");
-    experimental_button_.set_tooltip_text("Experimental release channel.");
-    experimental_button_.set_group(stable_button_);
-    refresh_button_.set_label("Refresh");
-    refresh_button_.set_tooltip_text("Re-retrieve the list of available game releases\nfrom GitHub (only for experimental releases).");
-
-    Gtk::Box* channel_row = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 8);
-    channel_row->append(*make_label("Channel:"));
-    channel_row->append(stable_button_);
-    channel_row->append(experimental_button_);
-    refresh_button_.set_hexpand(true);
-    refresh_button_.set_halign(Gtk::Align::END);
-    channel_row->append(refresh_button_);
-    content_.append(*channel_row);
-
-    builds_dropdown_.set_model(Gtk::StringList::create(std::vector<Glib::ustring>()));
-    builds_dropdown_.set_hexpand(true);
-    builds_dropdown_.set_tooltip_text("Choose which release of the game to install or update to.");
-    Gtk::Box* builds_row = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 8);
-    builds_row->append(*make_label("Available builds:"));
-    builds_row->append(builds_dropdown_);
-    content_.append(*builds_row);
-
-    update_current_check_.set_label("Update current active install");
-    update_current_check_.set_tooltip_text(
-        "If checked, the game install currently set as active\nwill be replaced with the version selected above.\n"
-        "Otherwise, the selected build will be a new,\nseparate install of the game.");
-    content_.append(update_current_check_);
-
-    install_button_.set_label("Install Selected");
-    install_button_.set_tooltip_text("Install selected game release.");
-    content_.append(install_button_);
-
-    content_.append(*Gtk::make_managed<Gtk::Separator>());
-
-    // The active install.
-    game_dir_button_.set_label("Game folder");
-    game_dir_button_.set_tooltip_text("Open game installation directory (contains\ngame executable and built-in game content).");
-    user_dir_button_.set_label("User data folder");
-    user_dir_button_.set_tooltip_text("Open user data directory (contains saves, \ngame configuration, user mods, sound, etc.)");
-    Gtk::Box* active_row = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 8);
-    active_row->append(*make_label("Active install:"));
-    active_install_label_.set_xalign(0.0f);
-    active_install_label_.set_hexpand(true);
-    active_row->append(active_install_label_);
-    active_row->append(game_dir_button_);
-    active_row->append(user_dir_button_);
-    content_.append(*active_row);
+    // 2. Play: the thing you do most often, so it comes first.
+    active_title_.set_xalign(0.0f);
+    active_title_.add_css_class("title-3");
+    play_box_.append(active_title_);
 
     play_button_.set_label("Play");
     play_button_.set_tooltip_text("Launch the game.");
+    play_button_.add_css_class("suggested-action");
+    play_button_.set_hexpand(true);
     resume_button_.set_label("Resume Last World");
     resume_button_.set_tooltip_text("Skip main menu and quick-load last played world.");
-    Gtk::Box* play_row = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 8);
-    play_button_.set_hexpand(true);
     resume_button_.set_hexpand(true);
+
+    // The folder buttons are rarely needed, so they hide in a menu.
+    Gtk::Popover* popover = Gtk::make_managed<Gtk::Popover>();
+    Gtk::Box* popover_box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 4);
+    popover_box->set_margin(6);
+    Gtk::Button* game_dir_button = Gtk::make_managed<Gtk::Button>("Game folder");
+    game_dir_button->set_tooltip_text("Open game installation directory (contains\ngame executable and built-in game content).");
+    Gtk::Button* user_dir_button = Gtk::make_managed<Gtk::Button>("User data folder");
+    user_dir_button->set_tooltip_text("Open user data directory (contains saves, \ngame configuration, user mods, sound, etc.)");
+    popover_box->append(*game_dir_button);
+    popover_box->append(*user_dir_button);
+    popover->set_child(*popover_box);
+    folder_menu_button_.set_label("Open folder");
+    folder_menu_button_.set_popover(*popover);
+    game_dir_button->signal_clicked().connect([this, popover]() {
+        popover->popdown();
+        open_folder(ctx_.paths.game_dir());
+    });
+    user_dir_button->signal_clicked().connect([this, popover]() {
+        popover->popdown();
+        open_folder(ctx_.paths.userdata());
+    });
+
+    Gtk::Box* play_row = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 8);
     play_row->append(play_button_);
     play_row->append(resume_button_);
-    content_.append(*play_row);
+    play_row->append(folder_menu_button_);
+    play_box_.append(*play_row);
+    content_.append(play_box_);
 
-    // The installs, only shown when there is more than one (or if asked for).
+    // 3. The installs, only shown when there is more than one (or if asked for).
     installs_box_.append(*make_label("Installed versions:"));
     Gtk::ScrolledWindow* scroller = Gtk::make_managed<Gtk::ScrolledWindow>();
     scroller->set_min_content_height(90);
@@ -120,6 +101,7 @@ void TabGame::build_ui()
     make_active_button_.set_label("Make active");
     make_active_button_.set_tooltip_text("Set the selected game install as active (i.e. in use).");
     delete_button_.set_label("Delete");
+    delete_button_.add_css_class("destructive-action");
     delete_button_.set_tooltip_text("Delete the selected copy of the game.\n(Saves, settings and other user data\nare stored separately and will not be lost.)");
     Gtk::Box* installs_buttons = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 8);
     make_active_button_.set_hexpand(true);
@@ -128,6 +110,50 @@ void TabGame::build_ui()
     installs_buttons->append(delete_button_);
     installs_box_.append(*installs_buttons);
     content_.append(installs_box_);
+
+    // 4. Install / update. A grid keeps the labels and widgets aligned.
+    stable_button_.set_label("Stable");
+    stable_button_.set_tooltip_text("Stable release channel (DDA and BN only).");
+    experimental_button_.set_label("Experimental");
+    experimental_button_.set_tooltip_text("Experimental release channel.");
+    experimental_button_.set_group(stable_button_);
+    refresh_button_.set_icon_name("view-refresh-symbolic");
+    refresh_button_.set_tooltip_text("Re-retrieve the list of available game releases\nfrom GitHub (only for experimental releases).");
+
+    Gtk::Box* channel_box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 8);
+    channel_box->append(stable_button_);
+    channel_box->append(experimental_button_);
+    refresh_button_.set_hexpand(true);
+    refresh_button_.set_halign(Gtk::Align::END);
+    channel_box->append(refresh_button_);
+
+    builds_dropdown_.set_model(Gtk::StringList::create(std::vector<Glib::ustring>()));
+    builds_dropdown_.set_hexpand(true);
+    builds_dropdown_.set_tooltip_text("Choose which release of the game to install or update to.");
+
+    install_new_button_.set_label("Install as New");
+    install_new_button_.set_tooltip_text("Install the selected build as a new, separate copy of the game.");
+    install_new_button_.set_hexpand(true);
+    update_button_.set_label("Update Active Install");
+    update_button_.set_tooltip_text("Replace the game install currently set as active\nwith the selected build.");
+    update_button_.set_hexpand(true);
+    Gtk::Box* install_buttons = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 8);
+    install_buttons->append(install_new_button_);
+    install_buttons->append(update_button_);
+
+    Gtk::Grid* grid = Gtk::make_managed<Gtk::Grid>();
+    grid->set_row_spacing(8);
+    grid->set_column_spacing(8);
+    grid->set_margin_top(8);
+    grid->attach(*make_label("Channel:"), 0, 0);
+    grid->attach(*channel_box, 1, 0);
+    grid->attach(*make_label("Build:"), 0, 1);
+    grid->attach(builds_dropdown_, 1, 1);
+    grid->attach(*install_buttons, 0, 2, 2, 1);
+
+    install_expander_.set_label("Install / update");
+    install_expander_.set_child(*grid);
+    content_.append(install_expander_);
 
     // Signals. These are connected after the initial state is set, see start().
 }
@@ -141,23 +167,20 @@ void TabGame::start()
         if (all[i].key == game)
             game_dropdown_.set_selected((guint)i);
     }
-    update_current_check_.set_active(ctx_.settings.get_bool("update_current_when_installing"));
     description_.set_visible(ctx_.settings.get_bool("show_game_desc"));
 
     game_dropdown_.property_selected().signal_changed().connect(sigc::mem_fun(*this, &TabGame::on_game_selected));
     stable_button_.signal_toggled().connect(sigc::mem_fun(*this, &TabGame::on_channel_toggled));
     builds_dropdown_.property_selected().signal_changed().connect(sigc::mem_fun(*this, &TabGame::on_build_selected));
-    update_current_check_.signal_toggled().connect(sigc::mem_fun(*this, &TabGame::on_update_current_toggled));
     refresh_button_.signal_clicked().connect(sigc::mem_fun(*this, &TabGame::fetch_releases));
-    install_button_.signal_clicked().connect(sigc::mem_fun(*this, &TabGame::on_install_clicked));
+    install_new_button_.signal_clicked().connect(sigc::mem_fun(*this, &TabGame::on_install_new_clicked));
+    update_button_.signal_clicked().connect(sigc::mem_fun(*this, &TabGame::on_update_clicked));
     play_button_.signal_clicked().connect(sigc::mem_fun(*this, &TabGame::on_play_clicked));
     resume_button_.signal_clicked().connect(sigc::mem_fun(*this, &TabGame::on_resume_clicked));
     make_active_button_.signal_clicked().connect(sigc::mem_fun(*this, &TabGame::on_make_active_clicked));
     delete_button_.signal_clicked().connect(sigc::mem_fun(*this, &TabGame::on_delete_clicked));
     installs_list_.signal_row_selected().connect(sigc::mem_fun(*this, &TabGame::on_installs_row_selected));
     installs_list_.signal_row_activated().connect(sigc::mem_fun(*this, &TabGame::on_installs_row_activated));
-    game_dir_button_.signal_clicked().connect([this]() { open_folder(ctx_.paths.game_dir()); });
-    user_dir_button_.signal_clicked().connect([this]() { open_folder(ctx_.paths.userdata()); });
 
     apply_game_choice();
 }
@@ -264,10 +287,19 @@ void TabGame::refresh_installed()
         std::map<std::string, std::string>::const_iterator it;
         for (it = g->second.begin(); it != g->second.end(); ++it)
         {
+            Gtk::Box* row = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 8);
             Gtk::Label* label = Gtk::make_managed<Gtk::Label>(it->first);
             label->set_xalign(0.0f);
-            label->set_tooltip_text("Location:\n" + it->second + "\n(double-click to open folder)");
-            installs_list_.append(*label);
+            label->set_hexpand(true);
+            row->append(*label);
+            if (it->first == active)
+            {
+                Gtk::Label* tag = Gtk::make_managed<Gtk::Label>("active");
+                tag->add_css_class("dim-label");
+                row->append(*tag);
+            }
+            row->set_tooltip_text("Location:\n" + it->second + "\n(double-click to open folder)");
+            installs_list_.append(*row);
             install_names_.push_back(it->first);
         }
     }
@@ -275,24 +307,32 @@ void TabGame::refresh_installed()
     delete_button_.set_sensitive(false);
     installs_box_.set_visible((have_install && g->second.size() > 1) || ctx_.settings.get_bool("always_show_installs"));
 
-    // The active install.
-    active_install_label_.set_text(have_install ? active : "None");
-    game_dir_button_.set_visible(have_install);
-    user_dir_button_.set_visible(have_install);
+    // The play section.
+    active_title_.set_text(have_install ? active : "No game installed yet");
+    if (have_install)
+        active_title_.remove_css_class("dim-label");
+    else
+        active_title_.add_css_class("dim-label");
+    folder_menu_button_.set_visible(have_install);
     play_button_.set_sensitive(have_install);
     resume_button_.set_sensitive(have_install && ctx_.launcher.has_last_world());
 
-    // The install button depends on the selected build.
+    // The install buttons depend on the selected build.
     guint selected = builds_dropdown_.get_selected();
     bool build_selected = (selected != GTK_INVALID_LIST_POSITION && selected < releases_.size());
     bool same_build_installed = build_selected && have_install
                                 && g->second.find(releases_[selected].name) != g->second.end()
                                 && !ctx_.settings.get_bool("update_to_same_build_allowed");
 
-    update_current_check_.set_sensitive(have_install && !same_build_installed);
-    bool updating_active = have_install && update_current_check_.get_active();
-    install_button_.set_label(updating_active ? "Update to Selected" : "Install Selected");
-    install_button_.set_sensitive(build_selected && !same_build_installed);
+    install_new_button_.set_sensitive(build_selected && !same_build_installed);
+    update_button_.set_sensitive(build_selected && have_install && !same_build_installed);
+
+    // Open the install section when there is nothing installed, close it once there is.
+    if (had_install_ != (have_install ? 1 : 0))
+    {
+        had_install_ = have_install ? 1 : 0;
+        install_expander_.set_expanded(!have_install);
+    }
 
     updating_ = false;
     ctx_.settings.save();
@@ -336,14 +376,6 @@ void TabGame::on_build_selected()
     refresh_installed();
 }
 
-void TabGame::on_update_current_toggled()
-{
-    if (updating_)
-        return;
-    ctx_.settings.set_bool("update_current_when_installing", update_current_check_.get_active());
-    refresh_installed();
-}
-
 void TabGame::on_installs_row_selected(Gtk::ListBoxRow*)
 {
     if (updating_)
@@ -375,7 +407,17 @@ void TabGame::on_make_active_clicked()
     refresh_installed();
 }
 
-void TabGame::on_install_clicked()
+void TabGame::on_install_new_clicked()
+{
+    install_selected(false);
+}
+
+void TabGame::on_update_clicked()
+{
+    install_selected(true);
+}
+
+void TabGame::install_selected(bool update_active)
 {
     guint selected = builds_dropdown_.get_selected();
     if (selected == GTK_INVALID_LIST_POSITION || selected >= releases_.size())
@@ -384,7 +426,7 @@ void TabGame::on_install_clicked()
 
     std::string update_path;
     std::string active_name;
-    if (ctx_.settings.get_bool("update_current_when_installing"))
+    if (update_active)
     {
         std::string game = ctx_.settings.get_string("game");
         active_name = ctx_.settings.get_string("active_install_" + game);
