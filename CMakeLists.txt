@@ -28,7 +28,9 @@ add_library(catapult_core STATIC
     src/core/release_data.cpp
     src/core/release_manager.cpp
     src/core/release_installer.cpp
-    src/core/game_launcher.cpp)
+    src/core/game_launcher.cpp
+    src/core/font_manager.cpp)
+target_compile_definitions(catapult_core PRIVATE CATAPULT_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
 target_include_directories(catapult_core PUBLIC src)
 target_link_libraries(catapult_core PUBLIC
     CURL::libcurl nlohmann_json::nlohmann_json LibArchive::LibArchive spdlog::spdlog)
@@ -37,9 +39,14 @@ add_executable(catapult
     src/main.cpp
     src/ui/main_window.cpp
     src/ui/tab_game.cpp
+    src/ui/tab_fonts.cpp
     src/ui/log_view.cpp
     src/ui/task_runner.cpp)
 target_link_libraries(catapult PRIVATE catapult_core PkgConfig::GTKMM)
+
+# The bundled data (fonts, ...) goes next to the executable.
+add_custom_command(TARGET catapult POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/data $<TARGET_FILE_DIR:catapult>/data)
 
 enable_testing()
 add_executable(core_tests
@@ -48,6 +55,7 @@ add_executable(core_tests
     tests/test_settings_paths.cpp
     tests/test_fs_archive.cpp
     tests/test_http.cpp
-    tests/test_releases.cpp)
+    tests/test_releases.cpp
+    tests/test_fonts.cpp)
 target_link_libraries(core_tests PRIVATE catapult_core Catch2::Catch2WithMain)
 add_test(NAME core_tests COMMAND core_tests)

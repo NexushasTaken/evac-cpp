@@ -7,6 +7,10 @@
 
 namespace fs = std::filesystem;
 
+#ifndef CATAPULT_DATA_DIR
+#define CATAPULT_DATA_DIR ""
+#endif
+
 static const char* const GAMES[] = {"dda", "bn", "eod", "tish", "tlg"};
 
 Paths::Paths(const std::string& own_dir, Settings& settings, Status& status)
@@ -86,6 +90,14 @@ std::string Paths::game_base_dir()
 std::string Paths::own_dir() const { return own_dir_; }
 std::string Paths::cache_dir() const { return own_dir_ + "/cache"; }
 std::string Paths::utils_dir() const { return own_dir_ + "/utils"; }
+
+std::string Paths::data_dir() const
+{
+    std::string local = own_dir_ + "/data";
+    if (fs::is_directory(local))
+        return local;
+    return CATAPULT_DATA_DIR;
+}
 
 std::string Paths::game_dir()
 {

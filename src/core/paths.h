@@ -44,6 +44,9 @@ public:
     std::string mod_repo();
     std::string tmp_dir();
     std::string utils_dir() const;
+    // Files that ship with the launcher (bundled fonts, ...): <own_dir>/data if
+    // it exists, otherwise the data directory the build was made from.
+    std::string data_dir() const;
     std::string save_backups();
 
 private:

@@ -3,6 +3,7 @@
 
 #include <string>
 
+#include "core/font_manager.h"
 #include "core/game_launcher.h"
 #include "core/paths.h"
 #include "core/release_installer.h"
@@ -19,7 +20,8 @@ struct AppContext
           paths(own_dir, settings, status),
           releases(settings, status),
           installer(settings, paths, status),
-          launcher(settings, paths, status)
+          launcher(settings, paths, status),
+          fonts(paths, status)
     {
         settings.load();
     }
@@ -30,6 +32,7 @@ struct AppContext
     ReleaseManager releases;
     ReleaseInstaller installer;
     GameLauncher launcher;
+    FontManager fonts;
 };
 
 #endif
