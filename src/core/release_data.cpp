@@ -2,6 +2,9 @@
 #include "core/release_data.h"
 
 static const StableRelease DDA_STABLE_LINUX[] = {
+    {"0.I Ito",
+     "https://github.com/CleverRaven/Cataclysm-DDA/releases/download/0.I-1/cdda-linux-with-graphics-x64-2026-09-19-2324.tar.gz",
+     "cdda-linux-with-graphics-x64-2026-09-19-2324.tar.gz"},
     {"0.H Herbert",
      "https://github.com/CleverRaven/Cataclysm-DDA/releases/download/0.H-RELEASE/cdda-linux-with-graphics-x64-2024-11-23-1857.tar.gz",
      "cdda-linux-with-graphics-x64-2024-11-23-1857.tar.gz"},
@@ -35,6 +38,9 @@ static const StableRelease DDA_STABLE_LINUX[] = {
 };
 
 static const StableRelease DDA_STABLE_WIN[] = {
+    {"0.I Ito",
+     "https://github.com/CleverRaven/Cataclysm-DDA/releases/download/0.I-1/cdda-windows-with-graphics-x64-2026-09-19-2324.zip",
+     "cdda-windows-with-graphics-x64-2026-09-19-2324.zip"},
     {"0.H Herbert",
      "https://github.com/CleverRaven/Cataclysm-DDA/releases/download/0.H-RELEASE/cdda-windows-with-graphics-x64-2024-11-23-1857.zip",
      "cdda-windows-with-graphics-x64-2024-11-23-1857.zip"},
