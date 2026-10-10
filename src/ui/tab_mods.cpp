@@ -60,52 +60,84 @@ void TabMods::build_ui()
 
     Gtk::Box* columns = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 12);
     columns->set_vexpand(true);
+    columns->set_homogeneous(true);
     content_.append(*columns);
+
+    // Both columns have the same structure: header, list, footer.
 
     // Installed mods.
     Gtk::Box* left = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 6);
-    left->set_hexpand(true);
     installed_caption_.set_xalign(0.0f);
-    left->append(installed_caption_);
+    installed_caption_.set_hexpand(true);
+    installed_caption_.add_css_class("heading");
+    Gtk::Box* left_header = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 6);
+    left_header->append(installed_caption_);
+    left->append(*left_header);
+
     Gtk::ScrolledWindow* installed_scroller = Gtk::make_managed<Gtk::ScrolledWindow>();
     installed_scroller->set_vexpand(true);
     installed_scroller->set_has_frame(true);
     installed_scroller->set_child(installed_list_);
     left->append(*installed_scroller);
+
     show_stock_check_.set_label("Show stock");
     show_stock_check_.set_tooltip_text("Show mods from data/mods on this list.");
-    left->append(show_stock_check_);
+    show_stock_check_.set_hexpand(true);
+    show_stock_check_.set_valign(Gtk::Align::CENTER);
     delete_button_.set_label("Delete Selected");
     delete_button_.set_tooltip_text("Remove selected mods from your game installation.");
-    left->append(delete_button_);
+    delete_button_.add_css_class("destructive-action");
+    Gtk::Box* left_footer = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 6);
+    left_footer->append(show_stock_check_);
+    left_footer->append(delete_button_);
+    left->append(*left_footer);
     columns->append(*left);
 
     // The local repository.
     Gtk::Box* right = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 6);
-    right->set_hexpand(true);
     available_caption_.set_xalign(0.0f);
-    right->append(available_caption_);
+    available_caption_.set_hexpand(true);
+    available_caption_.add_css_class("heading");
+    kenan_button_.set_label("Get Kenan Modpack");
+    kenan_button_.set_tooltip_text("Download Kenan Modpack and add its mods\nto the local repository.");
+    Gtk::Box* right_header = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 6);
+    right_header->append(available_caption_);
+    right_header->append(kenan_button_);
+    right->append(*right_header);
+
     Gtk::ScrolledWindow* available_scroller = Gtk::make_managed<Gtk::ScrolledWindow>();
     available_scroller->set_vexpand(true);
     available_scroller->set_has_frame(true);
     available_scroller->set_child(available_list_);
     right->append(*available_scroller);
+
     show_installed_check_.set_label("Show already installed");
     show_installed_check_.set_tooltip_text("Show already installed mods on this list\nin case you want to re-install them.");
-    right->append(show_installed_check_);
-    Gtk::Box* add_row = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 6);
-    add_row->set_homogeneous(true);
-    add_selected_button_.set_label("Add Selected");
-    add_selected_button_.set_tooltip_text("Add selected mods to your game installation.");
+    show_installed_check_.set_hexpand(true);
+    show_installed_check_.set_valign(Gtk::Align::CENTER);
     add_all_button_.set_label("Add All");
     add_all_button_.set_tooltip_text("Add all listed mods to your game installation.");
-    add_row->append(add_selected_button_);
-    add_row->append(add_all_button_);
-    right->append(*add_row);
-    kenan_button_.set_label("Get Kenan Modpack");
-    kenan_button_.set_tooltip_text("Download Kenan Modpack and add its mods\nto the local repository.");
-    right->append(kenan_button_);
+    add_selected_button_.set_label("Add Selected");
+    add_selected_button_.set_tooltip_text("Add selected mods to your game installation.");
+    add_selected_button_.add_css_class("suggested-action");
+    Gtk::Box* right_footer = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 6);
+    right_footer->append(show_installed_check_);
+    right_footer->append(add_all_button_);
+    right_footer->append(add_selected_button_);
+    right->append(*right_footer);
     columns->append(*right);
+
+    // Empty lists say what to do.
+    Gtk::Label* installed_placeholder = Gtk::make_managed<Gtk::Label>("No mods installed.");
+    installed_placeholder->add_css_class("dim-label");
+    installed_placeholder->set_margin(12);
+    installed_list_.set_placeholder(*installed_placeholder);
+    Gtk::Label* available_placeholder =
+        Gtk::make_managed<Gtk::Label>("The local repository is empty.\nUse Get Kenan Modpack to fill it.");
+    available_placeholder->add_css_class("dim-label");
+    available_placeholder->set_justify(Gtk::Justification::CENTER);
+    available_placeholder->set_margin(12);
+    available_list_.set_placeholder(*available_placeholder);
 
     // Details of the selected mod.
     info_label_.set_wrap(true);
@@ -184,11 +216,20 @@ void TabMods::fill_list(Gtk::ListBox& list, const std::vector<ModRow>& rows)
         list.remove(*row);
     for (size_t i = 0; i < rows.size(); ++i)
     {
+        Gtk::Box* box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 8);
         Gtk::Label* label = make_label(rows[i].name);
-        label->set_tooltip_text("Location: " + rows[i].location);
+        label->set_hexpand(true);
+        box->append(*label);
+        if (!rows[i].badge.empty())
+        {
+            Gtk::Label* badge = Gtk::make_managed<Gtk::Label>(rows[i].badge);
+            badge->add_css_class("dim-label");
+            box->append(*badge);
+        }
+        box->set_tooltip_text("Location: " + rows[i].location);
         if (rows[i].greyed)
-            label->set_sensitive(false);
-        list.append(*label);
+            box->set_sensitive(false);
+        list.append(*box);
     }
     updating_ = false;
 }
@@ -236,6 +277,8 @@ void TabMods::reload_installed()
             row.name += " [obsolete]";
         row.location = it->second.location;
         row.greyed = it->second.is_stock;
+        if (row.greyed)
+            row.badge = "stock";
         installed_rows_.push_back(row);
     }
     std::sort(installed_rows_.begin(), installed_rows_.end(),
@@ -273,6 +316,8 @@ void TabMods::reload_available()
         row.name = it->second.name;
         row.location = it->second.location;
         row.greyed = !installable;
+        if (row.greyed)
+            row.badge = "installed";
         available_rows_.push_back(row);
     }
     std::sort(available_rows_.begin(), available_rows_.end(),

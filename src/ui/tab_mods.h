@@ -30,6 +30,7 @@ private:
         std::string name;
         std::string location;
         bool greyed;
+        std::string badge;  // Why the row is greyed, shown next to the name.
     };
 
     void build_ui();
