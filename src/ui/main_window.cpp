@@ -2,10 +2,15 @@
 
 MainWindow::MainWindow(AppContext& ctx)
     : ctx_(ctx),
+      page_refresh_pending_(false),
       runner_(ctx.status),
       layout_(Gtk::Orientation::VERTICAL),
       tab_game_(ctx, runner_, *this),
+      tab_mods_(ctx, runner_, *this),
+      tab_soundpacks_(ctx, runner_, *this),
       tab_fonts_(ctx),
+      tab_backups_(ctx, runner_, *this),
+      tab_settings_(ctx),
       log_view_(ctx.status)
 {
     set_title("Catapult \xe2\x80\x94 a launcher for Cataclysm: DDA and BN");
@@ -14,18 +19,18 @@ MainWindow::MainWindow(AppContext& ctx)
     tabs_.set_vexpand(true);
     tabs_.append_page(tab_game_, "Game");
 
-    // The tabs that are not ported yet are empty placeholders.
-    add_placeholder_tab("Mods");
-    add_placeholder_tab("Soundpacks");
+    tabs_.append_page(tab_mods_, "Mods");
+    tabs_.append_page(tab_soundpacks_, "Soundpacks");
     tabs_.append_page(tab_fonts_, "Fonts");
-    add_placeholder_tab("Backups");
-    add_placeholder_tab("Settings");
+    tabs_.append_page(tab_backups_, "Backups");
+    tabs_.append_page(tab_settings_, "Settings");
 
     layout_.append(tabs_);
     layout_.append(log_view_);
     set_child(layout_);
 
     tabs_.signal_switch_page().connect(sigc::mem_fun(*this, &MainWindow::on_switch_page));
+    runner_.signal_finished().connect(sigc::mem_fun(*this, &MainWindow::on_task_finished));
     signal_close_request().connect(sigc::mem_fun(*this, &MainWindow::on_close), false);
 
     ctx_.status.post("Welcome to Catapult!");
@@ -40,22 +45,49 @@ bool MainWindow::on_close()
     {
         ctx_.releases.cancel();
         ctx_.installer.cancel();
+        ctx_.soundpacks.cancel();
+        ctx_.mods.cancel();
         runner_.wait();
     }
     ctx_.settings.save();
     return false;
 }
 
-void MainWindow::add_placeholder_tab(const char* title)
+void MainWindow::on_switch_page(Gtk::Widget* page, guint)
 {
-    Gtk::Label* label = Gtk::make_managed<Gtk::Label>("Not implemented yet.");
-    label->set_sensitive(false);
-    tabs_.append_page(*label, title);
+    log_view_.set_visible(page != &tab_settings_);  // The log is not needed next to the settings.
+
+    // A running job is changing the files and lists that the tabs show, so
+    // wait until it is over.
+    if (runner_.busy())
+    {
+        page_refresh_pending_ = true;
+        return;
+    }
+    show_page(page);
+}
+
+void MainWindow::on_task_finished()
+{
+    if (!page_refresh_pending_)
+        return;
+    page_refresh_pending_ = false;
+    show_page(tabs_.get_nth_page(tabs_.get_current_page()));
 }
 
 // Tabs read the game's files when they are shown, as these can change at any time.
-void MainWindow::on_switch_page(Gtk::Widget* page, guint)
+void MainWindow::show_page(Gtk::Widget* page)
 {
-    if (page == &tab_fonts_)
+    if (page == &tab_game_)
+        tab_game_.apply_settings();
+    else if (page == &tab_mods_)
+        tab_mods_.refresh();
+    else if (page == &tab_soundpacks_)
+        tab_soundpacks_.refresh();
+    else if (page == &tab_fonts_)
         tab_fonts_.refresh();
+    else if (page == &tab_backups_)
+        tab_backups_.refresh();
+    else if (page == &tab_settings_)
+        tab_settings_.load_from_settings();
 }

@@ -21,6 +21,9 @@ public:
     // Call once after the window exists; loads the release list.
     void start();
 
+    // Call when settings that the tab depends on may have changed (on the Settings tab).
+    void apply_settings();
+
 private:
     void build_ui();
 

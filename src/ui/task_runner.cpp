@@ -43,6 +43,7 @@ void TaskRunner::on_finished()
     done_ = nullptr;
     if (done)
         done();
+    finished_.emit();
 }
 
 void TaskRunner::wait()

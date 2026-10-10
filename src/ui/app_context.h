@@ -3,12 +3,15 @@
 
 #include <string>
 
+#include "core/backup_manager.h"
 #include "core/font_manager.h"
 #include "core/game_launcher.h"
+#include "core/mod_manager.h"
 #include "core/paths.h"
 #include "core/release_installer.h"
 #include "core/release_manager.h"
 #include "core/settings.h"
+#include "core/soundpack_manager.h"
 #include "core/status.h"
 
 // Everything the UI needs from the core, created once in main().
@@ -21,7 +24,10 @@ struct AppContext
           releases(settings, status),
           installer(settings, paths, status),
           launcher(settings, paths, status),
-          fonts(paths, status)
+          fonts(paths, status),
+          soundpacks(settings, paths, status),
+          mods(settings, paths, status),
+          backups(settings, paths, status)
     {
         settings.load();
     }
@@ -33,6 +39,9 @@ struct AppContext
     ReleaseInstaller installer;
     GameLauncher launcher;
     FontManager fonts;
+    SoundpackManager soundpacks;
+    ModManager mods;
+    BackupManager backups;
 };
 
 #endif

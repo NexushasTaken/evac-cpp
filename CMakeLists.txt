@@ -29,7 +29,11 @@ add_library(catapult_core STATIC
     src/core/release_manager.cpp
     src/core/release_installer.cpp
     src/core/game_launcher.cpp
-    src/core/font_manager.cpp)
+    src/core/font_manager.cpp
+    src/core/soundpack_data.cpp
+    src/core/soundpack_manager.cpp
+    src/core/mod_manager.cpp
+    src/core/backup_manager.cpp)
 target_compile_definitions(catapult_core PRIVATE CATAPULT_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
 target_include_directories(catapult_core PUBLIC src)
 target_link_libraries(catapult_core PUBLIC
@@ -40,6 +44,10 @@ add_executable(catapult
     src/ui/main_window.cpp
     src/ui/tab_game.cpp
     src/ui/tab_fonts.cpp
+    src/ui/tab_soundpacks.cpp
+    src/ui/tab_mods.cpp
+    src/ui/tab_backups.cpp
+    src/ui/tab_settings.cpp
     src/ui/log_view.cpp
     src/ui/task_runner.cpp)
 target_link_libraries(catapult PRIVATE catapult_core PkgConfig::GTKMM)
@@ -56,6 +64,9 @@ add_executable(core_tests
     tests/test_fs_archive.cpp
     tests/test_http.cpp
     tests/test_releases.cpp
-    tests/test_fonts.cpp)
+    tests/test_fonts.cpp
+    tests/test_soundpacks.cpp
+    tests/test_mods.cpp
+    tests/test_backups.cpp)
 target_link_libraries(core_tests PRIVATE catapult_core Catch2::Catch2WithMain)
 add_test(NAME core_tests COMMAND core_tests)

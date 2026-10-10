@@ -162,6 +162,12 @@ void TabGame::start()
     apply_game_choice();
 }
 
+void TabGame::apply_settings()
+{
+    description_.set_visible(ctx_.settings.get_bool("show_game_desc"));
+    refresh_installed();
+}
+
 std::string TabGame::release_key()
 {
     return ReleaseManager::make_key(ctx_.settings.get_string("game"), ctx_.settings.get_string("channel"));
