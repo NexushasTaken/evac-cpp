@@ -4,6 +4,8 @@
 #include <fstream>
 #include <sstream>
 
+#include <unistd.h>
+
 #include "core/helpers.h"
 #include "core/paths.h"
 #include "core/settings.h"
@@ -232,4 +234,195 @@ TEST_CASE("over_limit picks the oldest and keeps the newest")
 
     // over_limit only answers; nothing was deleted.
     REQUIRE(f.trash.list().size() == 3);
+}
+
+// The newest item in the trash.
+static TrashItem newest(TrashFixture& f)
+{
+    std::vector<TrashItem> items = f.trash.list();
+    REQUIRE(!items.empty());
+    return items[0];
+}
+
+TEST_CASE("restore puts things back, or next to a new copy")
+{
+    TrashFixture f("trash_restore_plain");
+    std::string sound = f.dir + "/dda/userdata/sound";
+    std::string pack = f.make_thing("dda/userdata/sound/CC-Sounds", 3);
+
+    REQUIRE(f.trash.remove(pack, "soundpack", "CC-Sounds", at(0)));
+    RestorePlan plan = f.trash.plan_restore(newest(f).id);
+    REQUIRE(plan.kind == RestorePlan::ORIGINAL);
+    REQUIRE(plan.dest == pack);
+    REQUIRE(f.trash.restore(newest(f).id, false));
+    REQUIRE(fs::exists(pack + "/data.bin"));
+    REQUIRE(f.trash.list().empty());
+    REQUIRE(Paths::list_dir(f.paths.trash_dir()).empty());  // The entry is gone too.
+
+    // Reinstalled in the meantime: the old one comes back next to it.
+    REQUIRE(f.trash.remove(pack, "soundpack", "CC-Sounds", at(1)));
+    write_file(pack + "/new.txt", "new");
+    plan = f.trash.plan_restore(newest(f).id);
+    REQUIRE(plan.kind == RestorePlan::RENAMED);
+    REQUIRE(plan.dest == pack + " (restored)");
+    REQUIRE(f.trash.restore(newest(f).id, false));
+    REQUIRE(read_file(pack + "/new.txt") == "new");
+    REQUIRE(fs::exists(pack + " (restored)/data.bin"));
+
+    // And again: the next free name.
+    REQUIRE(f.trash.remove(f.make_thing("other/CC-Sounds", 1), "soundpack", "CC-Sounds", at(2)));
+    TrashItem item = newest(f);
+    std::string info_file = f.paths.trash_dir() + "/" + item.id + "/info.json";
+    nlohmann::json info;
+    REQUIRE(load_json_file(info_file, info, f.status));
+    info["original_path"] = pack;  // As if it had come from the same place.
+    REQUIRE(save_json_file(info, info_file, f.status));
+    REQUIRE(f.trash.plan_restore(item.id).dest == pack + " (restored 2)");
+    REQUIRE(f.trash.restore(item.id, false));
+    REQUIRE(fs::exists(sound + "/CC-Sounds (restored 2)/data.bin"));
+}
+
+TEST_CASE("restoring a mod whose ID is taken needs replace")
+{
+    TrashFixture f("trash_restore_mod");
+    std::string mods = f.dir + "/dda/userdata/mods";
+    write_file(mods + "/ModA/modinfo.json", "{\"type\": \"MOD_INFO\", \"id\": \"a\", \"name\": \"Old A\"}");
+    REQUIRE(f.trash.remove(mods + "/ModA", "mod", "Old A", at(0)));
+    std::string old_id = newest(f).id;
+
+    // Another folder with the same mod ID.
+    write_file(mods + "/ModA-v2/modinfo.json", "{\"type\": \"MOD_INFO\", \"id\": \"a\", \"name\": \"New A\"}");
+    RestorePlan plan = f.trash.plan_restore(old_id);
+    REQUIRE(plan.kind == RestorePlan::CONFLICT);
+    REQUIRE(plan.conflict_path == mods + "/ModA-v2");
+    REQUIRE(plan.conflict_name == "New A");
+
+    REQUIRE(!f.trash.restore(old_id, false));  // Nothing changes without replace.
+    REQUIRE(fs::exists(mods + "/ModA-v2"));
+    REQUIRE(f.trash.list().size() == 1);
+
+    REQUIRE(f.trash.restore(old_id, true));
+    REQUIRE(fs::exists(mods + "/ModA/modinfo.json"));
+    REQUIRE(!fs::exists(mods + "/ModA-v2"));
+    std::vector<TrashItem> items = f.trash.list();
+    REQUIRE(items.size() == 1);  // The one that was replaced.
+    REQUIRE(items[0].name == "New A");
+    REQUIRE(items[0].kind == "mod");
+
+    // Another mod in a folder with the same name is not a conflict: it gets renamed.
+    REQUIRE(f.trash.remove(mods + "/ModA", "mod", "Old A", at(5)));
+    write_file(mods + "/ModA/modinfo.json", "{\"type\": \"MOD_INFO\", \"id\": \"b\", \"name\": \"B\"}");
+    plan = f.trash.plan_restore(newest(f).id);
+    REQUIRE(plan.kind == RestorePlan::RENAMED);
+    REQUIRE(plan.dest == mods + "/ModA (restored)");
+}
+
+TEST_CASE("restoring an install")
+{
+    TrashFixture f("trash_restore_install");
+    std::string base = f.dir + "/dda";
+    write_file(base + "/game0/" + INFO_FILENAME, "{\"name\": \"Build 1\"}");
+    REQUIRE(f.trash.remove(base + "/game0", "install", "Build 1", at(0)));
+    std::string id = newest(f).id;
+    REQUIRE(f.trash.plan_restore(id).kind == RestorePlan::ORIGINAL);
+
+    // Updated in the meantime: game0 holds a newer build, so it goes to game1.
+    write_file(base + "/game0/" + INFO_FILENAME, "{\"name\": \"Build 2\"}");
+    RestorePlan plan = f.trash.plan_restore(id);
+    REQUIRE(plan.kind == RestorePlan::RENAMED);
+    REQUIRE(plan.dest == base + "/game1");
+    REQUIRE(f.trash.restore(id, false));
+    Paths::InstallsSummary installs = f.paths.installs_summary();
+    REQUIRE(installs["dda"]["Build 1"] == base + "/game1");
+    REQUIRE(installs["dda"]["Build 2"] == base + "/game0");
+
+    // The same build installed again: replace or nothing.
+    REQUIRE(f.trash.remove(base + "/game1", "install", "Build 1", at(1)));
+    id = newest(f).id;
+    write_file(base + "/game2/" + INFO_FILENAME, "{\"name\": \"Build 1\"}");
+    write_file(base + "/game2/marker", "reinstalled");
+    plan = f.trash.plan_restore(id);
+    REQUIRE(plan.kind == RestorePlan::CONFLICT);
+    REQUIRE(plan.conflict_path == base + "/game2");
+    REQUIRE(!f.trash.restore(id, false));
+
+    REQUIRE(f.trash.restore(id, true));
+    REQUIRE(fs::exists(base + "/game1/" + INFO_FILENAME));
+    REQUIRE(!fs::exists(base + "/game2"));
+    REQUIRE(read_file(f.paths.trash_dir() + "/" + newest(f).id + "/item/marker") == "reinstalled");
+}
+
+TEST_CASE("restoring saves merges the worlds")
+{
+    TrashFixture f("trash_restore_saves");
+    std::string saves = f.paths.savegames();
+    write_file(saves + "/Alpha/map.dat", "alpha old");
+    write_file(saves + "/Beta/map.dat", "beta old");
+    REQUIRE(f.trash.remove(saves, "saves", "Saves before restoring x", at(0)));
+    std::string id = newest(f).id;
+
+    // No saves now: the whole directory goes back.
+    REQUIRE(f.trash.plan_restore(id).kind == RestorePlan::ORIGINAL);
+
+    // Played on: a new Alpha and a new Gamma.
+    write_file(saves + "/Alpha/map.dat", "alpha new");
+    write_file(saves + "/Gamma/map.dat", "gamma");
+    RestorePlan plan = f.trash.plan_restore(id);
+    REQUIRE(plan.kind == RestorePlan::RENAMED);
+    REQUIRE(plan.dest == saves);
+
+    REQUIRE(f.trash.restore(id, false));
+    REQUIRE(read_file(saves + "/Alpha/map.dat") == "alpha new");
+    REQUIRE(read_file(saves + "/Alpha (restored)/map.dat") == "alpha old");
+    REQUIRE(read_file(saves + "/Beta/map.dat") == "beta old");
+    REQUIRE(read_file(saves + "/Gamma/map.dat") == "gamma");
+    REQUIRE(f.trash.list().empty());
+}
+
+TEST_CASE("what can't be restored stays in the trash")
+{
+    TrashFixture f("trash_restore_impossible");
+    REQUIRE(f.trash.plan_restore("no-such-id").kind == RestorePlan::IMPOSSIBLE);
+    REQUIRE(!f.trash.restore("no-such-id", true));
+    REQUIRE(f.trash.plan_restore("../x").kind == RestorePlan::IMPOSSIBLE);
+
+    // The folder it was in is gone, e.g. the install it lived in was deleted.
+    std::string pack = f.make_thing("dda/game0/data/sound/Pack", 1);
+    REQUIRE(f.trash.remove(pack, "soundpack", "Pack", at(0)));
+    fs::remove_all(f.dir + "/dda/game0");
+    std::string id = newest(f).id;
+    REQUIRE(f.trash.plan_restore(id).kind == RestorePlan::IMPOSSIBLE);
+    REQUIRE(!f.trash.restore(id, true));
+    REQUIRE(f.trash.list().size() == 1);
+    REQUIRE(!fs::exists(f.dir + "/dda/game0"));  // Not created again.
+
+    // An info.json that points into the trash.
+    std::string info_file = f.paths.trash_dir() + "/" + id + "/info.json";
+    nlohmann::json info;
+    REQUIRE(load_json_file(info_file, info, f.status));
+    info["original_path"] = f.paths.trash_dir() + "/" + id + "/item/x";
+    REQUIRE(save_json_file(info, info_file, f.status));
+    REQUIRE(f.trash.plan_restore(id).kind == RestorePlan::IMPOSSIBLE);
+    info["original_path"] = "relative/path";
+    REQUIRE(save_json_file(info, info_file, f.status));
+    REQUIRE(f.trash.plan_restore(id).kind == RestorePlan::IMPOSSIBLE);
+}
+
+TEST_CASE("a failed restore keeps the item")
+{
+    if (geteuid() == 0)
+        SKIP("root can write anywhere");
+    TrashFixture f("trash_restore_fail");
+    std::string sound = f.dir + "/dda/userdata/sound";
+    std::string pack = f.make_thing("dda/userdata/sound/Pack", 1);
+    REQUIRE(f.trash.remove(pack, "soundpack", "Pack", at(0)));
+    std::string id = newest(f).id;
+
+    fs::permissions(sound, fs::perms::owner_read | fs::perms::owner_exec);
+    bool restored = f.trash.restore(id, false);
+    fs::permissions(sound, fs::perms::owner_all);
+    REQUIRE(!restored);
+    REQUIRE(f.trash.list().size() == 1);
+    REQUIRE(fs::exists(f.paths.trash_dir() + "/" + id + "/item/data.bin"));
+    REQUIRE(f.trash.restore(id, false));  // Works once it can.
 }

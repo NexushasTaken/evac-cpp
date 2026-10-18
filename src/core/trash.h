@@ -23,6 +23,24 @@ struct TrashItem
     std::uint64_t size = 0;     // In bytes, measured when it was moved here.
 };
 
+// What restoring an item would do. See Trash::plan_restore.
+struct RestorePlan
+{
+    enum Kind
+    {
+        ORIGINAL,    // Goes back where it was.
+        RENAMED,     // Goes back next to where it was, with " (restored)" added. For saves:
+                     // the worlds go back, and the ones whose names are taken get renamed.
+        CONFLICT,    // Something the game would mix up with it is there. Needs replace.
+        IMPOSSIBLE,  // Can't be restored, see reason.
+    };
+    Kind kind = IMPOSSIBLE;
+    std::string dest;           // ORIGINAL, RENAMED: where it goes.
+    std::string conflict_path;  // CONFLICT: what replacing would move to the trash...
+    std::string conflict_name;  // ...and its name there.
+    std::string reason;         // CONFLICT, IMPOSSIBLE: for the user.
+};
+
 // Where deleted things go, so they can be restored. These block, so use a
 // worker thread.
 class Trash
@@ -50,9 +68,25 @@ public:
     // Only answers the question: the UI asks the user, then calls delete_items.
     std::vector<TrashItem> over_limit();
 
+    // Only looks, changes nothing. By kind:
+    //  - "mod": CONFLICT when a mod with the same ID is in the mods directory.
+    //  - "install": CONFLICT when the same version is installed for that game;
+    //    otherwise its old directory, or the next free gameN.
+    //  - "saves": the whole directory if there are no saves now, else world by world.
+    //  - anything else: its old path, or RENAMED when that is taken.
+    // IMPOSSIBLE when the directory it was in is gone.
+    RestorePlan plan_restore(const std::string& id);
+
+    // Restores the item. A CONFLICT is only restored with replace, which first
+    // moves the conflicting one to the trash. If something fails, what was not
+    // moved back stays in the trash.
+    bool restore(const std::string& id, bool replace);
+
     static std::string make_id(const std::string& kind, const std::string& name, Clock::time_point when);
 
 private:
+    bool load_item(const std::string& id, TrashItem& out);
+
     Settings& settings_;
     Paths& paths_;
     Status& status_;
