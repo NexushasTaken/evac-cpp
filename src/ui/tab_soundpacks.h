@@ -34,6 +34,7 @@ private:
     void on_show_stock_toggled();
     void on_installed_selected();
     void on_available_selected();
+    void on_toggle_clicked();
     void on_delete_clicked();
     void on_install_clicked();
     void on_install_from_file_clicked();
@@ -50,6 +51,7 @@ private:
     Gtk::ListBox installed_list_;
     Gtk::ListBox available_list_;
     Gtk::CheckButton show_stock_check_;
+    Gtk::Button toggle_button_;
     Gtk::Button delete_button_;
     Gtk::Button install_button_;
     Gtk::Button install_from_file_button_;

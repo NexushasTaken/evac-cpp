@@ -39,6 +39,9 @@ void TabSoundpacks::build_ui()
     show_stock_check_.set_label("Show stock");
     show_stock_check_.set_tooltip_text("Show soundpacks from data/sound on the list.");
     left->append(show_stock_check_);
+    toggle_button_.set_label("Disable Selected");
+    toggle_button_.set_tooltip_text("Turn the selected soundpack off or on without deleting it.");
+    left->append(toggle_button_);
     delete_button_.set_label("Delete Selected");
     delete_button_.set_tooltip_text("Remove the selected soundpack from your game installation.");
     left->append(delete_button_);
@@ -72,6 +75,7 @@ void TabSoundpacks::build_ui()
     show_stock_check_.signal_toggled().connect(sigc::mem_fun(*this, &TabSoundpacks::on_show_stock_toggled));
     installed_list_.signal_row_selected().connect([this](Gtk::ListBoxRow*) { on_installed_selected(); });
     available_list_.signal_row_selected().connect([this](Gtk::ListBoxRow*) { on_available_selected(); });
+    toggle_button_.signal_clicked().connect(sigc::mem_fun(*this, &TabSoundpacks::on_toggle_clicked));
     delete_button_.signal_clicked().connect(sigc::mem_fun(*this, &TabSoundpacks::on_delete_clicked));
     install_button_.signal_clicked().connect(sigc::mem_fun(*this, &TabSoundpacks::on_install_clicked));
     install_from_file_button_.signal_clicked().connect(sigc::mem_fun(*this, &TabSoundpacks::on_install_from_file_clicked));
@@ -112,7 +116,7 @@ void TabSoundpacks::refresh_installed()
         installed_list_.remove(*row);
     for (size_t i = 0; i < installed_.size(); ++i)
     {
-        Gtk::Label* label = make_label(installed_[i].name);
+        Gtk::Label* label = make_label(installed_[i].enabled ? installed_[i].name : installed_[i].name + " (Disabled)");
         label->set_tooltip_text(installed_[i].description.empty() ? "No description provided." : installed_[i].description);
         if (installed_[i].is_stock)
             label->set_sensitive(false);  // Greyed out, like in the original.
@@ -152,7 +156,11 @@ int TabSoundpacks::selected_available()
 void TabSoundpacks::update_buttons()
 {
     int installed = selected_installed();
-    delete_button_.set_sensitive(installed >= 0 && !installed_[installed].is_stock);
+    bool can_change = (installed >= 0 && !installed_[installed].is_stock);
+    delete_button_.set_sensitive(can_change);
+    toggle_button_.set_sensitive(can_change);
+    bool disabled = (installed >= 0 && !installed_[installed].enabled);
+    toggle_button_.set_label(disabled ? "Enable Selected" : "Disable Selected");
 
     int available = selected_available();
     install_button_.set_sensitive(available >= 0);
@@ -192,6 +200,16 @@ void TabSoundpacks::run_task(const std::function<void()>& work)
     });
     if (!started)
         content_.set_sensitive(true);
+}
+
+void TabSoundpacks::on_toggle_clicked()
+{
+    int index = selected_installed();
+    if (index < 0 || installed_[index].is_stock)
+        return;
+    std::string name = installed_[index].name;
+    bool enable = !installed_[index].enabled;
+    run_task([this, name, enable]() { ctx_.soundpacks.set_enabled(name, enable); });
 }
 
 void TabSoundpacks::on_delete_clicked()

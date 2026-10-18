@@ -82,13 +82,17 @@ TEST_CASE("parse_sound_dir reads soundpack.txt")
     write_file(dir + "/a/soundpack.txt", "VIEW: Pack A\r\nDESCRIPTION: Loud and clear\r\nMODS: x\r\n");
     write_file(dir + "/b/soundpack.txt", "DESCRIPTION: No name here\n");
     write_file(dir + "/c/readme.txt", "not a soundpack");
+    write_file(dir + "/d/soundpack.txt.disabled", "VIEW: Pack D\n");
 
     std::vector<InstalledSoundpack> packs = SoundpackManager::parse_sound_dir(dir);
-    REQUIRE(packs.size() == 2);
+    REQUIRE(packs.size() == 3);
     REQUIRE(packs[0].name == "Pack A");
     REQUIRE(packs[0].description == "Loud and clear");
     REQUIRE(packs[0].location == dir + "/a");
+    REQUIRE(packs[0].enabled);
     REQUIRE(packs[1].name == "b");  // Falls back to the directory name.
+    REQUIRE(packs[2].name == "Pack D");
+    REQUIRE(!packs[2].enabled);
 
     REQUIRE(SoundpackManager::parse_sound_dir(dir + "/missing").empty());
 }
@@ -110,6 +114,40 @@ TEST_CASE("get_installed marks stock packs")
     REQUIRE(all.size() == 2);
     REQUIRE(all[1].is_stock);
     REQUIRE(all[1].name == "Stock");
+}
+
+TEST_CASE("disable and enable a soundpack")
+{
+    SoundFixture f("sound_toggle");
+    write_file(f.dir + "/dda/game0/" + INFO_FILENAME, "{\"name\": \"Test Build\"}");
+    f.paths.installs_summary();
+    std::string mine = f.paths.sound_user() + "/mine";
+    write_file(mine + "/soundpack.txt", "VIEW: Mine\n");
+    write_file(f.paths.sound_stock() + "/stock/soundpack.txt", "VIEW: Stock\n");
+
+    REQUIRE(f.sounds.set_enabled("Mine", false));
+    REQUIRE(!fs::exists(mine + "/soundpack.txt"));
+    REQUIRE(fs::exists(mine + "/soundpack.txt.disabled"));
+    std::vector<InstalledSoundpack> installed = f.sounds.get_installed(false);
+    REQUIRE(installed.size() == 1);
+    REQUIRE(!installed[0].enabled);
+
+    REQUIRE(f.sounds.set_enabled("Mine", false));  // Already disabled: nothing to do.
+    REQUIRE(fs::exists(mine + "/soundpack.txt.disabled"));
+
+    REQUIRE(f.sounds.set_enabled("Mine", true));
+    REQUIRE(fs::exists(mine + "/soundpack.txt"));
+    REQUIRE(!fs::exists(mine + "/soundpack.txt.disabled"));
+    REQUIRE(f.sounds.get_installed(false)[0].enabled);
+
+    REQUIRE(!f.sounds.set_enabled("No Such Pack", false));
+    REQUIRE(!f.sounds.set_enabled("Stock", false));  // Stock packs are left alone.
+    REQUIRE(fs::exists(f.paths.sound_stock() + "/stock/soundpack.txt"));
+
+    // A disabled pack can still be deleted.
+    REQUIRE(f.sounds.set_enabled("Mine", false));
+    REQUIRE(f.sounds.delete_pack("Mine"));
+    REQUIRE(!fs::exists(mine));
 }
 
 TEST_CASE("install from a local file, reinstall and delete")

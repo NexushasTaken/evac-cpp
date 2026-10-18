@@ -11,6 +11,8 @@ namespace fs = std::filesystem;
 
 static const char NAME_PREFIX[] = "VIEW: ";
 static const char DESC_PREFIX[] = "DESCRIPTION: ";
+static const char CONFIG_FILE[] = "soundpack.txt";
+static const char DISABLED_SUFFIX[] = ".disabled";
 
 static bool starts_with(const std::string& text, const char* prefix)
 {
@@ -35,12 +37,20 @@ std::vector<InstalledSoundpack> SoundpackManager::parse_sound_dir(const std::str
     for (size_t i = 0; i < subdirs.size(); ++i)
     {
         std::string location = sound_dir + "/" + subdirs[i];
-        std::ifstream f(location + "/soundpack.txt");
+        std::string config = location + "/" + CONFIG_FILE;
+        bool enabled = true;
+        if (!fs::exists(config))
+        {
+            config += DISABLED_SUFFIX;
+            enabled = false;
+        }
+        std::ifstream f(config);
         if (!f)
             continue;
 
         InstalledSoundpack pack;
         pack.location = location;
+        pack.enabled = enabled;
         std::string line;
         while (std::getline(f, line))
         {
@@ -74,19 +84,53 @@ std::vector<InstalledSoundpack> SoundpackManager::get_installed(bool include_sto
     return packs;
 }
 
-bool SoundpackManager::delete_pack(const std::string& pack_name)
+bool SoundpackManager::find_user_pack(const std::string& pack_name, InstalledSoundpack& out)
 {
     std::vector<InstalledSoundpack> packs = get_installed(false);
     for (size_t i = 0; i < packs.size(); ++i)
     {
         if (packs[i].name == pack_name)
         {
-            status_.post("Deleting " + packs[i].location);
-            return fs_helper::rm_dir(packs[i].location, status_);
+            out = packs[i];
+            return true;
         }
     }
     status_.post("Could not find soundpack named \"" + pack_name + "\"", MSG_ERROR);
     return false;
+}
+
+bool SoundpackManager::delete_pack(const std::string& pack_name)
+{
+    InstalledSoundpack pack;
+    if (!find_user_pack(pack_name, pack))
+        return false;
+    status_.post("Deleting " + pack.location);
+    return fs_helper::rm_dir(pack.location, status_);
+}
+
+bool SoundpackManager::set_enabled(const std::string& pack_name, bool enabled)
+{
+    InstalledSoundpack pack;
+    if (!find_user_pack(pack_name, pack))
+        return false;
+    if (pack.enabled == enabled)
+        return true;
+
+    std::string config = pack.location + "/" + CONFIG_FILE;
+    std::string disabled = config + DISABLED_SUFFIX;
+    std::error_code ec;
+    if (enabled)
+        fs::rename(disabled, config, ec);
+    else
+        fs::rename(config, disabled, ec);
+    if (ec)
+    {
+        status_.post("Could not rename the config of soundpack \"" + pack_name + "\": " + ec.message(), MSG_ERROR);
+        return false;
+    }
+
+    status_.post(std::string(enabled ? "Enabled" : "Disabled") + " soundpack \"" + pack_name + "\".");
+    return true;
 }
 
 bool SoundpackManager::install_pack(const SoundpackSource& pack, const std::string& from_file, bool reinstall,

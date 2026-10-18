@@ -28,6 +28,7 @@ struct InstalledSoundpack
     std::string description;
     std::string location;
     bool is_stock = false;  // Comes with the game, so it can't be deleted.
+    bool enabled = true;    // False when soundpack.txt is renamed to soundpack.txt.disabled.
 };
 
 // Installs and removes soundpacks. These block, so use a worker thread.
@@ -37,13 +38,17 @@ public:
     SoundpackManager(Settings& settings, Paths& paths, Status& status);
 
     // Finds the soundpacks in a directory: every subdirectory that has a
-    // soundpack.txt. Static, so it can be tested without a game install.
+    // soundpack.txt (or a soundpack.txt.disabled). Static, so it can be tested without a game install.
     static std::vector<InstalledSoundpack> parse_sound_dir(const std::string& sound_dir);
 
     // The packs in the user's sound directory, plus the ones that come with the game.
     std::vector<InstalledSoundpack> get_installed(bool include_stock);
 
     bool delete_pack(const std::string& pack_name);
+
+    // Renames soundpack.txt to soundpack.txt.disabled, or back, so the game
+    // skips the pack. Only for the user's packs, not the stock ones.
+    bool set_enabled(const std::string& pack_name, bool enabled);
 
     // Downloads the pack (or uses from_file, if not empty) and installs it.
     // With reinstall, an existing copy is removed first.
@@ -52,6 +57,9 @@ public:
     void cancel();
 
 private:
+    // Looks up one of the user's packs by name. Posts an error if there is none.
+    bool find_user_pack(const std::string& pack_name, InstalledSoundpack& out);
+
     Settings& settings_;
     Paths& paths_;
     Status& status_;
