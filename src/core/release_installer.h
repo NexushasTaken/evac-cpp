@@ -9,13 +9,14 @@
 #include "core/release_data.h"
 #include "core/settings.h"
 #include "core/status.h"
+#include "core/trash.h"
 
 // Installs, updates and removes game releases. These block, so use a worker
 // thread. Nothing else should touch the settings while they run.
 class ReleaseInstaller
 {
 public:
-    ReleaseInstaller(Settings& settings, Paths& paths, Status& status);
+    ReleaseInstaller(Settings& settings, Paths& paths, Status& status, Trash& trash);
 
     // Downloads (unless the archive is cached) and installs the release. If
     // update_in is not empty, that existing install is replaced instead of
@@ -34,6 +35,7 @@ private:
     Settings& settings_;
     Paths& paths_;
     Status& status_;
+    Trash& trash_;
     Http http_;
 };
 

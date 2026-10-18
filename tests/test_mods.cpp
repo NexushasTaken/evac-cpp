@@ -34,7 +34,8 @@ static std::string modinfo(const std::string& id, const std::string& name, const
 struct ModFixture
 {
     ModFixture(const std::string& name)
-        : dir(make_temp_dir(name)), settings(dir + "/s.json", status), paths(dir, settings, status), mods(settings, paths, status)
+        : dir(make_temp_dir(name)), settings(dir + "/s.json", status), paths(dir, settings, status),
+          trash(settings, paths, status), mods(settings, paths, status, trash)
     {
         settings.load();
         // A registered install, so that the stock mods directory is inside it.
@@ -46,6 +47,7 @@ struct ModFixture
     Status status;
     Settings settings;
     Paths paths;
+    Trash trash;
     ModManager mods;
 };
 
@@ -130,6 +132,11 @@ TEST_CASE("install and delete mods")
     REQUIRE(!fs::exists(f.paths.mods_user() + "/ModA"));
     REQUIRE(fs::exists(f.paths.mods_user() + "/ModB"));
     REQUIRE(f.mods.mod_status("a") == MOD_NOT_INSTALLED);
+    std::vector<TrashItem> trashed = f.trash.list();
+    REQUIRE(trashed.size() == 1);
+    REQUIRE(trashed[0].kind == "mod");
+    REQUIRE(trashed[0].original_path == f.paths.mods_user() + "/ModA");
+    REQUIRE(fs::exists(f.paths.trash_dir() + "/" + trashed[0].id + "/item/items.json"));
 
     REQUIRE(!f.mods.delete_mods(only_a));  // Already gone.
 }
@@ -143,6 +150,7 @@ TEST_CASE("stock mods are never deleted")
     std::vector<std::string> ids(1, "stock_ok");
     REQUIRE(!f.mods.delete_mods(ids));
     REQUIRE(fs::exists(f.paths.mods_stock() + "/normal/modinfo.json"));
+    REQUIRE(f.trash.list().empty());
 }
 
 TEST_CASE("a mod that clashes with an obsolete stock mod gets a new ID")

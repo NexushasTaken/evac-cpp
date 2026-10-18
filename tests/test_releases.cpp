@@ -98,7 +98,8 @@ TEST_CASE("install, update and remove a release from a local archive")
     Settings settings(dir + "/s.json", status);
     settings.load();
     Paths paths(dir, settings, status);
-    ReleaseInstaller installer(settings, paths, status);
+    Trash trash(settings, paths, status);
+    ReleaseInstaller installer(settings, paths, status, trash);
 
     // A fake game archive with one top directory, like the real ones.
     write_file(dir + "/pack/cdda-1/cataclysm-launcher", "#!/bin/sh\n");
@@ -134,11 +135,19 @@ TEST_CASE("install, update and remove a release from a local archive")
     installs = paths.installs_summary();
     REQUIRE(installs["dda"].size() == 1);
     REQUIRE(installs["dda"].count("Test Build 2") == 1);
+    std::vector<TrashItem> trashed = trash.list();
+    REQUIRE(trashed.size() == 1);  // The old install, with the user data that was in it.
+    REQUIRE(trashed[0].kind == "install");
+    REQUIRE(trashed[0].name == "Test Build 1");
+    REQUIRE(fs::exists(paths.trash_dir() + "/" + trashed[0].id + "/item/save/World/x"));
 
     // Removing.
     REQUIRE(!installer.remove_release_by_name("No Such Build"));
     REQUIRE(installer.remove_release_by_name("Test Build 2"));
     REQUIRE(!fs::exists(dir + "/dda/game0"));
+    REQUIRE(trash.list().size() == 2);
+    REQUIRE(trash.list()[0].name == "Test Build 2");  // Newest first.
+    REQUIRE(paths.installs_summary()["dda"].empty());  // Trashed installs are not listed.
 }
 
 TEST_CASE("install fails cleanly when the download fails")
@@ -148,7 +157,8 @@ TEST_CASE("install fails cleanly when the download fails")
     Settings settings(dir + "/s.json", status);
     settings.load();
     Paths paths(dir, settings, status);
-    ReleaseInstaller installer(settings, paths, status);
+    Trash trash(settings, paths, status);
+    ReleaseInstaller installer(settings, paths, status, trash);
 
     Release release;
     release.name = "Nope";

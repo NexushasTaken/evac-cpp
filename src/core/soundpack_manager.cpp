@@ -19,8 +19,8 @@ static bool starts_with(const std::string& text, const char* prefix)
     return text.compare(0, std::string(prefix).size(), prefix) == 0;
 }
 
-SoundpackManager::SoundpackManager(Settings& settings, Paths& paths, Status& status)
-    : settings_(settings), paths_(paths), status_(status), http_(status)
+SoundpackManager::SoundpackManager(Settings& settings, Paths& paths, Status& status, Trash& trash)
+    : settings_(settings), paths_(paths), status_(status), trash_(trash), http_(status)
 {
 }
 
@@ -107,8 +107,7 @@ bool SoundpackManager::delete_pack(const std::string& location)
     InstalledSoundpack pack;
     if (!find_user_pack(location, pack))
         return false;
-    status_.post("Deleting " + pack.location);
-    return fs_helper::rm_dir(pack.location, status_);
+    return trash_.remove(pack.location, "soundpack", pack.name);
 }
 
 bool SoundpackManager::set_enabled(const std::string& location, bool enabled)
@@ -196,8 +195,10 @@ bool SoundpackManager::install_pack(const SoundpackSource& pack, const std::stri
         return false;
     }
 
-    // Only now is it safe to remove the old copy.
-    if (reinstall && !fs_helper::rm_dir(sound_dir + "/" + pack.name, status_))
+    // Only now is it safe to remove the old copy. The directory may not be
+    // there even when reinstalling, if the installed copy has another name.
+    std::string old_copy = sound_dir + "/" + pack.name;
+    if (reinstall && fs::exists(fs::symlink_status(old_copy, ec)) && !trash_.remove(old_copy, "soundpack", pack.name))
     {
         fs::remove_all(tmp_dir, ec);
         return false;

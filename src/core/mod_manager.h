@@ -11,6 +11,7 @@
 #include "core/paths.h"
 #include "core/settings.h"
 #include "core/status.h"
+#include "core/trash.h"
 
 struct ModEntry
 {
@@ -48,7 +49,7 @@ struct Modpack
 class ModManager
 {
 public:
-    ModManager(Settings& settings, Paths& paths, Status& status);
+    ModManager(Settings& settings, Paths& paths, Status& status, Trash& trash);
 
     // Finds mods in a directory (id -> mod). Exposed for tests.
     static std::map<std::string, ModEntry> parse_mods_dir(const std::string& mods_dir, Status& status);
@@ -83,6 +84,7 @@ private:
     Settings& settings_;
     Paths& paths_;
     Status& status_;
+    Trash& trash_;
     Http http_;
     std::map<std::string, ModEntry> installed_;
     std::map<std::string, ModEntry> available_;

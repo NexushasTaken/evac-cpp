@@ -8,6 +8,7 @@
 #include "core/paths.h"
 #include "core/settings.h"
 #include "core/status.h"
+#include "core/trash.h"
 
 // A soundpack that can be downloaded.
 struct SoundpackSource
@@ -35,7 +36,7 @@ struct InstalledSoundpack
 class SoundpackManager
 {
 public:
-    SoundpackManager(Settings& settings, Paths& paths, Status& status);
+    SoundpackManager(Settings& settings, Paths& paths, Status& status, Trash& trash);
 
     // Finds the soundpacks in a directory: every subdirectory that has a
     // soundpack.txt (or a soundpack.txt.disabled). Static, so it can be tested without a game install.
@@ -64,6 +65,7 @@ private:
     Settings& settings_;
     Paths& paths_;
     Status& status_;
+    Trash& trash_;
     Http http_;
 };
 

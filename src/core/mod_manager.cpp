@@ -47,8 +47,8 @@ const Modpack* ModManager::modpack_for_game(const std::string& game)
     return nullptr;
 }
 
-ModManager::ModManager(Settings& settings, Paths& paths, Status& status)
-    : settings_(settings), paths_(paths), status_(status), http_(status)
+ModManager::ModManager(Settings& settings, Paths& paths, Status& status, Trash& trash)
+    : settings_(settings), paths_(paths), status_(status), trash_(trash), http_(status)
 {
 }
 
@@ -232,7 +232,7 @@ bool ModManager::delete_mod(const std::string& id)
     }
 
     std::string name = found->second.name;
-    if (!fs_helper::rm_dir(found->second.location, status_))
+    if (!trash_.remove(found->second.location, "mod", name))
         return false;
     status_.post("Deleted " + name);
     return true;

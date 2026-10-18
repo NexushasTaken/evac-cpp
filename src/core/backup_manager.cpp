@@ -19,8 +19,8 @@ static bool ends_with_zip(const std::string& name)
     return end == ".zip";
 }
 
-BackupManager::BackupManager(Settings& settings, Paths& paths, Status& status)
-    : settings_(settings), paths_(paths), status_(status)
+BackupManager::BackupManager(Settings& settings, Paths& paths, Status& status, Trash& trash)
+    : settings_(settings), paths_(paths), status_(status), trash_(trash)
 {
 }
 
@@ -152,7 +152,7 @@ bool BackupManager::restore(const std::string& backup_name)
     }
 
     std::string saves = paths_.savegames();
-    if (fs::exists(saves) && !fs_helper::rm_dir(saves, status_))
+    if (fs::exists(saves) && !trash_.remove(saves, "saves", "Saves before restoring " + backup_name))
     {
         fs::remove_all(stage, ec);
         return false;
@@ -177,7 +177,7 @@ bool BackupManager::delete_backup(const std::string& backup_name)
     }
 
     status_.post("Deleting backup \"" + backup_name + "\"...");
-    if (!fs_helper::rm_dir(target, status_))
+    if (!trash_.remove(target, "backup", backup_name))
         return false;
     status_.post("Backup deleted.");
     return true;

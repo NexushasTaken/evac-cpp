@@ -13,6 +13,7 @@
 #include "core/settings.h"
 #include "core/soundpack_manager.h"
 #include "core/status.h"
+#include "core/trash.h"
 
 // Everything the UI needs from the core, created once in main().
 // The order of the members matters: they use the ones above them.
@@ -21,13 +22,14 @@ struct AppContext
     explicit AppContext(const Locations& locations)
         : settings(locations.config_dir + "/catapult_settings.json", status),
           paths(locations, settings, status),
+          trash(settings, paths, status),
           releases(settings, status),
-          installer(settings, paths, status),
+          installer(settings, paths, status, trash),
           launcher(settings, paths, status),
           fonts(paths, status),
-          soundpacks(settings, paths, status),
-          mods(settings, paths, status),
-          backups(settings, paths, status)
+          soundpacks(settings, paths, status, trash),
+          mods(settings, paths, status, trash),
+          backups(settings, paths, status, trash)
     {
         settings.load();
     }
@@ -35,6 +37,7 @@ struct AppContext
     Status status;
     Settings settings;
     Paths paths;
+    Trash trash;
     ReleaseManager releases;
     ReleaseInstaller installer;
     GameLauncher launcher;

@@ -8,9 +8,20 @@
 
 namespace fs = std::filesystem;
 
-ReleaseInstaller::ReleaseInstaller(Settings& settings, Paths& paths, Status& status)
-    : settings_(settings), paths_(paths), status_(status), http_(status)
+ReleaseInstaller::ReleaseInstaller(Settings& settings, Paths& paths, Status& status, Trash& trash)
+    : settings_(settings), paths_(paths), status_(status), trash_(trash), http_(status)
 {
+}
+
+// The release name in the install's info file, or the directory name if there is none.
+static std::string install_name(const std::string& dir, Status& status)
+{
+    nlohmann::json info;
+    std::string info_file = dir + "/" + INFO_FILENAME;
+    if (fs::exists(info_file) && load_json_file(info_file, info, status) && info.is_object() && info.contains("name")
+        && info["name"].is_string())
+        return info["name"].get<std::string>();
+    return fs::path(dir).filename().string();
 }
 
 void ReleaseInstaller::cancel()
@@ -64,7 +75,7 @@ bool ReleaseInstaller::install_release(const Release& release, const std::string
     if (!update_in.empty())
     {
         target_dir = update_in;
-        if (!fs_helper::rm_dir(target_dir, status_))
+        if (!trash_.remove(target_dir, "install", install_name(target_dir, status_)))
             return false;
     }
     else
@@ -101,7 +112,7 @@ bool ReleaseInstaller::remove_release_by_name(const std::string& release_name)
     }
 
     status_.post("Removing " + release_name + "...");
-    if (!fs_helper::rm_dir(g->second.find(release_name)->second, status_))
+    if (!trash_.remove(g->second.find(release_name)->second, "install", release_name))
         return false;
     status_.post("Removal finished.");
     return true;

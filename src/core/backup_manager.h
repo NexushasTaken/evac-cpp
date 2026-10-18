@@ -8,6 +8,7 @@
 #include "core/paths.h"
 #include "core/settings.h"
 #include "core/status.h"
+#include "core/trash.h"
 
 struct BackupSummary
 {
@@ -22,7 +23,7 @@ struct BackupSummary
 class BackupManager
 {
 public:
-    BackupManager(Settings& settings, Paths& paths, Status& status);
+    BackupManager(Settings& settings, Paths& paths, Status& status, Trash& trash);
 
     // Names are used as directory names, so some characters are not allowed
     // (the same rules as the original launcher, whatever the OS).
@@ -45,6 +46,7 @@ private:
     Settings& settings_;
     Paths& paths_;
     Status& status_;
+    Trash& trash_;
 };
 
 #endif

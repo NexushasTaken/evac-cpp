@@ -42,7 +42,8 @@ struct SoundFixture
         : dir(make_temp_dir(name)),
           settings(dir + "/s.json", status),
           paths(dir, settings, status),
-          sounds(settings, paths, status)
+          trash(settings, paths, status),
+          sounds(settings, paths, status, trash)
     {
         settings.load();
     }
@@ -62,6 +63,7 @@ struct SoundFixture
     Status status;
     Settings settings;
     Paths paths;
+    Trash trash;
     SoundpackManager sounds;
 };
 
@@ -192,6 +194,10 @@ TEST_CASE("delete picks the pack by location, not by name")
     REQUIRE(f.sounds.delete_pack(copy));
     REQUIRE(fs::exists(pack));
     REQUIRE(!fs::exists(copy));
+    std::vector<TrashItem> trashed = f.trash.list();
+    REQUIRE(trashed.size() == 1);
+    REQUIRE(trashed[0].kind == "soundpack");
+    REQUIRE(trashed[0].original_path == copy);
 
     // Only paths of the user's packs are accepted.
     REQUIRE(!f.sounds.delete_pack(f.paths.sound_stock() + "/stock"));
@@ -219,6 +225,8 @@ TEST_CASE("install from a local file, reinstall and delete")
     REQUIRE(f.sounds.install_pack(pack, zip2, true, false));
     REQUIRE(read_file(f.paths.sound_user() + "/Test Pack/sfx/boom.ogg") == "second");
     REQUIRE(!fs::exists(zip2));  // Not kept.
+    REQUIRE(f.trash.list().size() == 1);  // The first copy.
+    REQUIRE(read_file(f.paths.trash_dir() + "/" + f.trash.list()[0].id + "/item/sfx/boom.ogg") == "first");
 
     std::vector<InstalledSoundpack> installed = f.sounds.get_installed(false);
     REQUIRE(installed.size() == 1);
@@ -227,6 +235,7 @@ TEST_CASE("install from a local file, reinstall and delete")
     REQUIRE(!f.sounds.delete_pack(f.paths.sound_user() + "/No Such Pack"));
     REQUIRE(f.sounds.delete_pack(installed[0].location));
     REQUIRE(!fs::exists(f.paths.sound_user() + "/Test Pack"));
+    REQUIRE(f.trash.list().size() == 2);
 }
 
 TEST_CASE("install downloads the archive and uses the cache")
@@ -271,4 +280,5 @@ TEST_CASE("failed installs leave the old copy alone")
     REQUIRE(!f.sounds.install_pack(pack, wrong, true, true));
 
     REQUIRE(read_file(f.paths.sound_user() + "/Test Pack/sfx/boom.ogg") == "good");
+    REQUIRE(f.trash.list().empty());  // Nothing was replaced.
 }
