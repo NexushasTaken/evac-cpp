@@ -1,5 +1,7 @@
 #include "ui/tab_soundpacks.h"
 
+#include <map>
+
 #include "ui/dialogs.h"
 
 static Gtk::Label* make_label(const Glib::ustring& text)
@@ -116,10 +118,25 @@ void TabSoundpacks::refresh_installed()
     updating_ = true;
     while (Gtk::ListBoxRow* row = installed_list_.get_row_at_index(0))
         installed_list_.remove(*row);
+    // Packs can share a name (a restored copy, a copy of a stock pack...): tell
+    // those apart by their folder, dimmed after the name.
+    std::map<std::string, int> name_count;
+    for (size_t i = 0; i < installed_.size(); ++i)
+        ++name_count[installed_[i].name];
+
     for (size_t i = 0; i < installed_.size(); ++i)
     {
-        Gtk::Label* label = make_label(installed_[i].enabled ? installed_[i].name : installed_[i].name + " (Disabled)");
-        label->set_tooltip_text(installed_[i].description.empty() ? "No description provided." : installed_[i].description);
+        const InstalledSoundpack& pack = installed_[i];
+        std::string folder = Glib::path_get_basename(pack.location);
+        Glib::ustring markup = Glib::Markup::escape_text(pack.name);
+        if (name_count[pack.name] > 1)
+            markup += " <span alpha=\"60%\">(" + Glib::Markup::escape_text(pack.is_stock ? "stock" : folder) + ")</span>";
+        if (!pack.enabled)
+            markup += " (Disabled)";
+        Gtk::Label* label = make_label("");
+        label->set_markup(markup);
+        label->set_tooltip_text((pack.description.empty() ? "No description provided." : pack.description)
+                                + "\nFolder: " + folder);
         if (installed_[i].is_stock)
             label->set_sensitive(false);  // Greyed out, like in the original.
         installed_list_.append(*label);
