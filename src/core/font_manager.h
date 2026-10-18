@@ -47,8 +47,11 @@ public:
     std::string get_game_option(const std::string& option_name);
     bool set_game_option(const std::string& option_name, const std::string& value);
 
+    // These re-read the game's file before editing it, so that only the font
+    // settings change and whatever the game saved meanwhile is kept.
     bool set_font(size_t font_index, bool ui, bool map, bool overmap);
     bool reset_font();
+    bool save_font_options(int ui, int map, int overmap, bool blending);
     void set_font_sizes(int ui, int map, int overmap);
 
 private:

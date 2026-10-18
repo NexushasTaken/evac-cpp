@@ -200,3 +200,41 @@ TEST_CASE("unknown game options are reported")
     REQUIRE(f.fonts.set_game_option("FONT_BLENDING", "true"));
     REQUIRE(f.fonts.get_game_option("FONT_BLENDING") == "true");
 }
+
+TEST_CASE("font edits keep what the game saved after we read its files")
+{
+    FontFixture f("fonts_fresh");
+    write_game_config(f.paths.config());
+    REQUIRE(f.fonts.load_available_fonts());
+    REQUIRE(f.fonts.load_font_config());
+    REQUIRE(f.fonts.load_game_options());
+
+    // The game runs and saves its files meanwhile.
+    write_file(f.paths.config() + "/options.json",
+               "[{\"name\": \"USE_LANG\", \"value\": \"en\"}, {\"name\": \"FONT_SIZE\", \"value\": \"16\"},"
+               " {\"name\": \"FONT_HEIGHT\", \"value\": \"16\"}, {\"name\": \"FONT_WIDTH\", \"value\": \"8\"},"
+               " {\"name\": \"MAP_FONT_SIZE\", \"value\": \"16\"}, {\"name\": \"MAP_FONT_HEIGHT\", \"value\": \"16\"},"
+               " {\"name\": \"MAP_FONT_WIDTH\", \"value\": \"16\"}, {\"name\": \"OVERMAP_FONT_SIZE\", \"value\": \"16\"},"
+               " {\"name\": \"OVERMAP_FONT_HEIGHT\", \"value\": \"16\"}, {\"name\": \"OVERMAP_FONT_WIDTH\", \"value\": \"16\"},"
+               " {\"name\": \"FONT_BLENDING\", \"value\": \"false\"}]");
+    write_file(f.paths.config() + "/fonts.json",
+               "{\"typeface\": [\"data/font/unifont.ttf\"], \"map_typeface\": [\"data/font/unifont.ttf\"],"
+               " \"overmap_typeface\": [\"data/font/unifont.ttf\"], \"gui_typeface\": [\"data/font/Roboto.ttf\"]}");
+
+    REQUIRE(f.fonts.set_font(2, true, false, false));
+    REQUIRE(f.fonts.save_font_options(20, 16, 16, true));
+
+    nlohmann::json fonts;
+    REQUIRE(load_json_file(f.paths.config() + "/fonts.json", fonts, f.status));
+    REQUIRE(fonts["gui_typeface"][0] == "data/font/Roboto.ttf");
+    REQUIRE(fonts["typeface"].size() == 2);
+    REQUIRE(fonts["typeface"][1] == "data/font/unifont.ttf");
+
+    REQUIRE(f.fonts.get_game_option("USE_LANG") == "en");
+    REQUIRE(f.fonts.get_game_option("FONT_SIZE") == "20");
+    REQUIRE(f.fonts.get_game_option("FONT_HEIGHT") == "24");
+    REQUIRE(f.fonts.get_game_option("FONT_BLENDING") == "true");
+    nlohmann::json options;
+    REQUIRE(load_json_file(f.paths.config() + "/options.json", options, f.status));
+    REQUIRE(options[0]["value"] == "en");
+}

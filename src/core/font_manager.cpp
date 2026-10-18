@@ -203,6 +203,9 @@ bool FontManager::set_font(size_t font_index, bool ui, bool map, bool overmap)
     }
     const FontInfo& font = available_fonts_[font_index];
 
+    // The game may have changed the file since we read it.
+    if (!load_font_config())
+        return false;
     if (!install_font(font))
         return false;
 
@@ -244,6 +247,9 @@ bool FontManager::set_font(size_t font_index, bool ui, bool map, bool overmap)
 
 bool FontManager::reset_font()
 {
+    if (!load_font_config())
+        return false;
+
     // The game keeps its default fonts in data/fontdata.json.
     std::string file = paths_.game_dir() + "/data/fontdata.json";
     nlohmann::json defaults;
@@ -259,6 +265,17 @@ bool FontManager::reset_font()
             font_config_[FIELDS[i]] = defaults[FIELDS[i]];
     }
     return write_font_config();
+}
+
+bool FontManager::save_font_options(int ui, int map, int overmap, bool blending)
+{
+    // Edit the game's current options, not our copy from when the tab was shown:
+    // the game saves options.json on its own (the language, the window size...).
+    if (!load_game_options())
+        return false;
+    set_font_sizes(ui, map, overmap);
+    set_game_option("FONT_BLENDING", blending ? "true" : "false");
+    return write_game_options();
 }
 
 // Index in available_fonts_ of the bundled font that is currently set for a

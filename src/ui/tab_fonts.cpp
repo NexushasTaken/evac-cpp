@@ -248,7 +248,6 @@ void TabFonts::on_reset()
 
 void TabFonts::on_save()
 {
-    ctx_.fonts.set_font_sizes(size_ui_.get_value_as_int(), size_map_.get_value_as_int(), size_overmap_.get_value_as_int());
-    ctx_.fonts.set_game_option("FONT_BLENDING", blending_check_.get_active() ? "true" : "false");
-    ctx_.fonts.write_game_options();
+    ctx_.fonts.save_font_options(size_ui_.get_value_as_int(), size_map_.get_value_as_int(),
+                                 size_overmap_.get_value_as_int(), blending_check_.get_active());
 }
