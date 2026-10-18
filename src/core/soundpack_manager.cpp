@@ -39,8 +39,11 @@ std::vector<InstalledSoundpack> SoundpackManager::parse_sound_dir(const std::str
         std::string location = sound_dir + "/" + subdirs[i];
         std::string config = location + "/" + CONFIG_FILE;
         bool enabled = true;
-        if (!fs::exists(config))
+        std::error_code ec;
+        if (!fs::exists(config, ec))
         {
+            if (ec)
+                continue;  // Can't look inside, so skip it like an unreadable file.
             config += DISABLED_SUFFIX;
             enabled = false;
         }
@@ -118,11 +121,21 @@ bool SoundpackManager::set_enabled(const std::string& pack_name, bool enabled)
 
     std::string config = pack.location + "/" + CONFIG_FILE;
     std::string disabled = config + DISABLED_SUFFIX;
+    std::string from = enabled ? disabled : config;
+    std::string to = enabled ? config : disabled;
+
+    // rename() replaces an existing file, so check first. symlink_status also
+    // sees a dangling symlink, which exists() would not.
     std::error_code ec;
-    if (enabled)
-        fs::rename(disabled, config, ec);
-    else
-        fs::rename(config, disabled, ec);
+    fs::file_status to_status = fs::symlink_status(to, ec);
+    if (fs::exists(to_status))
+    {
+        status_.post("Not renaming the config of soundpack \"" + pack_name + "\": " + to + " already exists.",
+                     MSG_ERROR);
+        return false;
+    }
+    ec.clear();
+    fs::rename(from, to, ec);
     if (ec)
     {
         status_.post("Could not rename the config of soundpack \"" + pack_name + "\": " + ec.message(), MSG_ERROR);

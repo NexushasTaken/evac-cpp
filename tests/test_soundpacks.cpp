@@ -4,6 +4,8 @@
 #include <fstream>
 #include <sstream>
 
+#include <unistd.h>
+
 #include "core/archive.h"
 #include "core/helpers.h"
 #include "core/paths.h"
@@ -95,6 +97,15 @@ TEST_CASE("parse_sound_dir reads soundpack.txt")
     REQUIRE(!packs[2].enabled);
 
     REQUIRE(SoundpackManager::parse_sound_dir(dir + "/missing").empty());
+
+    // A directory that can't be searched is skipped, not an exception.
+    write_file(dir + "/e/soundpack.txt", "VIEW: Locked\n");
+    fs::permissions(dir + "/e", fs::perms::owner_read);
+    std::vector<InstalledSoundpack> with_locked;
+    CHECK_NOTHROW(with_locked = SoundpackManager::parse_sound_dir(dir));  // CHECK, so the cleanup below still runs.
+    fs::permissions(dir + "/e", fs::perms::owner_all);
+    if (geteuid() != 0)  // root can read it anyway.
+        REQUIRE(with_locked.size() == 3);
 }
 
 TEST_CASE("get_installed marks stock packs")
@@ -143,6 +154,22 @@ TEST_CASE("disable and enable a soundpack")
     REQUIRE(!f.sounds.set_enabled("No Such Pack", false));
     REQUIRE(!f.sounds.set_enabled("Stock", false));  // Stock packs are left alone.
     REQUIRE(fs::exists(f.paths.sound_stock() + "/stock/soundpack.txt"));
+
+    // Never overwrite a file that is already there.
+    write_file(mine + "/soundpack.txt.disabled", "VIEW: Old copy\n");
+    REQUIRE(!f.sounds.set_enabled("Mine", false));
+    REQUIRE(fs::exists(mine + "/soundpack.txt"));
+    REQUIRE(read_file(mine + "/soundpack.txt.disabled") == "VIEW: Old copy\n");
+    fs::remove(mine + "/soundpack.txt.disabled");
+
+    // A dangling soundpack.txt symlink is not replaced on enable either.
+    REQUIRE(f.sounds.set_enabled("Mine", false));
+    fs::create_symlink(f.dir + "/nowhere", mine + "/soundpack.txt");
+    REQUIRE(!f.sounds.set_enabled("Mine", true));
+    REQUIRE(fs::is_symlink(mine + "/soundpack.txt"));
+    REQUIRE(fs::exists(mine + "/soundpack.txt.disabled"));
+    fs::remove(mine + "/soundpack.txt");
+    REQUIRE(f.sounds.set_enabled("Mine", true));
 
     // A disabled pack can still be deleted.
     REQUIRE(f.sounds.set_enabled("Mine", false));
