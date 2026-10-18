@@ -203,3 +203,4 @@ std::string Paths::graveyard() { return userdata() + "/graveyard"; }
 std::string Paths::mod_repo() { return game_base_dir() + "/mod_repo"; }
 std::string Paths::tmp_dir() { return game_base_dir() + "/tmp"; }
 std::string Paths::save_backups() { return game_base_dir() + "/save_backups"; }
+std::string Paths::trash_dir() const { return games_dir_ + "/trash"; }

@@ -37,7 +37,8 @@ add_library(catapult_core STATIC
     src/core/backup_manager.cpp
     src/core/tips.cpp
     src/core/window_state.cpp
-    src/core/licenses.cpp)
+    src/core/licenses.cpp
+    src/core/trash.cpp)
 target_compile_definitions(catapult_core PRIVATE CATAPULT_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
 target_include_directories(catapult_core PUBLIC src)
 target_link_libraries(catapult_core PUBLIC
@@ -73,6 +74,7 @@ add_executable(core_tests
     tests/test_soundpacks.cpp
     tests/test_mods.cpp
     tests/test_backups.cpp
-    tests/test_extras.cpp)
+    tests/test_extras.cpp
+    tests/test_trash.cpp)
 target_link_libraries(core_tests PRIVATE catapult_core Catch2::Catch2WithMain)
 add_test(NAME core_tests COMMAND core_tests)

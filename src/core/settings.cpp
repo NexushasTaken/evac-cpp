@@ -45,6 +45,9 @@ nlohmann::json Settings::defaults()
     d["proxy_host"] = "";
     d["proxy_port"] = 0;
     d["debug_mode"] = false;
+    d["use_trash"] = true;            // Deleted things go to the trash instead of being removed.
+    d["trash_max_size_mb"] = 5120;
+    d["trash_auto_prune"] = false;    // Offer to delete the oldest items when over the limit.
     return d;
 }
 

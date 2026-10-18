@@ -65,6 +65,8 @@ public:
     // it exists, otherwise the data directory the build was made from.
     std::string data_dir() const;
     std::string save_backups();
+    // Shared by all games, so it is next to the game directories, not in one.
+    std::string trash_dir() const;
 
 private:
     std::string game_base_dir();  // games_dir/<current game>
