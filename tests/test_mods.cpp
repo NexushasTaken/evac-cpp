@@ -178,6 +178,30 @@ TEST_CASE("a mod that clashes with an obsolete stock mod gets a new ID")
     REQUIRE(f.mods.mod_status("shared") == MOD_STOCK_OBSOLETE);
 }
 
+TEST_CASE("the modified ID keeps the rest of the mod's modinfo.json")
+{
+    ModFixture f("mods_clash_keep");
+    write_file(f.paths.mods_stock() + "/old/modinfo.json", modinfo("shared", "Old Version", ", \"obsolete\": true"));
+    write_file(f.paths.mod_repo() + "/New/modinfo.json",
+               "// a comment\n[{\"type\": \"other\", \"id\": \"keep_me\"}, "
+                   + modinfo("shared", "<color_blue>New</color>", ", \"description\": \"<b>Bold</b>\"") + "]");
+    f.mods.refresh_installed();
+    f.mods.refresh_available();
+
+    REQUIRE(f.mods.install_mods(std::vector<std::string>(1, "shared")));
+
+    nlohmann::json written;
+    REQUIRE(load_json_file(f.paths.mods_user() + "/New/modinfo.json", written, f.status));
+    REQUIRE(written.is_array());
+    REQUIRE(written.size() == 2);
+    REQUIRE(written[0]["id"] == "keep_me");
+    REQUIRE(written[1]["id"] == "shared__");
+    // The mod's markup is the game's business, not ours to strip.
+    REQUIRE(written[1]["name"] == "<color_blue>New</color>*");
+    REQUIRE(written[1]["description"] == "<b>Bold</b>");
+    REQUIRE(f.mods.mod_status("shared") == MOD_INSTALLED_MODIFIED_ID);
+}
+
 // A zip that looks like the Kenan modpack archives.
 static std::string make_modpack_zip(ModFixture& f, const std::string& marker)
 {

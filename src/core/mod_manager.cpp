@@ -167,6 +167,49 @@ ModStatus ModManager::mod_status(const std::string& id) const
     return it->second.is_obsolete ? MOD_STOCK_OBSOLETE : MOD_STOCK;
 }
 
+// Gives the MOD_INFO entry of a modinfo.json file a modified ID ("id__") and
+// name ("name*"). The rest of the file is written back as the mod has it.
+static bool rename_mod(const std::string& file, const std::string& id, Status& status)
+{
+    std::ifstream f(file);
+    std::stringstream ss;
+    ss << f.rdbuf();
+    nlohmann::json json = nlohmann::json::parse(ss.str(), nullptr, false, true);
+    if (!f || json.is_discarded())
+    {
+        status.post("Could not parse " + file, MSG_ERROR);
+        return false;
+    }
+
+    // Same lookup as parse_mods_dir: the first MOD_INFO entry, alone or in a list.
+    nlohmann::json* info = nullptr;
+    if (json.is_object())
+        info = &json;
+    else if (json.is_array())
+    {
+        for (size_t i = 0; i < json.size() && !info; ++i)
+        {
+            if (json[i].is_object() && json[i].value("type", std::string()) == "MOD_INFO")
+                info = &json[i];
+        }
+    }
+    if (!info)
+    {
+        status.post("No MOD_INFO entry in " + file, MSG_ERROR);
+        return false;
+    }
+
+    // Change the ID where the mod keeps it ("id", or the older "ident").
+    if (!info->contains("id") && info->contains("ident"))
+        (*info)["ident"] = id + "__";
+    else
+        (*info)["id"] = id + "__";
+    std::string name = info->contains("name") && (*info)["name"].is_string() ? (*info)["name"].get<std::string>() : id;
+    (*info)["name"] = name + "*";
+
+    return save_json_file(json, file, status);
+}
+
 bool ModManager::install_mod(const std::string& id)
 {
     std::map<std::string, ModEntry>::const_iterator found = available_.find(id);
@@ -188,11 +231,8 @@ bool ModManager::install_mod(const std::string& id)
     {
         status_.post("There is already an obsoleted mod with ID " + id + ". " + mod.name
                      + " will be installed with modified ID and name to avoid collisions.");
-        nlohmann::json modinfo = mod.modinfo;
-        modinfo["id"] = id + "__";
-        modinfo["name"] = mod.name + "*";
         std::string target = mods_dir + "/" + fs::path(mod.location).filename().string() + "/modinfo.json";
-        if (!save_json_file(modinfo, target, status_))
+        if (!rename_mod(target, id, status_))
             return false;
     }
 
