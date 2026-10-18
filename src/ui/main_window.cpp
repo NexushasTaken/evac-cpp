@@ -17,7 +17,7 @@ MainWindow::MainWindow(AppContext& ctx)
       tab_game_(ctx, runner_, *this),
       tab_mods_(ctx, runner_, *this),
       tab_soundpacks_(ctx, runner_, *this),
-      tab_fonts_(ctx),
+      tab_fonts_(ctx, *this),
       tab_backups_(ctx, runner_, *this),
       tab_trash_(ctx, runner_, *this),
       tab_settings_(ctx, *this),

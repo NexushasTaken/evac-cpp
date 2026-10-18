@@ -14,6 +14,8 @@ find_package(Catch2 REQUIRED)
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GTKMM REQUIRED IMPORTED_TARGET gtkmm-4.0)
+# For the font preview: fonts from files are loaded through fontconfig.
+pkg_check_modules(FONTCONFIG REQUIRED IMPORTED_TARGET fontconfig pangoft2)
 
 # Core library: no GTK in here.
 add_library(catapult_core STATIC
@@ -49,6 +51,7 @@ add_executable(catapult
     src/ui/main_window.cpp
     src/ui/tab_game.cpp
     src/ui/tab_fonts.cpp
+    src/ui/font_preview.cpp
     src/ui/tab_soundpacks.cpp
     src/ui/tab_mods.cpp
     src/ui/tab_backups.cpp
@@ -59,7 +62,7 @@ add_executable(catapult
     src/ui/licenses_dialog.cpp
     src/ui/log_view.cpp
     src/ui/task_runner.cpp)
-target_link_libraries(catapult PRIVATE catapult_core PkgConfig::GTKMM)
+target_link_libraries(catapult PRIVATE catapult_core PkgConfig::GTKMM PkgConfig::FONTCONFIG)
 
 # The bundled data (fonts, ...) goes next to the executable.
 add_custom_command(TARGET catapult POST_BUILD

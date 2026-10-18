@@ -25,13 +25,13 @@ The original project is MIT licensed, see [License](#license).
 | Game        | Install, update, switch between and launch stable and experimental builds           |
 | Mods        | Install and delete mods, get the Kenan modpack into a local repository              |
 | Soundpacks  | Install, reinstall and delete soundpacks, install from a downloaded file            |
-| Fonts       | Set bundled fonts for the game UI, map and overmap, and the font sizes              |
+| Fonts       | Set bundled or your own fonts, edit the fallback lists, sizes and rendering options |
 | Backups     | Back up, restore and delete save game backups                                       |
 | Settings    | Launcher options, proxy, caching                                                    |
 
 Not done yet:
 
-- The changelog window, the font preview and the font size help
+- The changelog window and the font size help
 - Translations (only English) and the language setting
 - Desktop integration (`.desktop` file, icon) and packaging
 - Windows and macOS
@@ -51,7 +51,7 @@ You need:
 
 - a C++17 compiler (GCC or Clang), CMake 3.23 or newer, `pkg-config`
 - [Conan](https://conan.io) 2
-- the gtkmm 4 development files, for example `gtkmm-4.0` on Arch, `libgtkmm-4.0-dev` on Debian/Ubuntu or
+- the gtkmm 4 and fontconfig development files (fontconfig comes with GTK on most systems), for example `gtkmm-4.0` on Arch, `libgtkmm-4.0-dev` on Debian/Ubuntu or
   `gtkmm4.0-devel` on Fedora. (gtkmm is not on Conan Center, so it comes from your system.)
 
 The other libraries (libcurl, libarchive, nlohmann_json, spdlog, Catch2) are fetched and built by Conan.

@@ -1,12 +1,33 @@
 #include "core/font_manager.h"
 
+#include <algorithm>
 #include <filesystem>
 
 #include "core/helpers.h"
 
 namespace fs = std::filesystem;
 
-static const char* const FIELDS[] = {"typeface", "map_typeface", "overmap_typeface"};
+const std::vector<std::string>& FontManager::font_fields()
+{
+    static const std::vector<std::string> fields = {"typeface", "gui_typeface", "map_typeface", "overmap_typeface"};
+    return fields;
+}
+
+// As read by the game in src/font_loader.cpp.
+const std::vector<std::string>& FontManager::hinting_modes()
+{
+    static const std::vector<std::string> modes = {"Default", "Light", "Auto", "NoAuto", "None", "Bitmap"};
+    return modes;
+}
+
+// The game opens the map and overmap fonts with SDL_ttf, which also takes
+// .fon, but the menus use FreeType through ImGui: these work for both.
+bool FontManager::is_font_file(const std::string& path)
+{
+    std::string ext = fs::path(path).extension().string();
+    std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return (char)std::tolower(c); });
+    return ext == ".ttf" || ext == ".otf" || ext == ".ttc";
+}
 
 // An entry of a fonts.json field is either a path or an object with a "path"
 // (see the game's doc/user-guides/FONT_OPTIONS.md). Returns "" for anything else.
@@ -73,7 +94,41 @@ bool FontManager::load_available_fonts()
         font.width = item.value("width", 0.5);
         available_fonts_.push_back(font);
     }
+    size_t bundled_count = available_fonts_.size();
+
+    // The other fonts in the user font directory were added from files.
+    std::vector<std::string> added;
+    std::error_code ec;
+    for (fs::directory_iterator it(paths_.font_user(), ec), end; !ec && it != end; it.increment(ec))
+    {
+        std::string file = it->path().filename().string();
+        if (!it->is_regular_file(ec) || !is_font_file(file))
+            continue;
+        bool is_bundled = false;
+        for (size_t i = 0; i < bundled_count; ++i)
+            is_bundled = is_bundled || available_fonts_[i].file == file;
+        if (!is_bundled)
+            added.push_back(file);
+    }
+    std::sort(added.begin(), added.end());
+    for (size_t i = 0; i < added.size(); ++i)
+    {
+        FontInfo font;
+        font.name = fs::path(added[i]).stem().string();
+        font.file = added[i];
+        font.description = "Added from a file. The launcher does not know its proportions,\n"
+                           "so check the width and height in the font sizes.";
+        font.bundled = false;
+        available_fonts_.push_back(font);
+    }
     return true;
+}
+
+std::string FontManager::font_file_path(const FontInfo& font) const
+{
+    if (font.bundled)
+        return paths_.data_dir() + "/fonts/" + font.file;
+    return paths_.font_user() + "/" + font.file;
 }
 
 bool FontManager::load_font_config()
@@ -125,28 +180,61 @@ bool FontManager::write_game_options()
     return true;
 }
 
-std::vector<std::string> FontManager::font_files(const std::string& field) const
+bool FontManager::has_font_field(const std::string& field) const
 {
-    std::vector<std::string> result;
+    return font_config_.contains(field);
+}
+
+std::vector<FontEntry> FontManager::font_entries(const std::string& field) const
+{
+    std::vector<FontEntry> result;
     if (!font_config_.contains(field))
         return result;
 
     // A field is a list of entries, or a single entry.
     const nlohmann::json& value = font_config_[field];
-    if (!value.is_array())
+    std::vector<nlohmann::json> items;
+    if (value.is_array())
+        items.assign(value.begin(), value.end());
+    else
+        items.push_back(value);
+
+    for (size_t i = 0; i < items.size(); ++i)
     {
-        std::string path = entry_path(value);
-        if (!path.empty())
-            result.push_back(path);
-        return result;
-    }
-    for (size_t i = 0; i < value.size(); ++i)
-    {
-        std::string path = entry_path(value[i]);
-        if (!path.empty())
-            result.push_back(path);
+        FontEntry entry;
+        entry.path = entry_path(items[i]);
+        if (entry.path.empty())
+            continue;
+        if (items[i].is_object())
+        {
+            if (items[i].contains("hinting") && items[i]["hinting"].is_string())
+                entry.hinting = items[i]["hinting"].get<std::string>();
+            if (items[i].contains("antialiasing") && items[i]["antialiasing"].is_boolean())
+                entry.antialiasing = items[i]["antialiasing"].get<bool>();
+        }
+        result.push_back(entry);
     }
     return result;
+}
+
+std::vector<std::string> FontManager::font_files(const std::string& field) const
+{
+    std::vector<FontEntry> entries = font_entries(field);
+    std::vector<std::string> result;
+    for (size_t i = 0; i < entries.size(); ++i)
+        result.push_back(entries[i].path);
+    return result;
+}
+
+bool FontManager::has_game_option(const std::string& option_name) const
+{
+    for (size_t i = 0; i < game_options_.size(); ++i)
+    {
+        const nlohmann::json& item = game_options_[i];
+        if (item.is_object() && item.value("name", std::string()) == option_name)
+            return true;
+    }
+    return false;
 }
 
 std::string FontManager::get_game_option(const std::string& option_name)
@@ -179,6 +267,9 @@ bool FontManager::set_game_option(const std::string& option_name, const std::str
 
 bool FontManager::install_font(const FontInfo& font)
 {
+    if (!font.bundled)
+        return true;  // Already in the user font directory.
+
     fs::path source = fs::path(paths_.data_dir()) / "fonts" / font.file;
     fs::path dest = fs::path(paths_.font_user()) / font.file;
 
@@ -194,7 +285,19 @@ bool FontManager::install_font(const FontInfo& font)
     return true;
 }
 
-bool FontManager::set_font(size_t font_index, bool ui, bool map, bool overmap)
+// Whether a fonts.json path is a font in the user font directory, where the
+// launcher puts its fonts. Older launchers wrote just the file name, which
+// the game also looks for there.
+bool FontManager::is_user_font(const std::string& path)
+{
+    fs::path p(path);
+    std::error_code ec;
+    if (!p.has_parent_path())
+        return fs::exists(fs::path(paths_.font_user()) / p, ec);
+    return fs::equivalent(p.parent_path(), paths_.font_user(), ec);
+}
+
+bool FontManager::set_font(size_t font_index, const std::vector<std::string>& fields)
 {
     if (font_index >= available_fonts_.size())
     {
@@ -209,16 +312,10 @@ bool FontManager::set_font(size_t font_index, bool ui, bool map, bool overmap)
     if (!install_font(font))
         return false;
 
-    // Same entry shape as the game writes; our fonts use the default hinting.
-    nlohmann::json entry = {{"path", font.file}, {"hinting", "Default"}};
-
-    std::vector<std::string> fields;
-    if (ui)
-        fields.push_back("typeface");
-    if (map)
-        fields.push_back("map_typeface");
-    if (overmap)
-        fields.push_back("overmap_typeface");
+    // The full path: the game looks in the user font directory for the UI
+    // and map fonts, but the menus open the path as it is.
+    std::string path = (fs::path(paths_.font_user()) / font.file).string();
+    nlohmann::json entry = {{"path", path}, {"hinting", "Default"}};
 
     for (size_t i = 0; i < fields.size(); ++i)
     {
@@ -235,8 +332,8 @@ bool FontManager::set_font(size_t font_index, bool ui, bool map, bool overmap)
             list = nlohmann::json::array({list});
 
         // Our font goes in front of the game's fonts, and replaces the
-        // previous choice next time.
-        if (current_font_index(field) >= 0)
+        // previous font set by the launcher.
+        if (!list.empty() && is_user_font(entry_path(list[0])))
             list[0] = entry;
         else
             list.insert(list.begin(), entry);
@@ -259,65 +356,202 @@ bool FontManager::reset_font()
         return false;
     }
 
-    for (size_t i = 0; i < sizeof(FIELDS) / sizeof(FIELDS[0]); ++i)
+    const std::vector<std::string>& fields = font_fields();
+    for (size_t i = 0; i < fields.size(); ++i)
     {
-        if (defaults.contains(FIELDS[i]))
-            font_config_[FIELDS[i]] = defaults[FIELDS[i]];
+        if (defaults.contains(fields[i]))
+            font_config_[fields[i]] = defaults[fields[i]];
     }
     return write_font_config();
 }
 
-bool FontManager::save_font_options(int ui, int map, int overmap, bool blending)
+// Re-reads fonts.json and finds an entry to edit, if it is still the one
+// with that path. A single entry is made a list first.
+nlohmann::json* FontManager::entry_for_edit(const std::string& field, size_t index, const std::string& path)
 {
-    // Edit the game's current options, not our copy from when the tab was shown:
-    // the game saves options.json on its own (the language, the window size...).
-    if (!load_game_options())
-        return false;
-    set_font_sizes(ui, map, overmap);
-    set_game_option("FONT_BLENDING", blending ? "true" : "false");
-    return write_game_options();
+    if (!load_font_config())
+        return nullptr;
+    if (font_config_.contains(field))
+    {
+        nlohmann::json& list = font_config_[field];
+        if (!list.is_array())
+            list = nlohmann::json::array({list});
+        if (index < list.size() && entry_path(list[index]) == path)
+            return &list[index];
+    }
+    status_.post("The font list changed since it was shown. Check it and try again.", MSG_ERROR);
+    return nullptr;
 }
 
-// Index in available_fonts_ of the bundled font that is currently set for a
-// field, or -1 if it is some other font.
-int FontManager::current_font_index(const std::string& field) const
+bool FontManager::move_entry(const std::string& field, size_t index, const std::string& path, int offset)
 {
-    std::vector<std::string> files = font_files(field);
-    if (files.empty())
+    if (!entry_for_edit(field, index, path))
+        return false;
+    nlohmann::json& list = font_config_[field];
+    long target = (long)index + offset;
+    if (target < 0 || target >= (long)list.size())
+        return false;
+    std::swap(list[index], list[(size_t)target]);
+    return write_font_config();
+}
+
+bool FontManager::remove_entry(const std::string& field, size_t index, const std::string& path)
+{
+    if (!entry_for_edit(field, index, path))
+        return false;
+    font_config_[field].erase(index);
+    return write_font_config();
+}
+
+bool FontManager::set_entry_style(const std::string& field, size_t index, const std::string& path,
+                                  const std::string& hinting, bool antialiasing)
+{
+    const std::vector<std::string>& modes = hinting_modes();
+    if (std::find(modes.begin(), modes.end(), hinting) == modes.end())
+    {
+        status_.post("\"" + hinting + "\" is not a hinting mode of the game.", MSG_ERROR);
+        return false;
+    }
+
+    nlohmann::json* entry = entry_for_edit(field, index, path);
+    if (!entry)
+        return false;
+    // Only objects have the settings; anything else in the object is kept.
+    if (!entry->is_object())
+        *entry = {{"path", path}};
+    (*entry)["hinting"] = hinting;
+    (*entry)["antialiasing"] = antialiasing;
+    return write_font_config();
+}
+
+bool FontManager::add_would_replace(const std::string& source)
+{
+    fs::path target = fs::path(paths_.font_user()) / fs::path(source).filename();
+    std::error_code ec;
+    return fs::exists(target, ec) && !fs::equivalent(source, target, ec);
+}
+
+int FontManager::add_font_file(const std::string& source)
+{
+    std::string file = fs::path(source).filename().string();
+    if (!is_font_file(file))
+    {
+        status_.post(file + " is not a font file the game can use (.ttf, .otf or .ttc).", MSG_ERROR);
+        return -1;
+    }
+    for (size_t i = 0; i < available_fonts_.size(); ++i)
+    {
+        if (available_fonts_[i].bundled && available_fonts_[i].file == file)
+        {
+            status_.post(file + " has the name of a font that comes with the launcher. Rename it to add it.",
+                         MSG_ERROR);
+            return -1;
+        }
+    }
+
+    fs::path target = fs::path(paths_.font_user()) / file;
+    std::error_code ec;
+    if (!fs::equivalent(source, target, ec))
+    {
+        fs::create_directories(target.parent_path(), ec);
+        fs::copy_file(source, target, fs::copy_options::overwrite_existing, ec);
+        if (ec)
+        {
+            status_.post("Could not copy " + source + " to " + target.string() + ": " + ec.message(), MSG_ERROR);
+            return -1;
+        }
+    }
+    status_.post("Added font " + file + ".");
+
+    if (!load_available_fonts())
         return -1;
     for (size_t i = 0; i < available_fonts_.size(); ++i)
     {
-        if (available_fonts_[i].file == files[0])
+        if (!available_fonts_[i].bundled && available_fonts_[i].file == file)
             return (int)i;
     }
     return -1;
 }
 
-void FontManager::set_font_sizes(int ui, int map, int overmap)
+// Index in available_fonts_ of the font that is set first for a field, or -1
+// if it is some other font.
+int FontManager::current_font_index(const std::string& field) const
+{
+    std::vector<std::string> files = font_files(field);
+    if (files.empty())
+        return -1;
+    std::string file = fs::path(files[0]).filename().string();
+    for (size_t i = 0; i < available_fonts_.size(); ++i)
+    {
+        if (available_fonts_[i].file == file)
+            return (int)i;
+    }
+    return -1;
+}
+
+// The options.json names of a field's sizes; the menus use the UI's.
+static std::string option_prefix(const std::string& field)
+{
+    if (field == "map_typeface")
+        return "MAP_FONT";
+    if (field == "overmap_typeface")
+        return "OVERMAP_FONT";
+    return "FONT";
+}
+
+// Game options are strings; a broken value falls back to the game's minimum.
+static int to_int(const std::string& text, int minimum)
+{
+    int value = std::atoi(text.c_str());
+    return value < minimum ? minimum : value;
+}
+
+FontDims FontManager::game_dims(const std::string& field)
+{
+    std::string prefix = option_prefix(field);
+    FontDims dims;
+    dims.size = to_int(get_game_option(prefix + "_SIZE"), 8);
+    dims.width = to_int(get_game_option(prefix + "_WIDTH"), 6);
+    dims.height = to_int(get_game_option(prefix + "_HEIGHT"), 8);
+    return dims;
+}
+
+FontDims FontManager::auto_dims(const std::string& field, int size) const
 {
     double height_ratio = 1.0;
     double width_ratio = 0.5;
-
-    int index = current_font_index("typeface");
+    int index = current_font_index(field == "gui_typeface" ? "typeface" : field);
     if (index >= 0)
     {
         height_ratio = available_fonts_[index].height;
         width_ratio = available_fonts_[index].width;
     }
-    set_game_option("FONT_SIZE", std::to_string(ui));
-    set_game_option("FONT_HEIGHT", std::to_string((int)(ui * height_ratio)));
-    set_game_option("FONT_WIDTH", std::to_string((int)(ui * width_ratio)));
 
+    FontDims dims;
+    dims.size = size;
+    dims.height = (int)(size * height_ratio);
     // For the map and the overmap the width is the same as the height.
-    index = current_font_index("map_typeface");
-    height_ratio = (index >= 0) ? available_fonts_[index].height : 1.0;
-    set_game_option("MAP_FONT_SIZE", std::to_string(map));
-    set_game_option("MAP_FONT_HEIGHT", std::to_string((int)(map * height_ratio)));
-    set_game_option("MAP_FONT_WIDTH", std::to_string((int)(map * height_ratio)));
+    dims.width = option_prefix(field) == "FONT" ? (int)(size * width_ratio) : dims.height;
+    return dims;
+}
 
-    index = current_font_index("overmap_typeface");
-    height_ratio = (index >= 0) ? available_fonts_[index].height : 1.0;
-    set_game_option("OVERMAP_FONT_SIZE", std::to_string(overmap));
-    set_game_option("OVERMAP_FONT_HEIGHT", std::to_string((int)(overmap * height_ratio)));
-    set_game_option("OVERMAP_FONT_WIDTH", std::to_string((int)(overmap * height_ratio)));
+bool FontManager::save_font_options(const FontOptions& options)
+{
+    // Edit the game's current options, not our copy from when the tab was shown:
+    // the game saves options.json on its own (the language, the window size...).
+    if (!load_game_options())
+        return false;
+
+    const char* const prefixes[] = {"FONT", "MAP_FONT", "OVERMAP_FONT"};
+    const FontDims* dims[] = {&options.ui, &options.map, &options.overmap};
+    for (int i = 0; i < 3; ++i)
+    {
+        set_game_option(std::string(prefixes[i]) + "_SIZE", std::to_string(dims[i]->size));
+        set_game_option(std::string(prefixes[i]) + "_WIDTH", std::to_string(dims[i]->width));
+        set_game_option(std::string(prefixes[i]) + "_HEIGHT", std::to_string(dims[i]->height));
+    }
+    set_game_option("FONT_BLENDING", options.blending ? "true" : "false");
+    if (has_game_option("USE_DRAW_ASCII_LINES_ROUTINE"))
+        set_game_option("USE_DRAW_ASCII_LINES_ROUTINE", options.ascii_lines ? "true" : "false");
+    return write_game_options();
 }
