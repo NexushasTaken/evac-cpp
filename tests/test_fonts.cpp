@@ -24,13 +24,18 @@ static void write_file(const std::string& path, const std::string& content)
     std::ofstream(path) << content;
 }
 
+// The game's default fonts, as in its data/fontdata.json. Entries are paths
+// or objects with a "path".
+static const char GAME_FONTS[] =
+    "{\"typeface\": [{\"path\": \"data/font/Terminus.ttf\", \"hinting\": \"Bitmap\"}, \"data/font/unifont.ttf\"],"
+    " \"gui_typeface\": [{\"path\": \"data/font/Terminus.ttf\", \"hinting\": \"Bitmap\"}, \"data/font/unifont.ttf\"],"
+    " \"map_typeface\": [{\"path\": \"data/font/Terminus.ttf\", \"hinting\": \"Bitmap\"}, \"data/font/unifont.ttf\"],"
+    " \"overmap_typeface\": [{\"path\": \"data/font/Terminus.ttf\", \"hinting\": \"Bitmap\"}, \"data/font/unifont.ttf\"]}";
+
 // Same shape as what the game creates.
 static void write_game_config(const std::string& config_dir)
 {
-    write_file(config_dir + "/fonts.json",
-               "{\"typeface\": [\"data/font/Terminus.ttf\", \"data/font/unifont.ttf\"],"
-               " \"map_typeface\": [\"data/font/Terminus.ttf\", \"data/font/unifont.ttf\"],"
-               " \"overmap_typeface\": [\"data/font/Terminus.ttf\", \"data/font/unifont.ttf\"]}");
+    write_file(config_dir + "/fonts.json", GAME_FONTS);
     write_file(config_dir + "/options.json",
                "[{\"name\": \"FONT_SIZE\", \"value\": \"16\"}, {\"name\": \"FONT_HEIGHT\", \"value\": \"16\"},"
                " {\"name\": \"FONT_WIDTH\", \"value\": \"8\"}, {\"name\": \"MAP_FONT_SIZE\", \"value\": \"16\"},"
@@ -93,9 +98,13 @@ TEST_CASE("set_font installs the font and edits fonts.json")
     nlohmann::json saved;
     REQUIRE(load_json_file(f.paths.config() + "/fonts.json", saved, f.status));
     REQUIRE(saved["typeface"].size() == 3);
-    REQUIRE(saved["typeface"][0] == "Hack-Regular.ttf");
-    REQUIRE(saved["typeface"][1] == "data/font/Terminus.ttf");
-    REQUIRE(saved["map_typeface"][0] == "Hack-Regular.ttf");
+    REQUIRE(saved["typeface"][0]["path"] == "Hack-Regular.ttf");
+    REQUIRE(saved["typeface"][0]["hinting"] == "Default");
+    // The game's entries are kept as they were.
+    REQUIRE(saved["typeface"][1]["path"] == "data/font/Terminus.ttf");
+    REQUIRE(saved["typeface"][1]["hinting"] == "Bitmap");
+    REQUIRE(saved["typeface"][2] == "data/font/unifont.ttf");
+    REQUIRE(saved["map_typeface"][0]["path"] == "Hack-Regular.ttf");
     REQUIRE(saved["overmap_typeface"].size() == 2);
 
     // Setting another font replaces ours instead of piling up.
@@ -106,6 +115,32 @@ TEST_CASE("set_font installs the font and edits fonts.json")
     REQUIRE(!f.fonts.set_font(99, true, true, true));
 }
 
+TEST_CASE("font_files reads every entry shape of the game's format")
+{
+    FontFixture f("fonts_shapes");
+    write_game_config(f.paths.config());
+    write_file(f.paths.config() + "/fonts.json",
+               "{\"typeface\": [{\"path\": \"Hack-Regular.ttf\", \"hinting\": \"Default\"}, \"data/font/unifont.ttf\"],"
+               " \"map_typeface\": {\"path\": \"data/font/Terminus.ttf\", \"hinting\": \"Bitmap\"},"
+               " \"overmap_typeface\": \"unifont.ttf\"}");
+    REQUIRE(f.fonts.load_available_fonts());
+    REQUIRE(f.fonts.load_font_config());
+
+    std::vector<std::string> files = f.fonts.font_files("typeface");
+    REQUIRE(files.size() == 2);
+    REQUIRE(files[0] == "Hack-Regular.ttf");
+    REQUIRE(files[1] == "data/font/unifont.ttf");
+    REQUIRE(f.fonts.font_files("map_typeface") == std::vector<std::string>{"data/font/Terminus.ttf"});
+    REQUIRE(f.fonts.font_files("overmap_typeface") == std::vector<std::string>{"unifont.ttf"});
+
+    // A single entry is turned into a list with our font in front.
+    REQUIRE(f.fonts.set_font(0, false, true, false));
+    files = f.fonts.font_files("map_typeface");
+    REQUIRE(files.size() == 2);
+    REQUIRE(files[0] == "FantasqueSansMono-Regular.ttf");
+    REQUIRE(files[1] == "data/font/Terminus.ttf");
+}
+
 TEST_CASE("reset_font brings back the defaults")
 {
     FontFixture f("fonts_reset");
@@ -114,11 +149,20 @@ TEST_CASE("reset_font brings back the defaults")
     REQUIRE(f.fonts.load_font_config());
     REQUIRE(f.fonts.set_font(2, true, true, true));
 
+    // No data/fontdata.json in the game: nothing to reset to.
+    REQUIRE(!f.fonts.reset_font());
+    REQUIRE(f.fonts.font_files("typeface")[0] == "Hack-Regular.ttf");
+
+    write_file(f.dir + "/dda/game0/" + INFO_FILENAME, "{\"name\": \"Test Build\"}");
+    f.paths.installs_summary();
+    write_file(f.dir + "/dda/game0/data/fontdata.json", GAME_FONTS);
     REQUIRE(f.fonts.reset_font());
-    std::vector<std::string> files = f.fonts.font_files("overmap_typeface");
-    REQUIRE(files.size() == 2);
-    REQUIRE(files[0] == "data/font/Terminus.ttf");
-    REQUIRE(files[1] == "data/font/unifont.ttf");
+    nlohmann::json saved;
+    REQUIRE(load_json_file(f.paths.config() + "/fonts.json", saved, f.status));
+    REQUIRE(saved["overmap_typeface"].size() == 2);
+    REQUIRE(saved["overmap_typeface"][0]["path"] == "data/font/Terminus.ttf");
+    REQUIRE(saved["overmap_typeface"][0]["hinting"] == "Bitmap");
+    REQUIRE(saved["overmap_typeface"][1] == "data/font/unifont.ttf");
 }
 
 TEST_CASE("font sizes use the ratios of the selected fonts")

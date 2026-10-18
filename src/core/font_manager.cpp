@@ -8,6 +8,17 @@ namespace fs = std::filesystem;
 
 static const char* const FIELDS[] = {"typeface", "map_typeface", "overmap_typeface"};
 
+// An entry of a fonts.json field is either a path or an object with a "path"
+// (see the game's doc/user-guides/FONT_OPTIONS.md). Returns "" for anything else.
+static std::string entry_path(const nlohmann::json& entry)
+{
+    if (entry.is_string())
+        return entry.get<std::string>();
+    if (entry.is_object() && entry.contains("path") && entry["path"].is_string())
+        return entry["path"].get<std::string>();
+    return "";
+}
+
 static std::string describe(const std::string& desc_key)
 {
     if (desc_key == "font_desc_fantasque")
@@ -117,14 +128,23 @@ bool FontManager::write_game_options()
 std::vector<std::string> FontManager::font_files(const std::string& field) const
 {
     std::vector<std::string> result;
-    if (font_config_.contains(field) && font_config_[field].is_array())
+    if (!font_config_.contains(field))
+        return result;
+
+    // A field is a list of entries, or a single entry.
+    const nlohmann::json& value = font_config_[field];
+    if (!value.is_array())
     {
-        const nlohmann::json& list = font_config_[field];
-        for (size_t i = 0; i < list.size(); ++i)
-        {
-            if (list[i].is_string())
-                result.push_back(list[i].get<std::string>());
-        }
+        std::string path = entry_path(value);
+        if (!path.empty())
+            result.push_back(path);
+        return result;
+    }
+    for (size_t i = 0; i < value.size(); ++i)
+    {
+        std::string path = entry_path(value[i]);
+        if (!path.empty())
+            result.push_back(path);
     }
     return result;
 }
@@ -186,6 +206,9 @@ bool FontManager::set_font(size_t font_index, bool ui, bool map, bool overmap)
     if (!install_font(font))
         return false;
 
+    // Same entry shape as the game writes; our fonts use the default hinting.
+    nlohmann::json entry = {{"path", font.file}, {"hinting", "Default"}};
+
     std::vector<std::string> fields;
     if (ui)
         fields.push_back("typeface");
@@ -197,19 +220,23 @@ bool FontManager::set_font(size_t font_index, bool ui, bool map, bool overmap)
     for (size_t i = 0; i < fields.size(); ++i)
     {
         const std::string& field = fields[i];
-        if (!font_config_.contains(field) || !font_config_[field].is_array())
+        if (!font_config_.contains(field))
         {
             status_.post("Font config does not have field \"" + field + "\".", MSG_ERROR);
             continue;
         }
 
-        // Fonts that come with the game are the two last entries. Our font goes
-        // in front of them, and replaces the previous choice next time.
+        // A single entry becomes a list, so our font can go in front of it.
         nlohmann::json& list = font_config_[field];
-        if (list.size() <= 2)
-            list.insert(list.begin(), font.file);
+        if (!list.is_array())
+            list = nlohmann::json::array({list});
+
+        // Our font goes in front of the game's fonts, and replaces the
+        // previous choice next time.
+        if (current_font_index(field) >= 0)
+            list[0] = entry;
         else
-            list[0] = font.file;
+            list.insert(list.begin(), entry);
     }
 
     return write_font_config();
@@ -217,12 +244,19 @@ bool FontManager::set_font(size_t font_index, bool ui, bool map, bool overmap)
 
 bool FontManager::reset_font()
 {
+    // The game keeps its default fonts in data/fontdata.json.
+    std::string file = paths_.game_dir() + "/data/fontdata.json";
+    nlohmann::json defaults;
+    if (!load_json_file(file, defaults, status_) || !defaults.is_object())
+    {
+        status_.post("Could not read the default fonts from " + file + ".", MSG_ERROR);
+        return false;
+    }
+
     for (size_t i = 0; i < sizeof(FIELDS) / sizeof(FIELDS[0]); ++i)
     {
-        nlohmann::json defaults = nlohmann::json::array();
-        defaults.push_back("data/font/Terminus.ttf");
-        defaults.push_back("data/font/unifont.ttf");
-        font_config_[FIELDS[i]] = defaults;
+        if (defaults.contains(FIELDS[i]))
+            font_config_[FIELDS[i]] = defaults[FIELDS[i]];
     }
     return write_font_config();
 }
