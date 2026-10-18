@@ -15,6 +15,35 @@ TEST_CASE("progress string")
             == "Download progress: 10.0 MB at 5.0 MB/s");
 }
 
+TEST_CASE("size string")
+{
+    REQUIRE(Http::format_size(512 * 1024) == "512.0 KB");
+    REQUIRE(Http::format_size(137811281) == "131.4 MB");
+    REQUIRE(Http::format_size(3LL * 1024 * 1024 * 1024) == "3.0 GB");
+}
+
+TEST_CASE("a cached archive is not downloaded, so there is no size to look up")
+{
+    std::filesystem::path dir = std::filesystem::temp_directory_path() / "catapult_test_describe";
+    std::filesystem::remove_all(dir);
+    std::filesystem::create_directories(dir);
+    {
+        std::ofstream f(dir / "game.zip");
+        f << std::string(2048, 'x');
+    }
+
+    Status status;
+    Settings settings((dir / "s.json").string(), status);
+    settings.load();
+    Http http(status);
+
+    // The URL is never contacted while the archive is in the cache.
+    REQUIRE(http.describe_download(settings, dir.string(), "http://127.0.0.1:1/game.zip", "game.zip")
+            == "Nothing to download: game.zip is already in the cache (2.0 KB).");
+
+    std::filesystem::remove_all(dir);
+}
+
 // Network tests only run when CATAPULT_TEST_URL points at a server that serves
 // a file called hello.txt containing "hello\n" (see the README).
 TEST_CASE("get and download against a local server", "[network]")

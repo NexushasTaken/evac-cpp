@@ -38,7 +38,20 @@ public:
     // Progress is posted to Status every couple of seconds.
     bool download_file(const std::string& url, const std::string& target_dir, const std::string& target_filename);
 
+    // Size in bytes of the file at url, from a HEAD request, or -1 if the
+    // server does not say (GitHub's branch archives, for one) or cannot be reached.
+    long long remote_size(const std::string& url);
+
+    // A line for the confirmation before downloading url to
+    // cache_dir/filename: the download size, or that the cached archive is
+    // used (as the downloads do unless "ignore_cache" is set).
+    std::string describe_download(Settings& settings, const std::string& cache_dir, const std::string& url,
+                                  const std::string& filename);
+
     void cancel();
+
+    // "1.2 GB", "34.5 MB", "12.0 KB".
+    static std::string format_size(long long bytes);
 
     // Exposed for tests.
     static std::string format_progress(double downloaded, double total, long delta_msecs, double delta_bytes);

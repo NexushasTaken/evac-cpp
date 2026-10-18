@@ -3,6 +3,7 @@
 #include <map>
 
 #include "ui/dialogs.h"
+#include "ui/download_prompt.h"
 
 static Gtk::Label* make_label(const Glib::ustring& text)
 {
@@ -258,16 +259,31 @@ void TabSoundpacks::install_selected(const std::string& from_file)
             ctx_.soundpacks.install_pack(pack, from_file, reinstall, keep_archive);
         });
     };
-    if (!reinstall)
+
+    // Reinstalling replaces the installed copy.
+    Glib::ustring title = (reinstall ? "Reinstall " : "Install ") + pack.name + "?";
+    std::string detail = reinstall ? "The installed copy " + dialogs::removal_text(ctx_.settings.get_bool("use_trash"))
+                                         + ", and a fresh copy is installed."
+                                   : std::string();
+    Glib::ustring button = reinstall ? "Reinstall" : "Install";
+
+    if (!from_file.empty())
     {
-        install();
+        // Nothing to download.
+        if (!reinstall)
+            install();
+        else
+            dialogs::confirm(parent_, title, detail, button, install);
         return;
     }
-    // Reinstalling replaces the installed copy.
-    dialogs::confirm(parent_, "Reinstall " + pack.name + "?",
-                     "The installed copy " + dialogs::removal_text(ctx_.settings.get_bool("use_trash"))
-                         + ", and a fresh copy is installed.",
-                     "Reinstall", install);
+
+    DownloadQuestion question;
+    question.title = title;
+    question.detail = detail;
+    question.button = button;
+    question.url = pack.url;
+    question.filename = pack.filename;
+    confirm_download(ctx_, runner_, parent_, content_, question, install);
 }
 
 void TabSoundpacks::on_install_from_file_clicked()

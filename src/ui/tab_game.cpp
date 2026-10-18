@@ -2,6 +2,7 @@
 
 #include "core/games.h"
 #include "ui/dialogs.h"
+#include "ui/download_prompt.h"
 
 static Gtk::Label* make_label(const Glib::ustring& text)
 {
@@ -436,13 +437,23 @@ void TabGame::install_selected(bool update_active)
             update_path = g->second.find(active_name)->second;
     }
 
+    DownloadQuestion question;
+    question.url = release.url;
+    question.filename = release.filename;
     if (update_path.empty())
     {
-        run_task([this, release]() { ctx_.installer.install_release(release, ""); }, [this]() { refresh_installed(); });
-        return;
+        question.title = "Install " + release.name + "?";
+        question.detail = "It is installed as a new, separate copy of the game.";
+        question.button = "Install";
+    }
+    else
+    {
+        question.title = "Update \"" + active_name + "\"?";
+        question.detail = removal_detail(active_name, true);
+        question.button = "Update";
     }
 
-    confirm_install_removal(active_name, true, [this, release, update_path]() {
+    confirm_download(ctx_, runner_, parent_, content_, question, [this, release, update_path]() {
         run_task([this, release, update_path]() { ctx_.installer.install_release(release, update_path); },
                  [this]() { refresh_installed(); });
     });
@@ -454,15 +465,18 @@ void TabGame::on_delete_clicked()
     if (name.empty())
         return;
 
-    confirm_install_removal(name, false, [this, name]() {
-        run_task([this, name]() { ctx_.installer.remove_release_by_name(name); }, [this]() { refresh_installed(); });
-    });
+    Glib::ustring title = "Uninstall \"" + name + "\"?";
+    dialogs::confirm(parent_, title, removal_detail(name, false),
+                     dialogs::removal_button(ctx_.settings.get_bool("use_trash")), [this, name]() {
+                         run_task([this, name]() { ctx_.installer.remove_release_by_name(name); },
+                                  [this]() { refresh_installed(); });
+                     });
 }
 
-// Asks the user first if there is user data inside the install that would be lost.
-// Updating replaces the install's files and uninstalling removes them, so
-// always ask first, and say where user data inside the game directory goes.
-void TabGame::confirm_install_removal(const std::string& install_name, bool update, const std::function<void()>& yes)
+// What happens to an install's files when it is updated or uninstalled, for
+// the confirmation. Updating replaces them and uninstalling removes them, so
+// it also says where user data inside the game directory goes.
+std::string TabGame::removal_detail(const std::string& install_name, bool update)
 {
     bool use_trash = ctx_.settings.get_bool("use_trash");
     std::string detail = update ? "The current files of \"" + install_name + "\" " + dialogs::removal_text(use_trash)
@@ -477,10 +491,7 @@ void TabGame::confirm_install_removal(const std::string& install_name, bool upda
             detail += "\n" + misplaced[i];
         detail += use_trash ? "\n\nIt goes to the trash with the game files." : "\n\nIt will be lost.";
     }
-
-    Glib::ustring title = update ? "Update \"" + install_name + "\"?" : "Uninstall \"" + install_name + "\"?";
-    std::string button = update ? std::string("Update") : dialogs::removal_button(use_trash);
-    dialogs::confirm(parent_, title, detail, button, yes);
+    return detail;
 }
 
 void TabGame::on_play_clicked()

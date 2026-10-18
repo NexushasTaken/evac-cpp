@@ -55,6 +55,7 @@ add_executable(catapult
     src/ui/tab_settings.cpp
     src/ui/tab_trash.cpp
     src/ui/dialogs.cpp
+    src/ui/download_prompt.cpp
     src/ui/licenses_dialog.cpp
     src/ui/log_view.cpp
     src/ui/task_runner.cpp)

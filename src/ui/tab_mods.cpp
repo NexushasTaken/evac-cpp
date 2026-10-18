@@ -4,6 +4,7 @@
 #include <strings.h>
 
 #include "ui/dialogs.h"
+#include "ui/download_prompt.h"
 
 static const char* const NO_INFO_TEXT = "Select a mod in either list to see its details here.";
 
@@ -595,21 +596,22 @@ void TabMods::on_kenan_clicked()
         return;
     Modpack copy = *pack;
 
+    DownloadQuestion question;
+    question.url = copy.url;
+    question.filename = copy.filename;
+    question.title = "Get " + copy.name + "?";
+    question.detail = "Its mods are put in the local repository, from where you can install them.";
+    question.button = "Get Modpack";
+
     // Getting the pack replaces the local repository, which is not trashed:
     // it only holds the last download of the pack.
-    if (Paths::list_dir(ctx_.paths.mod_repo()).empty())
+    if (!Paths::list_dir(ctx_.paths.mod_repo()).empty())
     {
-        run_task([this, copy]() { ctx_.mods.retrieve_modpack(copy); });
-        return;
+        question.title = "Replace the local repository?";
+        question.detail = "The mods in the local repository will be deleted for good (not moved to the trash) and "
+                          "replaced with a fresh download of " + copy.name + ".\nInstalled mods are not affected.";
+        question.button = "Replace Repository";
     }
-    std::vector<Glib::ustring> buttons;
-    buttons.push_back("Cancel");
-    buttons.push_back("Replace Repository");
-    ask("Replace the local repository?",
-        "The mods in the local repository will be deleted for good (not moved to the trash) and replaced with "
-        "a fresh download of " + copy.name + ".\nInstalled mods are not affected.",
-        buttons, [this, copy](int choice) {
-            if (choice == 1)
-                run_task([this, copy]() { ctx_.mods.retrieve_modpack(copy); });
-        });
+    confirm_download(ctx_, runner_, parent_, content_, question,
+                     [this, copy]() { run_task([this, copy]() { ctx_.mods.retrieve_modpack(copy); }); });
 }

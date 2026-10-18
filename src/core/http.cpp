@@ -135,6 +135,62 @@ bool Http::get(const std::string& url, const std::vector<std::string>& headers, 
     return result == CURLE_OK;
 }
 
+long long Http::remote_size(const std::string& url)
+{
+    CURL* curl = curl_easy_init();
+    if (!curl)
+        return -1;
+
+    char error[CURL_ERROR_SIZE] = "";
+    setup_common(curl, url, proxy_host_, proxy_port_, error);
+    curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
+    curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
+
+    // After the redirects, this is the length of the file itself.
+    curl_off_t size = -1;
+    CURLcode result = curl_easy_perform(curl);
+    if (result == CURLE_OK)
+        curl_easy_getinfo(curl, CURLINFO_CONTENT_LENGTH_DOWNLOAD_T, &size);
+    else
+        status_.post(std::string("Could not get the download size: ") + (error[0] ? error : curl_easy_strerror(result)),
+                     MSG_WARN);
+    curl_easy_cleanup(curl);
+    return size;
+}
+
+std::string Http::format_size(long long bytes)
+{
+    char buf[32];
+    if (bytes >= 1024LL * 1024 * 1024)
+        std::snprintf(buf, sizeof(buf), "%.1f GB", bytes / 1073741824.0);
+    else if (bytes >= 1024 * 1024)
+        std::snprintf(buf, sizeof(buf), "%.1f MB", bytes / 1048576.0);
+    else
+        std::snprintf(buf, sizeof(buf), "%.1f KB", bytes / 1024.0);
+    return buf;
+}
+
+std::string Http::describe_download(Settings& settings, const std::string& cache_dir, const std::string& url,
+                                    const std::string& filename)
+{
+    // The same check as before the downloads: a cached archive is used instead.
+    std::error_code ec;
+    std::string cached = cache_dir + "/" + filename;
+    if (!settings.get_bool("ignore_cache") && fs::exists(cached, ec))
+    {
+        uintmax_t size = fs::file_size(cached, ec);
+        return "Nothing to download: " + filename + " is already in the cache"
+               + (ec ? std::string() : " (" + format_size((long long)size) + ")") + ".";
+    }
+
+    apply_proxy_settings(settings, true);
+    long long size = remote_size(url);
+    if (size < 0)
+        return "Download size: unknown, the server does not say.";
+    return "Download size: " + format_size(size) + ".";
+}
+
 struct DownloadState
 {
     std::ofstream file;
