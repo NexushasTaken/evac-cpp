@@ -52,8 +52,14 @@ public:
     // skips the pack. Only for the user's packs, not the stock ones.
     bool set_enabled(const std::string& location, bool enabled);
 
+    // True if the pack's directory is in the user's sound directory, so that
+    // installing it again replaces that copy. Stock packs don't count: they
+    // are never touched.
+    bool has_user_copy(const SoundpackSource& pack);
+
     // Downloads the pack (or uses from_file, if not empty) and installs it.
-    // With reinstall, an existing copy is removed first.
+    // With reinstall, an existing copy is removed first. Without it, an
+    // existing copy is an error, so nothing gets merged into it.
     bool install_pack(const SoundpackSource& pack, const std::string& from_file, bool reinstall, bool keep_archive);
 
     void cancel();

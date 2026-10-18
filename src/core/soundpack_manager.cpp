@@ -145,6 +145,12 @@ bool SoundpackManager::set_enabled(const std::string& location, bool enabled)
     return true;
 }
 
+bool SoundpackManager::has_user_copy(const SoundpackSource& pack)
+{
+    std::error_code ec;
+    return fs::exists(fs::symlink_status(paths_.sound_user() + "/" + pack.name, ec));
+}
+
 bool SoundpackManager::install_pack(const SoundpackSource& pack, const std::string& from_file, bool reinstall,
                                     bool keep_archive)
 {
@@ -152,6 +158,14 @@ bool SoundpackManager::install_pack(const SoundpackSource& pack, const std::stri
     std::string tmp_dir = paths_.tmp_dir() + "/" + pack.name;
     std::string archive_path;
     std::error_code ec;
+
+    if (!reinstall && has_user_copy(pack))
+    {
+        status_.post("Soundpack \"" + pack.name + "\" is already installed in " + sound_dir + "/" + pack.name
+                         + ". Reinstall it instead.",
+                     MSG_ERROR);
+        return false;
+    }
 
     if (reinstall)
         status_.post("Reinstalling soundpack \"" + pack.name + "\"...");

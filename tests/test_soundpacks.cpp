@@ -238,6 +238,38 @@ TEST_CASE("install from a local file, reinstall and delete")
     REQUIRE(f.trash.list().size() == 2);
 }
 
+TEST_CASE("a stock pack with the same name is not a user copy")
+{
+    SoundFixture f("sound_stock_same_name");
+    write_file(f.dir + "/dda/game0/" + INFO_FILENAME, "{\"name\": \"Test Build\"}");
+    f.paths.installs_summary();
+    write_file(f.paths.sound_stock() + "/CC-Sounds/soundpack.txt", "VIEW: CC-Sounds\n");
+    SoundpackSource pack;
+    pack.name = "CC-Sounds";
+    pack.internal_path = "Inner-1";
+
+    // Only the stock one: installing is not a reinstall, and nothing goes to the trash.
+    REQUIRE(!f.sounds.has_user_copy(pack));
+    std::string zip1 = f.make_pack_zip("Inner-1", "first");
+    REQUIRE(f.sounds.install_pack(pack, zip1, false, true));
+    REQUIRE(f.sounds.has_user_copy(pack));
+    REQUIRE(f.trash.list().empty());
+    REQUIRE(fs::exists(f.paths.sound_stock() + "/CC-Sounds/soundpack.txt"));
+
+    // Installing over the user's copy without reinstall is refused, not merged.
+    write_file(f.paths.sound_user() + "/CC-Sounds/mine.txt", "keep");
+    std::string zip2 = f.make_pack_zip("Inner-1", "second");
+    REQUIRE(!f.sounds.install_pack(pack, zip2, false, true));
+    REQUIRE(read_file(f.paths.sound_user() + "/CC-Sounds/sfx/boom.ogg") == "first");
+    REQUIRE(read_file(f.paths.sound_user() + "/CC-Sounds/mine.txt") == "keep");
+
+    // A reinstall replaces it, and the old copy is in the trash.
+    REQUIRE(f.sounds.install_pack(pack, zip2, true, true));
+    REQUIRE(read_file(f.paths.sound_user() + "/CC-Sounds/sfx/boom.ogg") == "second");
+    REQUIRE(f.trash.list().size() == 1);
+    REQUIRE(read_file(f.paths.trash_dir() + "/" + f.trash.list()[0].id + "/item/mine.txt") == "keep");
+}
+
 TEST_CASE("install downloads the archive and uses the cache")
 {
     SoundFixture f("sound_download");

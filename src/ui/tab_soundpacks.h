@@ -27,7 +27,6 @@ private:
     void update_buttons();
     void run_task(const std::function<void()>& work);
 
-    bool is_installed(const std::string& pack_name);
     int selected_installed();
     int selected_available();
 

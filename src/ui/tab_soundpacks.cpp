@@ -129,16 +129,6 @@ void TabSoundpacks::refresh_installed()
     update_buttons();
 }
 
-bool TabSoundpacks::is_installed(const std::string& pack_name)
-{
-    for (size_t i = 0; i < installed_.size(); ++i)
-    {
-        if (installed_[i].name == pack_name)
-            return true;
-    }
-    return false;
-}
-
 int TabSoundpacks::selected_installed()
 {
     Gtk::ListBoxRow* row = installed_list_.get_selected_row();
@@ -167,7 +157,9 @@ void TabSoundpacks::update_buttons()
     int available = selected_available();
     install_button_.set_sensitive(available >= 0);
     install_from_file_button_.set_sensitive(available >= 0);
-    bool reinstall = (available >= 0 && is_installed(available_soundpacks()[available].name));
+    // By the directory the install writes to, not by name: a stock pack with
+    // the same name is not replaced.
+    bool reinstall = (available >= 0 && ctx_.soundpacks.has_user_copy(available_soundpacks()[available]));
     install_button_.set_label(reinstall ? "Reinstall Selected" : "Install Selected");
 }
 
@@ -241,7 +233,7 @@ void TabSoundpacks::install_selected(const std::string& from_file)
     if (index < 0)
         return;
     SoundpackSource pack = available_soundpacks()[index];
-    bool reinstall = is_installed(pack.name);
+    bool reinstall = ctx_.soundpacks.has_user_copy(pack);
     bool keep_archive = !from_file.empty();  // Never delete the user's own file.
 
     std::function<void()> install = [this, pack, from_file, reinstall, keep_archive]() {
