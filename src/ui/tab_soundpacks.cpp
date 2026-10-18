@@ -207,9 +207,9 @@ void TabSoundpacks::on_toggle_clicked()
     int index = selected_installed();
     if (index < 0 || installed_[index].is_stock)
         return;
-    std::string name = installed_[index].name;
+    std::string location = installed_[index].location;
     bool enable = !installed_[index].enabled;
-    run_task([this, name, enable]() { ctx_.soundpacks.set_enabled(name, enable); });
+    run_task([this, location, enable]() { ctx_.soundpacks.set_enabled(location, enable); });
 }
 
 void TabSoundpacks::on_delete_clicked()
@@ -218,16 +218,18 @@ void TabSoundpacks::on_delete_clicked()
     if (index < 0 || installed_[index].is_stock)
         return;
     std::string name = installed_[index].name;
+    std::string location = installed_[index].location;
 
     Glib::RefPtr<Gtk::AlertDialog> dialog = Gtk::AlertDialog::create("Delete the soundpack?");
-    dialog->set_detail("Deleting " + name + ".");
+    // Show the folder too: two packs can have the same name.
+    dialog->set_detail("Deleting " + name + " (" + Glib::path_get_basename(location) + ").");
     std::vector<Glib::ustring> buttons;
     buttons.push_back("Cancel");
     buttons.push_back("Delete");
     dialog->set_buttons(buttons);
     dialog->set_cancel_button(0);
     dialog->set_default_button(0);
-    dialog->choose(parent_, [this, dialog, name](const Glib::RefPtr<Gio::AsyncResult>& result) {
+    dialog->choose(parent_, [this, dialog, location](const Glib::RefPtr<Gio::AsyncResult>& result) {
         int choice = 0;
         try
         {
@@ -238,7 +240,7 @@ void TabSoundpacks::on_delete_clicked()
             choice = 0;  // Dismissed.
         }
         if (choice == 1)
-            run_task([this, name]() { ctx_.soundpacks.delete_pack(name); });
+            run_task([this, location]() { ctx_.soundpacks.delete_pack(location); });
     });
 }
 

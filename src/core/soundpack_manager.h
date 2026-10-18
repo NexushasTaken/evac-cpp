@@ -44,11 +44,12 @@ public:
     // The packs in the user's sound directory, plus the ones that come with the game.
     std::vector<InstalledSoundpack> get_installed(bool include_stock);
 
-    bool delete_pack(const std::string& pack_name);
+    // Packs are picked by location, not name: two folders can have the same VIEW name.
+    bool delete_pack(const std::string& location);
 
     // Renames soundpack.txt to soundpack.txt.disabled, or back, so the game
     // skips the pack. Only for the user's packs, not the stock ones.
-    bool set_enabled(const std::string& pack_name, bool enabled);
+    bool set_enabled(const std::string& location, bool enabled);
 
     // Downloads the pack (or uses from_file, if not empty) and installs it.
     // With reinstall, an existing copy is removed first.
@@ -57,8 +58,8 @@ public:
     void cancel();
 
 private:
-    // Looks up one of the user's packs by name. Posts an error if there is none.
-    bool find_user_pack(const std::string& pack_name, InstalledSoundpack& out);
+    // Looks up one of the user's packs by its directory. Posts an error if there is none.
+    bool find_user_pack(const std::string& location, InstalledSoundpack& out);
 
     Settings& settings_;
     Paths& paths_;

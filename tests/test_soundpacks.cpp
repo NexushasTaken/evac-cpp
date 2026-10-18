@@ -136,45 +136,69 @@ TEST_CASE("disable and enable a soundpack")
     write_file(mine + "/soundpack.txt", "VIEW: Mine\n");
     write_file(f.paths.sound_stock() + "/stock/soundpack.txt", "VIEW: Stock\n");
 
-    REQUIRE(f.sounds.set_enabled("Mine", false));
+    REQUIRE(f.sounds.set_enabled(mine, false));
     REQUIRE(!fs::exists(mine + "/soundpack.txt"));
     REQUIRE(fs::exists(mine + "/soundpack.txt.disabled"));
     std::vector<InstalledSoundpack> installed = f.sounds.get_installed(false);
     REQUIRE(installed.size() == 1);
     REQUIRE(!installed[0].enabled);
 
-    REQUIRE(f.sounds.set_enabled("Mine", false));  // Already disabled: nothing to do.
+    REQUIRE(f.sounds.set_enabled(mine, false));  // Already disabled: nothing to do.
     REQUIRE(fs::exists(mine + "/soundpack.txt.disabled"));
 
-    REQUIRE(f.sounds.set_enabled("Mine", true));
+    REQUIRE(f.sounds.set_enabled(mine, true));
     REQUIRE(fs::exists(mine + "/soundpack.txt"));
     REQUIRE(!fs::exists(mine + "/soundpack.txt.disabled"));
     REQUIRE(f.sounds.get_installed(false)[0].enabled);
 
-    REQUIRE(!f.sounds.set_enabled("No Such Pack", false));
-    REQUIRE(!f.sounds.set_enabled("Stock", false));  // Stock packs are left alone.
+    REQUIRE(!f.sounds.set_enabled(f.paths.sound_user() + "/missing", false));
+    REQUIRE(!f.sounds.set_enabled(f.paths.sound_stock() + "/stock", false));  // Stock packs are left alone.
     REQUIRE(fs::exists(f.paths.sound_stock() + "/stock/soundpack.txt"));
 
     // Never overwrite a file that is already there.
     write_file(mine + "/soundpack.txt.disabled", "VIEW: Old copy\n");
-    REQUIRE(!f.sounds.set_enabled("Mine", false));
+    REQUIRE(!f.sounds.set_enabled(mine, false));
     REQUIRE(fs::exists(mine + "/soundpack.txt"));
     REQUIRE(read_file(mine + "/soundpack.txt.disabled") == "VIEW: Old copy\n");
     fs::remove(mine + "/soundpack.txt.disabled");
 
     // A dangling soundpack.txt symlink is not replaced on enable either.
-    REQUIRE(f.sounds.set_enabled("Mine", false));
+    REQUIRE(f.sounds.set_enabled(mine, false));
     fs::create_symlink(f.dir + "/nowhere", mine + "/soundpack.txt");
-    REQUIRE(!f.sounds.set_enabled("Mine", true));
+    REQUIRE(!f.sounds.set_enabled(mine, true));
     REQUIRE(fs::is_symlink(mine + "/soundpack.txt"));
     REQUIRE(fs::exists(mine + "/soundpack.txt.disabled"));
     fs::remove(mine + "/soundpack.txt");
-    REQUIRE(f.sounds.set_enabled("Mine", true));
+    REQUIRE(f.sounds.set_enabled(mine, true));
 
     // A disabled pack can still be deleted.
-    REQUIRE(f.sounds.set_enabled("Mine", false));
-    REQUIRE(f.sounds.delete_pack("Mine"));
+    REQUIRE(f.sounds.set_enabled(mine, false));
+    REQUIRE(f.sounds.delete_pack(mine));
     REQUIRE(!fs::exists(mine));
+}
+
+TEST_CASE("delete picks the pack by location, not by name")
+{
+    SoundFixture f("sound_same_name");
+    write_file(f.dir + "/dda/game0/" + INFO_FILENAME, "{\"name\": \"Test Build\"}");
+    f.paths.installs_summary();
+    std::string pack = f.paths.sound_user() + "/CC-Sounds";
+    std::string copy = f.paths.sound_user() + "/CC-Sounds-old";
+    write_file(pack + "/soundpack.txt", "VIEW: CC-Sounds\n");
+    write_file(copy + "/soundpack.txt", "VIEW: CC-Sounds\n");
+    write_file(f.paths.sound_stock() + "/stock/soundpack.txt", "VIEW: Stock\n");
+
+    // The second one in the list, which used to delete the first.
+    REQUIRE(f.sounds.delete_pack(copy));
+    REQUIRE(fs::exists(pack));
+    REQUIRE(!fs::exists(copy));
+
+    // Only paths of the user's packs are accepted.
+    REQUIRE(!f.sounds.delete_pack(f.paths.sound_stock() + "/stock"));
+    REQUIRE(!f.sounds.delete_pack(f.paths.sound_user()));
+    REQUIRE(!f.sounds.delete_pack(pack + "/"));  // Must match exactly.
+    REQUIRE(fs::exists(f.paths.sound_stock() + "/stock"));
+    REQUIRE(fs::exists(pack));
 }
 
 TEST_CASE("install from a local file, reinstall and delete")
@@ -200,8 +224,8 @@ TEST_CASE("install from a local file, reinstall and delete")
     REQUIRE(installed.size() == 1);
     REQUIRE(installed[0].name == "Test Pack");
 
-    REQUIRE(!f.sounds.delete_pack("No Such Pack"));
-    REQUIRE(f.sounds.delete_pack("Test Pack"));
+    REQUIRE(!f.sounds.delete_pack(f.paths.sound_user() + "/No Such Pack"));
+    REQUIRE(f.sounds.delete_pack(installed[0].location));
     REQUIRE(!fs::exists(f.paths.sound_user() + "/Test Pack"));
 }
 

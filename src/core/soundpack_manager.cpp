@@ -87,34 +87,34 @@ std::vector<InstalledSoundpack> SoundpackManager::get_installed(bool include_sto
     return packs;
 }
 
-bool SoundpackManager::find_user_pack(const std::string& pack_name, InstalledSoundpack& out)
+bool SoundpackManager::find_user_pack(const std::string& location, InstalledSoundpack& out)
 {
     std::vector<InstalledSoundpack> packs = get_installed(false);
     for (size_t i = 0; i < packs.size(); ++i)
     {
-        if (packs[i].name == pack_name)
+        if (packs[i].location == location)
         {
             out = packs[i];
             return true;
         }
     }
-    status_.post("Could not find soundpack named \"" + pack_name + "\"", MSG_ERROR);
+    status_.post("Could not find a soundpack in " + location, MSG_ERROR);
     return false;
 }
 
-bool SoundpackManager::delete_pack(const std::string& pack_name)
+bool SoundpackManager::delete_pack(const std::string& location)
 {
     InstalledSoundpack pack;
-    if (!find_user_pack(pack_name, pack))
+    if (!find_user_pack(location, pack))
         return false;
     status_.post("Deleting " + pack.location);
     return fs_helper::rm_dir(pack.location, status_);
 }
 
-bool SoundpackManager::set_enabled(const std::string& pack_name, bool enabled)
+bool SoundpackManager::set_enabled(const std::string& location, bool enabled)
 {
     InstalledSoundpack pack;
-    if (!find_user_pack(pack_name, pack))
+    if (!find_user_pack(location, pack))
         return false;
     if (pack.enabled == enabled)
         return true;
@@ -130,7 +130,7 @@ bool SoundpackManager::set_enabled(const std::string& pack_name, bool enabled)
     fs::file_status to_status = fs::symlink_status(to, ec);
     if (fs::exists(to_status))
     {
-        status_.post("Not renaming the config of soundpack \"" + pack_name + "\": " + to + " already exists.",
+        status_.post("Not renaming the config of soundpack \"" + pack.name + "\": " + to + " already exists.",
                      MSG_ERROR);
         return false;
     }
@@ -138,11 +138,11 @@ bool SoundpackManager::set_enabled(const std::string& pack_name, bool enabled)
     fs::rename(from, to, ec);
     if (ec)
     {
-        status_.post("Could not rename the config of soundpack \"" + pack_name + "\": " + ec.message(), MSG_ERROR);
+        status_.post("Could not rename the config of soundpack \"" + pack.name + "\": " + ec.message(), MSG_ERROR);
         return false;
     }
 
-    status_.post(std::string(enabled ? "Enabled" : "Disabled") + " soundpack \"" + pack_name + "\".");
+    status_.post(std::string(enabled ? "Enabled" : "Disabled") + " soundpack \"" + pack.name + "\".");
     return true;
 }
 
