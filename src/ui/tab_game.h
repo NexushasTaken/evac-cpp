@@ -50,7 +50,7 @@ private:
     void on_installs_row_activated(Gtk::ListBoxRow* row);
 
     void install_selected(bool update_active);
-    void confirm_game_safe_to_delete(const std::string& install_name, const std::function<void(bool)>& answer);
+    void confirm_install_removal(const std::string& install_name, bool update, const std::function<void()>& yes);
     void start_game(const std::string& world);
     void open_folder(const std::string& dir);
 

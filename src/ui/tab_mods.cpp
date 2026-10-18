@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <strings.h>
 
+#include "ui/dialogs.h"
+
 static const char* const NO_INFO_TEXT = "Select a mod in either list to see its details here.";
 
 static Gtk::Label* make_label(const Glib::ustring& text)
@@ -494,16 +496,22 @@ void TabMods::on_delete_clicked()
     if (ids.empty())
         return;
 
+    bool use_trash = ctx_.settings.get_bool("use_trash");
+    std::string detail;
     if (ids.size() == 1)
     {
-        run_task([this, ids]() { ctx_.mods.delete_mods(ids); });
-        return;
+        std::map<std::string, ModEntry>::const_iterator mod = ctx_.mods.installed().find(ids[0]);
+        std::string name = (mod != ctx_.mods.installed().end()) ? mod->second.name : ids[0];
+        detail = "\"" + name + "\" " + dialogs::removal_text(use_trash) + ".";
     }
-
+    else
+    {
+        detail = std::to_string(ids.size()) + " mods " + dialogs::removal_text(use_trash) + ".";
+    }
     std::vector<Glib::ustring> buttons;
     buttons.push_back("Cancel");
-    buttons.push_back("Delete");
-    ask("Delete the mods?", "Deleting " + std::to_string(ids.size()) + " mods.", buttons, [this, ids](int choice) {
+    buttons.push_back(dialogs::removal_button(use_trash));
+    ask(ids.size() == 1 ? "Delete the mod?" : "Delete the mods?", detail, buttons, [this, ids](int choice) {
         if (choice == 1)
             run_task([this, ids]() { ctx_.mods.delete_mods(ids); });
     });
@@ -541,9 +549,12 @@ void TabMods::on_add_selected_clicked()
         return;
     }
 
+    std::string old_copies = ctx_.settings.get_bool("use_trash") ? "The installed copies go to the trash."
+                                                                   : "The installed copies are deleted for good.";
     std::string detail = (reinstall_ids.size() == 1)
                              ? "One of the selected mods is already installed.\nDelete and reinstall it?"
                              : std::to_string(reinstall_ids.size()) + " of the selected mods are already installed.\nDelete and reinstall them?";
+    detail += "\n" + old_copies;
     std::vector<Glib::ustring> buttons;
     buttons.push_back("Cancel");
     buttons.push_back("No, skip them");
@@ -583,5 +594,22 @@ void TabMods::on_kenan_clicked()
     if (!pack)
         return;
     Modpack copy = *pack;
-    run_task([this, copy]() { ctx_.mods.retrieve_modpack(copy); });
+
+    // Getting the pack replaces the local repository, which is not trashed:
+    // it only holds the last download of the pack.
+    if (Paths::list_dir(ctx_.paths.mod_repo()).empty())
+    {
+        run_task([this, copy]() { ctx_.mods.retrieve_modpack(copy); });
+        return;
+    }
+    std::vector<Glib::ustring> buttons;
+    buttons.push_back("Cancel");
+    buttons.push_back("Replace Repository");
+    ask("Replace the local repository?",
+        "The mods in the local repository will be deleted for good (not moved to the trash) and replaced with "
+        "a fresh download of " + copy.name + ".\nInstalled mods are not affected.",
+        buttons, [this, copy](int choice) {
+            if (choice == 1)
+                run_task([this, copy]() { ctx_.mods.retrieve_modpack(copy); });
+        });
 }

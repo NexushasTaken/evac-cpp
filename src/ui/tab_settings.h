@@ -35,6 +35,7 @@ private:
     Gtk::DropDown proxy_option_;
     Gtk::Entry proxy_host_;
     Gtk::SpinButton proxy_port_;
+    Gtk::SpinButton trash_max_size_;
 };
 
 #endif

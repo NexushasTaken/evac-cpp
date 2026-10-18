@@ -133,6 +133,27 @@ void TabSettings::build_ui()
     });
     add_row(*box, "Proxy port:", "Configure a proxy server for downloading.", proxy_port_);
 
+    box->append(*make_heading("Trash"));
+    add_check(*box, "Move deleted things to the trash",
+              "Deleted game installs, mods, soundpacks, backups and replaced saves\ngo to the Trash tab, where they can be restored.\n"
+              "When turned off, deleting is permanent.",
+              "use_trash");
+    trash_max_size_.set_adjustment(Gtk::Adjustment::create(5120, 0, 1048576, 256));
+    trash_max_size_.signal_value_changed().connect([this]() {
+        if (updating_)
+            return;
+        ctx_.settings.set_int("trash_max_size_mb", trash_max_size_.get_value_as_int());
+        ctx_.settings.save();
+    });
+    add_row(*box, "Trash size limit (MiB):",
+            "When the trash gets bigger than this, the launcher tells you,\nand Free Up Space on the Trash tab deletes the oldest items.\n"
+            "Nothing is deleted without asking.",
+            trash_max_size_);
+    add_check(*box, "Offer to delete the oldest items when over the limit",
+              "When the trash gets over its size limit, ask right away whether to\ndelete the oldest items for good, "
+              "instead of only showing a message.",
+              "trash_auto_prune");
+
     box->append(*make_heading("Other"));
     add_check(*box, "Debug mode", "Enables debug messages in the status pane\n(useful for troubleshooting).", "debug_mode");
 
@@ -173,6 +194,7 @@ void TabSettings::load_from_settings()
 
     proxy_host_.set_text(ctx_.settings.get_string("proxy_host"));
     proxy_port_.set_value(ctx_.settings.get_int("proxy_port"));
+    trash_max_size_.set_value(ctx_.settings.get_int("trash_max_size_mb"));
 
     updating_ = false;
 }

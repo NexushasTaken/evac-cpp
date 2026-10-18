@@ -2,6 +2,8 @@
 
 #include <ctime>
 
+#include "ui/dialogs.h"
+
 static const char* const NO_INFO_TEXT = "Select an existing backup to see its details here.";
 
 static Gtk::Label* make_label(const Glib::ustring& text)
@@ -205,28 +207,13 @@ void TabBackups::on_restore_clicked()
     std::string name = backups_[index].name;
 
     // This replaces the current saves, so make sure that is what the user wants.
-    Glib::RefPtr<Gtk::AlertDialog> dialog = Gtk::AlertDialog::create("Restore this backup?");
-    dialog->set_detail("Your current saves of this game will be replaced with the backup \"" + name
-                       + "\". Create a backup of the current saves first if you want to keep them.");
-    std::vector<Glib::ustring> buttons;
-    buttons.push_back("Cancel");
-    buttons.push_back("Restore");
-    dialog->set_buttons(buttons);
-    dialog->set_cancel_button(0);
-    dialog->set_default_button(0);
-    dialog->choose(parent_, [this, dialog, name](const Glib::RefPtr<Gio::AsyncResult>& result) {
-        int choice = 0;
-        try
-        {
-            choice = dialog->choose_finish(result);
-        }
-        catch (const Glib::Error&)
-        {
-            choice = 0;
-        }
-        if (choice == 1)
-            run_task([this, name]() { ctx_.backups.restore(name); });
-    });
+    std::string current = ctx_.settings.get_bool("use_trash")
+                              ? "Your current saves of this game will be moved to the trash"
+                              : "Your current saves of this game will be deleted for good";
+    dialogs::confirm(parent_, "Restore this backup?",
+                     current + " and replaced with the backup \"" + name
+                         + "\". Create a backup of the current saves first if you want to keep them.",
+                     "Restore", [this, name]() { run_task([this, name]() { ctx_.backups.restore(name); }); });
 }
 
 void TabBackups::on_delete_clicked()
@@ -235,5 +222,8 @@ void TabBackups::on_delete_clicked()
     if (index < 0)
         return;
     std::string name = backups_[index].name;
-    run_task([this, name]() { ctx_.backups.delete_backup(name); });
+    bool use_trash = ctx_.settings.get_bool("use_trash");
+    dialogs::confirm(parent_, "Delete the backup?", "The backup \"" + name + "\" " + dialogs::removal_text(use_trash) + ".",
+                     dialogs::removal_button(use_trash),
+                     [this, name]() { run_task([this, name]() { ctx_.backups.delete_backup(name); }); });
 }

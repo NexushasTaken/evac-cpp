@@ -1,5 +1,7 @@
 #include "ui/tab_soundpacks.h"
 
+#include "ui/dialogs.h"
+
 static Gtk::Label* make_label(const Glib::ustring& text)
 {
     Gtk::Label* label = Gtk::make_managed<Gtk::Label>(text);
@@ -220,28 +222,12 @@ void TabSoundpacks::on_delete_clicked()
     std::string name = installed_[index].name;
     std::string location = installed_[index].location;
 
-    Glib::RefPtr<Gtk::AlertDialog> dialog = Gtk::AlertDialog::create("Delete the soundpack?");
     // Show the folder too: two packs can have the same name.
-    dialog->set_detail("Deleting " + name + " (" + Glib::path_get_basename(location) + ").");
-    std::vector<Glib::ustring> buttons;
-    buttons.push_back("Cancel");
-    buttons.push_back("Delete");
-    dialog->set_buttons(buttons);
-    dialog->set_cancel_button(0);
-    dialog->set_default_button(0);
-    dialog->choose(parent_, [this, dialog, location](const Glib::RefPtr<Gio::AsyncResult>& result) {
-        int choice = 0;
-        try
-        {
-            choice = dialog->choose_finish(result);
-        }
-        catch (const Glib::Error&)
-        {
-            choice = 0;  // Dismissed.
-        }
-        if (choice == 1)
-            run_task([this, location]() { ctx_.soundpacks.delete_pack(location); });
-    });
+    bool use_trash = ctx_.settings.get_bool("use_trash");
+    dialogs::confirm(parent_, "Delete the soundpack?",
+                     name + " (" + Glib::path_get_basename(location) + ") " + dialogs::removal_text(use_trash) + ".",
+                     dialogs::removal_button(use_trash),
+                     [this, location]() { run_task([this, location]() { ctx_.soundpacks.delete_pack(location); }); });
 }
 
 void TabSoundpacks::on_install_clicked()
@@ -258,9 +244,21 @@ void TabSoundpacks::install_selected(const std::string& from_file)
     bool reinstall = is_installed(pack.name);
     bool keep_archive = !from_file.empty();  // Never delete the user's own file.
 
-    run_task([this, pack, from_file, reinstall, keep_archive]() {
-        ctx_.soundpacks.install_pack(pack, from_file, reinstall, keep_archive);
-    });
+    std::function<void()> install = [this, pack, from_file, reinstall, keep_archive]() {
+        run_task([this, pack, from_file, reinstall, keep_archive]() {
+            ctx_.soundpacks.install_pack(pack, from_file, reinstall, keep_archive);
+        });
+    };
+    if (!reinstall)
+    {
+        install();
+        return;
+    }
+    // Reinstalling replaces the installed copy.
+    dialogs::confirm(parent_, "Reinstall " + pack.name + "?",
+                     "The installed copy " + dialogs::removal_text(ctx_.settings.get_bool("use_trash"))
+                         + ", and a fresh copy is installed.",
+                     "Reinstall", install);
 }
 
 void TabSoundpacks::on_install_from_file_clicked()
