@@ -38,6 +38,7 @@ add_library(catapult_core STATIC
     src/core/mod_manager.cpp
     src/core/backup_manager.cpp
     src/core/git.cpp
+    src/core/snapshot_manager.cpp
     src/core/tips.cpp
     src/core/window_state.cpp
     src/core/licenses.cpp
@@ -81,6 +82,7 @@ add_executable(core_tests
     tests/test_soundpacks.cpp
     tests/test_mods.cpp
     tests/test_backups.cpp
+    tests/test_snapshots.cpp
     tests/test_extras.cpp
     tests/test_trash.cpp
     tests/test_launcher.cpp)
