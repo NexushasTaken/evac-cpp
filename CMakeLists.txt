@@ -81,6 +81,7 @@ add_executable(core_tests
     tests/test_mods.cpp
     tests/test_backups.cpp
     tests/test_extras.cpp
-    tests/test_trash.cpp)
+    tests/test_trash.cpp
+    tests/test_launcher.cpp)
 target_link_libraries(core_tests PRIVATE catapult_core Catch2::Catch2WithMain)
 add_test(NAME core_tests COMMAND core_tests)

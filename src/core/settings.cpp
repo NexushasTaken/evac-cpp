@@ -39,6 +39,7 @@ nlohmann::json Settings::defaults()
     d["font_preview_cyrillic"] = false;
     d["show_game_desc"] = true;
     d["keep_open_after_starting_game"] = true;
+    d["game_extra_args"] = "";  // Added to the game's command line, see split_command_line().
     d["keep_cache"] = false;
     d["ignore_cache"] = false;
     d["proxy_option"] = "off";

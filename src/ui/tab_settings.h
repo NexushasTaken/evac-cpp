@@ -31,6 +31,7 @@ private:
     bool updating_;
     std::vector<std::pair<std::string, Gtk::CheckButton*> > checks_;
 
+    Gtk::Entry game_extra_args_;
     Gtk::SpinButton num_releases_;
     Gtk::DropDown proxy_option_;
     Gtk::Entry proxy_host_;

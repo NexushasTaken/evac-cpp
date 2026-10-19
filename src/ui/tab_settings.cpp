@@ -60,6 +60,20 @@ void TabSettings::build_ui()
               "If turned off, the launcher will close after clicking Play or Resume.\n"
               "Note that if the game fails to start for any reason, the launcher\nwill still close.",
               "keep_open_after_starting_game");
+
+    game_extra_args_.set_placeholder_text("none");
+    game_extra_args_.set_hexpand(true);
+    game_extra_args_.signal_changed().connect([this]() {
+        if (updating_)
+            return;
+        ctx_.settings.set_string("game_extra_args", game_extra_args_.get_text());
+        ctx_.settings.save();
+    });
+    add_row(*box, "Extra command-line parameters:",
+            "Added to the game's command line when starting it.\n"
+            "Separate them with spaces; use quotes for a value with spaces in it.\n"
+            "The launcher already passes --userdir, and --world for Resume.",
+            game_extra_args_);
     add_check(*box, "Allow \"updating\" to the same build as installed",
               "Allow starting the update procedure even when the selected\nrelease is the same as currently installed.",
               "update_to_same_build_allowed");
@@ -181,6 +195,7 @@ void TabSettings::load_from_settings()
     for (size_t i = 0; i < checks_.size(); ++i)
         checks_[i].second->set_active(ctx_.settings.get_bool(checks_[i].first));
 
+    game_extra_args_.set_text(ctx_.settings.get_string("game_extra_args"));
     num_releases_.set_value(ctx_.settings.get_int("num_releases_to_request"));
 
     std::string option = ctx_.settings.get_string("proxy_option");
