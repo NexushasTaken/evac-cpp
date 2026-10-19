@@ -18,6 +18,7 @@ MainWindow::MainWindow(AppContext& ctx)
       tab_mods_(ctx, runner_, *this),
       tab_soundpacks_(ctx, runner_, *this),
       tab_fonts_(ctx, *this),
+      tab_snapshots_(ctx, runner_, *this),
       tab_backups_(ctx, runner_, *this),
       tab_trash_(ctx, runner_, *this),
       tab_settings_(ctx, *this),
@@ -35,6 +36,7 @@ MainWindow::MainWindow(AppContext& ctx)
     tabs_.append_page(tab_mods_, "Mods");
     tabs_.append_page(tab_soundpacks_, "Soundpacks");
     tabs_.append_page(tab_fonts_, "Fonts");
+    tabs_.append_page(tab_snapshots_, "Snapshots");
     tabs_.append_page(tab_backups_, "Backups");
     tabs_.append_page(tab_trash_, "Trash");
     tabs_.append_page(tab_settings_, "Settings");
@@ -123,6 +125,8 @@ void MainWindow::show_page(Gtk::Widget* page)
         tab_soundpacks_.refresh();
     else if (page == &tab_fonts_)
         tab_fonts_.refresh();
+    else if (page == &tab_snapshots_)
+        tab_snapshots_.refresh();
     else if (page == &tab_backups_)
         tab_backups_.refresh();
     else if (page == &tab_trash_)

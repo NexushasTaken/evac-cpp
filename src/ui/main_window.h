@@ -10,6 +10,7 @@
 #include "ui/tab_mods.h"
 #include "ui/tab_game.h"
 #include "ui/tab_settings.h"
+#include "ui/tab_snapshots.h"
 #include "ui/tab_soundpacks.h"
 #include "ui/tab_trash.h"
 #include "ui/task_runner.h"
@@ -37,6 +38,7 @@ private:
     TabMods tab_mods_;
     TabSoundpacks tab_soundpacks_;
     TabFonts tab_fonts_;
+    TabSnapshots tab_snapshots_;
     TabBackups tab_backups_;
     TabTrash tab_trash_;
     TabSettings tab_settings_;

@@ -26,6 +26,8 @@ static Glib::ustring kind_text(const std::string& kind)
         return "Game install";
     if (kind == "saves")
         return "Saves";
+    if (kind == "snapshots")
+        return "Snapshots";
     return kind;
 }
 

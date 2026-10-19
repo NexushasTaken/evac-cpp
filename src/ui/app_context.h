@@ -11,6 +11,7 @@
 #include "core/release_installer.h"
 #include "core/release_manager.h"
 #include "core/settings.h"
+#include "core/snapshot_manager.h"
 #include "core/soundpack_manager.h"
 #include "core/status.h"
 #include "core/trash.h"
@@ -29,7 +30,8 @@ struct AppContext
           fonts(paths, status),
           soundpacks(settings, paths, status, trash),
           mods(settings, paths, status, trash),
-          backups(settings, paths, status, trash)
+          backups(settings, paths, status, trash),
+          snapshots(paths, status, trash)
     {
         settings.load();
     }
@@ -45,6 +47,7 @@ struct AppContext
     SoundpackManager soundpacks;
     ModManager mods;
     BackupManager backups;
+    SnapshotManager snapshots;
 };
 
 #endif

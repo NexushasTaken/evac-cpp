@@ -56,6 +56,7 @@ add_executable(catapult
     src/ui/font_preview.cpp
     src/ui/tab_soundpacks.cpp
     src/ui/tab_mods.cpp
+    src/ui/tab_snapshots.cpp
     src/ui/tab_backups.cpp
     src/ui/tab_settings.cpp
     src/ui/tab_trash.cpp
