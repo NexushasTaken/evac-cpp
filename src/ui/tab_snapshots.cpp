@@ -101,6 +101,9 @@ void TabSnapshots::build_ui()
     start_fresh_button_.set_tooltip_text("Move all snapshots of this world to the trash and start a new history with "
                                          "one snapshot (Name and Description below). Frees disk space.");
     popover_box->append(start_fresh_button_);
+    delete_button_.set_label("Delete snapshots\xe2\x80\xa6");
+    delete_button_.set_tooltip_text("For a world that no longer exists: remove its snapshots too.");
+    popover_box->append(delete_button_);
     popover->set_child(*popover_box);
     menu_button_.set_icon_name("view-more-symbolic");
     menu_button_.set_tooltip_text("More actions");
@@ -197,6 +200,10 @@ void TabSnapshots::build_ui()
     start_fresh_button_.signal_clicked().connect([this, popover]() {
         popover->popdown();
         on_start_fresh_clicked();
+    });
+    delete_button_.signal_clicked().connect([this, popover]() {
+        popover->popdown();
+        on_delete_clicked();
     });
 }
 
@@ -396,6 +403,7 @@ void TabSnapshots::update_buttons()
     copy_button_.set_sensitive(world != nullptr);
     export_button_.set_sensitive(world && !snapshots_.empty());
     start_fresh_button_.set_sensitive(world && !deleted && !snapshots_.empty() && has_name);
+    delete_button_.set_sensitive(deleted);
 }
 
 // A world folder that disappeared (deleted in the game, or by restoring a zip
@@ -617,5 +625,21 @@ void TabSnapshots::on_start_fresh_clicked()
                          run_task([this, world_name, name, description]() {
                              ctx_.snapshots.start_fresh(world_name, name, description);
                          });
+                     });
+}
+
+void TabSnapshots::on_delete_clicked()
+{
+    const WorldInfo* world = selected_world();
+    if (!world || world->state != WorldInfo::DELETED)
+        return;
+    std::string world_name = world->name;
+    std::string count = std::to_string(snapshots_.size()) + (snapshots_.size() == 1 ? " snapshot" : " snapshots");
+    bool use_trash = ctx_.settings.get_bool("use_trash");
+    dialogs::confirm(parent_, "Delete the snapshots of " + world_name + "?",
+                     world_name + " no longer exists. Its " + count + " (" + Glib::format_size(ctx_.snapshots.history_size(world_name))
+                         + ") " + dialogs::removal_text(use_trash) + ".",
+                     dialogs::removal_button(use_trash), [this, world_name]() {
+                         run_task([this, world_name]() { ctx_.snapshots.delete_snapshots(world_name); });
                      });
 }

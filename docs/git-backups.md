@@ -1,7 +1,7 @@
 # Git backups
 
-Design agreed on 2026-10-19. The first version (see Scope), Export snapshots, Import snapshots and Start fresh are implemented;
-the other "Later" items are not.
+Design agreed on 2026-10-19. The first version (see Scope), Export snapshots, Import snapshots, Start fresh and Delete snapshots
+are implemented; the other "Later" item (the zip restore dialog) is not.
 
 Adds a **Snapshots** tab: one git repository per world, the manual "git in userdata" workflow built
 into the launcher, limited to world saves. The existing **Backups** tab (zip backups,
@@ -148,7 +148,7 @@ backup that does not contain it.
 2. On Cancel, the repo is marked as kept (for example `git config catapult.keep true` in the repo,
    so the mark travels with it) and the tab does not ask again. The world stays in the list, greyed
    out, labelled `deleted`. Its snapshots can be viewed, and **Restore snapshot** recreates the world
-   folder (create the folder before `git restore`). Later, **Delete snapshots…** in the `⋮` menu
+   folder (create the folder before `git restore`). **Delete snapshots…** in the `⋮` menu
    moves the repo to the trash, with confirmation. Until then, the repo can be deleted from a file
    manager.
 
@@ -207,8 +207,8 @@ The two tabs never touch each other's files: zip restore cannot break the repos 
   For a `deleted` world, Take snapshot and Discard changes are disabled.
 - **Footer:** history size of the selected world, and the git command with a Copy button.
 - **`⋮` menu** (`Gtk::MenuButton`): Export snapshots…, Import snapshots…, Start fresh…,
-  Delete snapshots… (worlds that no longer exist only). All of these are later items. Export, Import
-  and Start fresh are done so far; the button is next to the "Snapshots of ..." title.
+  Delete snapshots… (worlds that no longer exist only). All four are done; the button is next to
+  the "Snapshots of ..." title.
 - The tab reloads when it is shown, no Refresh button. If many large worlds make `git status` slow,
   run it on the worker thread so the tab does not stall.
 
@@ -271,7 +271,8 @@ feature: this version only makes sure it will work.
   snapshot of the current state, named from the Name and Description fields. Shrinks the history.
   Restoring the old repo from the Trash tab is a conflict that asks to replace the new one (which
   then goes to the trash), never a rename: `<World>.git (restored)` would be invisible to the tab.
-- **Delete snapshots…** for worlds that no longer exist.
+- **Delete snapshots…** for worlds that no longer exist (done): moves the repo to the trash, with
+  confirmation. Disabled for worlds that exist (Start fresh is the way to shrink those).
 - The zip restore dialog naming worlds with changes not in a snapshot.
 
 **Not planned:**

@@ -46,6 +46,7 @@ private:
     void on_export_clicked();
     void on_import_clicked();
     void on_start_fresh_clicked();
+    void on_delete_clicked();
     void import_bundle(const std::string& path, const std::string& world);
 
     AppContext& ctx_;
@@ -65,6 +66,7 @@ private:
     Gtk::Button export_button_;
     Gtk::Button import_button_;
     Gtk::Button start_fresh_button_;
+    Gtk::Button delete_button_;
     Gtk::ListBox snapshots_list_;
     Gtk::Button restore_button_;
     Gtk::Button discard_button_;
