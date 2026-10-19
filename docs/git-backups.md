@@ -1,6 +1,6 @@
 # Git backups
 
-Design agreed on 2026-10-19. The first version (see Scope) is implemented; the "Later" items are not.
+Design agreed on 2026-10-19. The first version (see Scope) and Export snapshots are implemented; the other "Later" items are not.
 
 Adds a **Snapshots** tab: one git repository per world, the manual "git in userdata" workflow built
 into the launcher, limited to world saves. The existing **Backups** tab (zip backups,
@@ -206,8 +206,8 @@ The two tabs never touch each other's files: zip restore cannot break the repos 
   For a `deleted` world, Take snapshot and Discard changes are disabled.
 - **Footer:** history size of the selected world, and the git command with a Copy button.
 - **`⋮` menu** (`Gtk::MenuButton`): Export snapshots…, Import snapshots…, Start fresh…,
-  Delete snapshots… (worlds that no longer exist only). All of these are later items, so the first
-  version has no `⋮` button.
+  Delete snapshots… (worlds that no longer exist only). All of these are later items. Only Export
+  is done so far; the button is next to the "Snapshots of ..." title.
 - The tab reloads when it is shown, no Refresh button. If many large worlds make `git status` slow,
   run it on the worker thread so the tab does not stall.
 
@@ -256,8 +256,9 @@ the `deleted` state. Storage under `<userdata>/catapult/`, including the one-tim
 feature: this version only makes sure it will work.
 
 **Later:**
-- **Export snapshots…:** `git bundle create <World>.bundle --all` to a file the user picks. One file
-  with every snapshot, to keep elsewhere or share with history.
+- **Export snapshots…** (done): `git bundle create <World>.bundle --all` to a file the user picks.
+  One file with every snapshot, to keep elsewhere or share with history. Also works for a world that
+  no longer exists.
 - **Import snapshots…:** `git bundle verify`, then `git clone --bare` into
   `catapult/snapshots/<World>.git`, then restore the latest snapshot into `save/<World>`. If the world name
   is taken, ask for a new name or cancel, never overwrite. Could warn about mods from `mods.json`

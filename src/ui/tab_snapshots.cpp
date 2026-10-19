@@ -85,8 +85,23 @@ void TabSnapshots::build_ui()
     Gtk::Box* right = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 6);
     right->set_hexpand(true);
     snapshots_title_.set_xalign(0.0f);
+    snapshots_title_.set_hexpand(true);
     snapshots_title_.set_ellipsize(Pango::EllipsizeMode::END);
-    right->append(snapshots_title_);
+    // Rarely needed actions on the selected world's snapshots.
+    Gtk::Popover* popover = Gtk::make_managed<Gtk::Popover>();
+    Gtk::Box* popover_box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 4);
+    popover_box->set_margin(6);
+    export_button_.set_label("Export snapshots\xe2\x80\xa6");
+    export_button_.set_tooltip_text("Save every snapshot of this world to one file (a git bundle), to keep elsewhere or share.");
+    popover_box->append(export_button_);
+    popover->set_child(*popover_box);
+    menu_button_.set_icon_name("view-more-symbolic");
+    menu_button_.set_tooltip_text("More actions");
+    menu_button_.set_popover(*popover);
+    Gtk::Box* title_row = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 6);
+    title_row->append(snapshots_title_);
+    title_row->append(menu_button_);
+    right->append(*title_row);
     Gtk::ScrolledWindow* snapshots_scroller = Gtk::make_managed<Gtk::ScrolledWindow>();
     snapshots_scroller->set_vexpand(true);
     snapshots_scroller->set_has_frame(true);
@@ -164,6 +179,10 @@ void TabSnapshots::build_ui()
     restore_button_.signal_clicked().connect(sigc::mem_fun(*this, &TabSnapshots::on_restore_clicked));
     discard_button_.signal_clicked().connect(sigc::mem_fun(*this, &TabSnapshots::on_discard_clicked));
     copy_button_.signal_clicked().connect(sigc::mem_fun(*this, &TabSnapshots::on_copy_clicked));
+    export_button_.signal_clicked().connect([this, popover]() {
+        popover->popdown();
+        on_export_clicked();
+    });
 }
 
 void TabSnapshots::show_unavailable(const Glib::ustring& message)
@@ -360,6 +379,8 @@ void TabSnapshots::update_buttons()
     take_button_.set_sensitive(world && !deleted && has_name);
     take_all_button_.set_sensitive(any_world && has_name);
     copy_button_.set_sensitive(world != nullptr);
+    export_button_.set_sensitive(world && !snapshots_.empty());
+    menu_button_.set_sensitive(world != nullptr);
 }
 
 // A world folder that disappeared (deleted in the game, or by restoring a zip
@@ -481,4 +502,37 @@ void TabSnapshots::on_copy_clicked()
         return;
     get_clipboard()->set_text(ctx_.snapshots.git_command(world->name));
     ctx_.status.post("Copied the git command for " + world->name + ".");
+}
+
+void TabSnapshots::on_export_clicked()
+{
+    const WorldInfo* world = selected_world();
+    if (!world || snapshots_.empty())
+        return;
+    std::string world_name = world->name;
+    Glib::RefPtr<Gtk::FileDialog> dialog = Gtk::FileDialog::create();
+    dialog->set_title("Export the snapshots of " + world_name);
+    dialog->set_initial_name(world_name + ".bundle");
+    Glib::RefPtr<Gtk::FileFilter> filter = Gtk::FileFilter::create();
+    filter->set_name("Git bundles (.bundle)");
+    filter->add_suffix("bundle");
+    Glib::RefPtr<Gio::ListStore<Gtk::FileFilter>> filters = Gio::ListStore<Gtk::FileFilter>::create();
+    filters->append(filter);
+    dialog->set_filters(filters);
+    // The file dialog asks before replacing an existing file.
+    dialog->save(parent_, [this, dialog, world_name](const Glib::RefPtr<Gio::AsyncResult>& result) {
+        Glib::RefPtr<Gio::File> file;
+        try
+        {
+            file = dialog->save_finish(result);
+        }
+        catch (const Glib::Error&)
+        {
+            return;  // Cancelled.
+        }
+        if (!file || file->get_path().empty())
+            return;
+        std::string path = file->get_path();
+        run_task([this, world_name, path]() { ctx_.snapshots.export_snapshots(world_name, path); });
+    });
 }

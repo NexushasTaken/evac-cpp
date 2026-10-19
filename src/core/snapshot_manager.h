@@ -95,6 +95,10 @@ public:
     // Moves the repository to the trash.
     bool delete_snapshots(const std::string& world);
 
+    // Writes every snapshot of the world to one git bundle file at path, to keep
+    // elsewhere or share. Replaces the file if it exists.
+    bool export_snapshots(const std::string& world, const std::string& path);
+
 private:
     std::string world_dir(const std::string& world);
     std::vector<std::string> repo_args(const std::string& world);

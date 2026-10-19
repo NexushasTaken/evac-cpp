@@ -265,3 +265,38 @@ TEST_CASE("worlds that no longer exist")
     REQUIRE(trashed[0].name == "Gone");
     REQUIRE(f.snapshots.list_worlds().empty());
 }
+
+TEST_CASE("export snapshots to a bundle")
+{
+    SnapshotFixture f("snap_export");
+    std::string bundle = f.dir + "/out/Alpha.bundle";
+    fs::create_directories(f.dir + "/out");
+    write_file(f.world("Alpha") + "/master.gsav", "v1");
+    REQUIRE(!f.snapshots.export_snapshots("Alpha", bundle));  // No snapshots yet.
+    REQUIRE(!fs::exists(bundle));
+
+    REQUIRE(f.snapshots.take_snapshot("Alpha", "one", "") == SnapshotManager::DONE);
+    write_file(f.world("Alpha") + "/master.gsav", "v2");
+    REQUIRE(f.snapshots.take_snapshot("Alpha", "two", "") == SnapshotManager::DONE);
+    REQUIRE(f.snapshots.export_snapshots("Alpha", bundle));
+    REQUIRE(git::run({"bundle", "verify", "-q", bundle}).ok());
+
+    // The bundle holds the whole history.
+    std::string clone = f.dir + "/clone.git";
+    REQUIRE(git::run({"clone", "-q", "--bare", bundle, clone}).ok());
+    git::Result count = git::run({"--git-dir=" + clone, "rev-list", "--count", "HEAD"});
+    REQUIRE(count.ok());
+    REQUIRE(count.out == "2\n");
+
+    // Exporting again replaces the file.
+    write_file(f.world("Alpha") + "/master.gsav", "v3");
+    REQUIRE(f.snapshots.take_snapshot("Alpha", "three", "") == SnapshotManager::DONE);
+    REQUIRE(f.snapshots.export_snapshots("Alpha", bundle));
+    fs::remove_all(clone);
+    REQUIRE(git::run({"clone", "-q", "--bare", bundle, clone}).ok());
+    REQUIRE(git::run({"--git-dir=" + clone, "rev-list", "--count", "HEAD"}).out == "3\n");
+
+    // A world that no longer exists can still be exported.
+    fs::remove_all(f.world("Alpha"));
+    REQUIRE(f.snapshots.export_snapshots("Alpha", f.dir + "/out/gone.bundle"));
+}

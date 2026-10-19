@@ -43,6 +43,7 @@ private:
     void on_restore_clicked();
     void on_discard_clicked();
     void on_copy_clicked();
+    void on_export_clicked();
 
     AppContext& ctx_;
     TaskRunner& runner_;
@@ -57,6 +58,8 @@ private:
     Gtk::Box content_;
     Gtk::ListBox worlds_list_;
     Gtk::Label snapshots_title_;
+    Gtk::MenuButton menu_button_;
+    Gtk::Button export_button_;
     Gtk::ListBox snapshots_list_;
     Gtk::Button restore_button_;
     Gtk::Button discard_button_;

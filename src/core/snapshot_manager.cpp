@@ -475,3 +475,22 @@ bool SnapshotManager::delete_snapshots(const std::string& world)
     status_.post("Snapshots of " + world + " deleted.");
     return true;
 }
+
+bool SnapshotManager::export_snapshots(const std::string& world, const std::string& path)
+{
+    if (!has_commits(world))
+    {
+        status_.post(world + " has no snapshots to export.", MSG_ERROR);
+        return false;
+    }
+    // git runs in the world folder, so a relative path would land there.
+    std::error_code ec;
+    std::string target = fs::absolute(path, ec).string();
+    if (ec)
+        target = path;
+    status_.post("Exporting the snapshots of " + world + "...");
+    if (!run_or_report(world, args_of({"bundle", "create", "-q", target, "--all"}), "Export"))
+        return false;
+    status_.post("Snapshots of " + world + " exported to " + target + ".");
+    return true;
+}
