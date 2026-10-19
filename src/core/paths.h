@@ -64,7 +64,14 @@ public:
     // Files that ship with the launcher (bundled fonts, ...): <executable dir>/data if
     // it exists, otherwise the data directory the build was made from.
     std::string data_dir() const;
-    std::string save_backups();
+    // Everything the launcher adds to a userdata folder goes in launcher_dir, so it moves
+    // with its worlds. The game never looks there.
+    std::string launcher_dir();
+    std::string save_backups();  // Zip backups (the Backups tab).
+    std::string snapshots();     // One bare git repository per world (the Snapshots tab).
+    // Zip backups used to be in <game base>/save_backups. Moves them to save_backups()
+    // if that does not exist yet. Returns false only if the move failed.
+    bool move_old_backups();
     // Shared by all games, so it is next to the game directories, not in one.
     std::string trash_dir() const;
 

@@ -18,7 +18,8 @@ struct BackupSummary
 };
 
 // Backs up and restores the saved games of the current game. A backup is a
-// directory in save_backups with one .zip per world. These block, so use a
+// directory in save_backups with one .zip per world. Backups in the old
+// location are moved there first (see Paths::move_old_backups). These block, so use a
 // worker thread.
 class BackupManager
 {

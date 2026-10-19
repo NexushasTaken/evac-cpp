@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <filesystem>
 
+#include "core/fs.h"
 #include "core/helpers.h"
 
 namespace fs = std::filesystem;
@@ -202,5 +203,25 @@ std::string Paths::memorial() { return userdata() + "/memorial"; }
 std::string Paths::graveyard() { return userdata() + "/graveyard"; }
 std::string Paths::mod_repo() { return game_base_dir() + "/mod_repo"; }
 std::string Paths::tmp_dir() { return game_base_dir() + "/tmp"; }
-std::string Paths::save_backups() { return game_base_dir() + "/save_backups"; }
+std::string Paths::launcher_dir() { return userdata() + "/catapult"; }
+std::string Paths::save_backups() { return launcher_dir() + "/backups"; }
+std::string Paths::snapshots() { return launcher_dir() + "/snapshots"; }
 std::string Paths::trash_dir() const { return games_dir_ + "/trash"; }
+
+bool Paths::move_old_backups()
+{
+    std::string old_dir = game_base_dir() + "/save_backups";
+    std::string new_dir = save_backups();
+    std::error_code ec;
+    if (!fs::is_directory(old_dir, ec) || fs::exists(fs::symlink_status(new_dir, ec)))
+        return true;
+
+    status_.post("Moving the backups from " + old_dir + " to " + new_dir + "...");
+    fs::create_directories(launcher_dir(), ec);
+    if (ec)
+    {
+        status_.post("Cannot create " + launcher_dir() + ": " + ec.message(), MSG_ERROR);
+        return false;
+    }
+    return fs_helper::move_dir(old_dir, new_dir, status_);
+}

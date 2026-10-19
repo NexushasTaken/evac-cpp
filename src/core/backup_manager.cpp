@@ -45,6 +45,7 @@ std::string BackupManager::default_backup_name(const std::tm& time)
 std::vector<BackupSummary> BackupManager::list()
 {
     std::vector<BackupSummary> result;
+    paths_.move_old_backups();
 
     std::vector<std::string> names = Paths::list_dir(paths_.save_backups());
     for (size_t i = 0; i < names.size(); ++i)
@@ -75,6 +76,7 @@ bool BackupManager::backup_current(const std::string& backup_name)
         return false;
     }
 
+    paths_.move_old_backups();
     std::string dest_dir = paths_.save_backups() + "/" + backup_name;
     if (fs::exists(dest_dir))
     {

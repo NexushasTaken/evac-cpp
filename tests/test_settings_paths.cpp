@@ -73,7 +73,9 @@ TEST_CASE("paths follow the original layout")
 
     REQUIRE(p.userdata() == dir + "/dda/userdata");
     REQUIRE(p.savegames() == dir + "/dda/userdata/save");
-    REQUIRE(p.save_backups() == dir + "/dda/save_backups");
+    REQUIRE(p.launcher_dir() == dir + "/dda/userdata/catapult");
+    REQUIRE(p.save_backups() == dir + "/dda/userdata/catapult/backups");
+    REQUIRE(p.snapshots() == dir + "/dda/userdata/catapult/snapshots");
     REQUIRE(p.next_install_dir() == dir + "/dda/game0");
 
     fs::create_directories(dir + "/dda/game0");

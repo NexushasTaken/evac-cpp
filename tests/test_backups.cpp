@@ -153,7 +153,7 @@ TEST_CASE("restore works when there are no saves yet")
     BackupFixture f("backup_restore_fresh");
     f.make_saves();
     REQUIRE(f.backups.backup_current("snapshot"));
-    fs::remove_all(f.paths.userdata());
+    fs::remove_all(f.paths.savegames());  // Not userdata: the backups are in it.
 
     REQUIRE(f.backups.restore("snapshot"));
     REQUIRE(read_file(f.paths.savegames() + "/Beta/map.dat") == "beta v1");
@@ -173,4 +173,22 @@ TEST_CASE("a broken backup does not destroy the current saves")
     REQUIRE(read_file(f.paths.savegames() + "/Alpha/map.dat") == "alpha v2");
     REQUIRE(!fs::exists(f.paths.tmp_dir() + "/restore"));
     REQUIRE(f.trash.list().empty());
+}
+
+TEST_CASE("backups in the old folder are moved into userdata")
+{
+    BackupFixture f("backup_move");
+    std::string old_dir = f.dir + "/dda/save_backups";
+    write_file(old_dir + "/old one/Alpha.zip", "zip");
+
+    std::vector<BackupSummary> list = f.backups.list();
+    REQUIRE(list.size() == 1);
+    REQUIRE(list[0].name == "old one");
+    REQUIRE(read_file(f.paths.save_backups() + "/old one/Alpha.zip") == "zip");
+    REQUIRE(!fs::exists(old_dir));
+
+    // Only when the new folder does not exist yet: never mixed into it.
+    write_file(old_dir + "/stray/Beta.zip", "zip");
+    REQUIRE(f.backups.list().size() == 1);
+    REQUIRE(fs::exists(old_dir + "/stray/Beta.zip"));
 }
