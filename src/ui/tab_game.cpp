@@ -18,6 +18,7 @@ TabGame::TabGame(AppContext& ctx, TaskRunner& runner, Gtk::Window& parent)
       parent_(parent),
       updating_(false),
       had_install_(-1),
+      asking_missing_(false),
       content_(Gtk::Orientation::VERTICAL, 12),
       play_box_(Gtk::Orientation::VERTICAL, 8),
       installs_box_(Gtk::Orientation::VERTICAL, 4)
@@ -49,6 +50,23 @@ void TabGame::build_ui()
     description_.set_use_markup(true);
     description_.set_selectable(true);
     content_.append(description_);
+
+    // Which userdata folder the game uses (saves, config, user mods, ...).
+    userdata_dropdown_.set_model(Gtk::StringList::create(std::vector<Glib::ustring>()));
+    userdata_dropdown_.set_hexpand(true);
+    userdata_add_button_.set_icon_name("list-add-symbolic");
+    userdata_add_button_.set_tooltip_text("Add a user data folder. It can be anywhere,\nand empty: the game fills it in.");
+    userdata_rename_button_.set_icon_name("document-edit-symbolic");
+    userdata_rename_button_.set_tooltip_text("Rename the selected user data folder in this list.\n(The folder itself is not renamed.)");
+    userdata_remove_button_.set_icon_name("list-remove-symbolic");
+    userdata_remove_button_.set_tooltip_text("Remove the selected user data folder from this list.\n(Its files are not deleted.)");
+    Gtk::Box* userdata_row = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 8);
+    userdata_row->append(*make_label("User data:"));
+    userdata_row->append(userdata_dropdown_);
+    userdata_row->append(userdata_add_button_);
+    userdata_row->append(userdata_rename_button_);
+    userdata_row->append(userdata_remove_button_);
+    content_.append(*userdata_row);
 
     // 2. Play: the thing you do most often, so it comes first.
     active_title_.set_xalign(0.0f);
@@ -183,14 +201,21 @@ void TabGame::start()
     delete_button_.signal_clicked().connect(sigc::mem_fun(*this, &TabGame::on_delete_clicked));
     installs_list_.signal_row_selected().connect(sigc::mem_fun(*this, &TabGame::on_installs_row_selected));
     installs_list_.signal_row_activated().connect(sigc::mem_fun(*this, &TabGame::on_installs_row_activated));
+    userdata_dropdown_.property_selected().signal_changed().connect(sigc::mem_fun(*this, &TabGame::on_userdata_selected));
+    userdata_add_button_.signal_clicked().connect(sigc::mem_fun(*this, &TabGame::on_userdata_add_clicked));
+    userdata_rename_button_.signal_clicked().connect(sigc::mem_fun(*this, &TabGame::on_userdata_rename_clicked));
+    userdata_remove_button_.signal_clicked().connect(sigc::mem_fun(*this, &TabGame::on_userdata_remove_clicked));
 
     apply_game_choice();
+    // The window is not shown yet, so ask once it is.
+    Glib::signal_idle().connect_once([this]() { check_missing_userdata(); });
 }
 
 void TabGame::apply_settings()
 {
     description_.set_visible(ctx_.settings.get_bool("show_game_desc"));
     refresh_installed();
+    check_missing_userdata();
 }
 
 std::string TabGame::release_key()
@@ -337,7 +362,178 @@ void TabGame::refresh_installed()
     }
 
     updating_ = false;
+    reload_userdata_list();
     ctx_.settings.save();
+}
+
+void TabGame::reload_userdata_list()
+{
+    updating_ = true;
+    std::string active = ctx_.paths.userdata();
+    std::vector<UserdataFolder> folders = ctx_.paths.custom_userdata();
+
+    Glib::RefPtr<Gtk::StringList> model = Gtk::StringList::create(std::vector<Glib::ustring>());
+    userdata_paths_.clear();
+    model->append("Default");
+    userdata_paths_.push_back(ctx_.paths.default_userdata());
+    guint selected = 0;
+    for (size_t i = 0; i < folders.size(); ++i)
+    {
+        model->append(folders[i].label);
+        userdata_paths_.push_back(folders[i].path);
+        if (folders[i].path == active)
+            selected = (guint)(i + 1);
+    }
+    userdata_dropdown_.set_model(model);
+    userdata_dropdown_.set_selected(selected);
+    userdata_dropdown_.set_tooltip_text("The user data folder the game uses (saves, configuration,\nuser mods, sound, etc.):\n" + active);
+
+    bool custom = (selected != 0);
+    userdata_rename_button_.set_sensitive(custom);
+    userdata_remove_button_.set_sensitive(custom);
+    updating_ = false;
+}
+
+std::string TabGame::userdata_label(const std::string& path)
+{
+    std::vector<UserdataFolder> folders = ctx_.paths.custom_userdata();
+    for (size_t i = 0; i < folders.size(); ++i)
+    {
+        if (folders[i].path == path)
+            return folders[i].label;
+    }
+    return "Default";
+}
+
+void TabGame::on_userdata_selected()
+{
+    if (updating_)
+        return;
+    guint index = userdata_dropdown_.get_selected();
+    if (index >= userdata_paths_.size())
+        return;
+    // A job on another tab may be working in the current userdata.
+    if (runner_.busy())
+    {
+        ctx_.status.post("Wait for the current task to finish before changing the user data folder.", MSG_WARN);
+        reload_userdata_list();
+        return;
+    }
+    std::string path = userdata_paths_[index];
+    ctx_.paths.set_active_userdata(path);
+    ctx_.status.post("Using the user data folder \"" + userdata_label(path) + "\": " + path);
+    refresh_installed();
+    check_missing_userdata();
+}
+
+void TabGame::on_userdata_add_clicked()
+{
+    if (runner_.busy())
+    {
+        ctx_.status.post("Wait for the current task to finish before changing the user data folder.", MSG_WARN);
+        return;
+    }
+    Glib::RefPtr<Gtk::FileDialog> dialog = Gtk::FileDialog::create();
+    dialog->set_title("Choose a user data folder");
+    dialog->select_folder(parent_, [this, dialog](const Glib::RefPtr<Gio::AsyncResult>& result) {
+        Glib::RefPtr<Gio::File> file;
+        try
+        {
+            file = dialog->select_folder_finish(result);
+        }
+        catch (const Glib::Error&)
+        {
+            return;  // Cancelled.
+        }
+        if (!file || file->get_path().empty())
+            return;
+        std::string path = file->get_path();
+        dialogs::ask_text(
+            parent_, "Name the user data folder", "The name shown in the list for " + path + ".",
+            Glib::path_get_basename(path), "Add",
+            [this](const std::string& label) { return ctx_.paths.check_userdata_label(label); },
+            [this, path](const std::string& label) {
+                std::string problem = ctx_.paths.add_userdata(path, label);
+                if (!problem.empty())
+                {
+                    dialogs::tell(parent_, "Cannot add the user data folder", problem);
+                    return;
+                }
+                // Added to be used, so it becomes the active one.
+                std::vector<UserdataFolder> folders = ctx_.paths.custom_userdata();
+                ctx_.paths.set_active_userdata(folders.back().path);
+                ctx_.status.post("Using the user data folder \"" + label + "\": " + folders.back().path);
+                refresh_installed();
+            });
+    });
+}
+
+void TabGame::on_userdata_rename_clicked()
+{
+    std::string path = ctx_.paths.userdata();
+    if (ctx_.paths.is_default_userdata_active())
+        return;
+    dialogs::ask_text(
+        parent_, "Rename the user data folder",
+        "Only the name in this list changes. The folder stays " + path + ".", userdata_label(path), "Rename",
+        [this, path](const std::string& label) { return ctx_.paths.check_userdata_label(label, path); },
+        [this, path](const std::string& label) {
+            std::string problem = ctx_.paths.rename_userdata(path, label);
+            if (!problem.empty())
+                dialogs::tell(parent_, "Cannot rename the user data folder", problem);
+            refresh_installed();
+        });
+}
+
+void TabGame::on_userdata_remove_clicked()
+{
+    std::string path = ctx_.paths.userdata();
+    if (ctx_.paths.is_default_userdata_active())
+        return;
+    if (runner_.busy())
+    {
+        ctx_.status.post("Wait for the current task to finish before changing the user data folder.", MSG_WARN);
+        return;
+    }
+    dialogs::confirm(parent_, "Remove \"" + userdata_label(path) + "\" from the list?",
+                     "The launcher forgets this folder and uses the default one. Nothing is deleted: the folder "
+                         + path + " and its files stay where they are, and you can add it again later.",
+                     "Remove", [this, path]() {
+                         ctx_.paths.remove_userdata(path);
+                         ctx_.status.post("Removed " + path + " from the user data folders. Using the default one.");
+                         refresh_installed();
+                     });
+}
+
+// The game makes the folder again when it starts, so keeping it is fine.
+void TabGame::check_missing_userdata()
+{
+    if (asking_missing_ || ctx_.paths.is_default_userdata_active())
+        return;
+    std::string path = ctx_.paths.userdata();
+    if (Glib::file_test(path, Glib::FileTest::IS_DIR) || kept_missing_.count(path))
+        return;
+
+    asking_missing_ = true;
+    std::vector<Glib::ustring> buttons;
+    buttons.push_back("Keep");
+    buttons.push_back("Remove from List");
+    dialogs::ask(parent_, "The user data folder \"" + userdata_label(path) + "\" is missing",
+                 path + " does not exist.\n\nKeep it, and the game creates and fills it in the next time it starts. "
+                        "Or remove it from the list and use the default user data folder.",
+                 buttons, [this, path](int choice) {
+                     asking_missing_ = false;
+                     if (choice == 1)
+                     {
+                         ctx_.paths.remove_userdata(path);
+                         ctx_.status.post("Removed " + path + " from the user data folders. Using the default one.");
+                     }
+                     else
+                     {
+                         kept_missing_.insert(path);
+                     }
+                     refresh_installed();
+                 });
 }
 
 std::string TabGame::selected_install_name()
@@ -360,6 +556,7 @@ void TabGame::on_game_selected()
     ctx_.settings.set_string("game", all[index].key);
     ctx_.settings.save();
     apply_game_choice();
+    check_missing_userdata();
 }
 
 void TabGame::on_channel_toggled()

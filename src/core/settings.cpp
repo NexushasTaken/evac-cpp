@@ -19,6 +19,14 @@ nlohmann::json Settings::defaults()
     d["active_install_eod"] = "";
     d["active_install_tish"] = "";
     d["active_install_tlg"] = "";
+    // Userdata folders the user added, per game: [{"path": ..., "label": ...}]. The
+    // active one is its path, or "" for the default (<game base>/userdata).
+    const char* const games[] = {"dda", "bn", "eod", "tish", "tlg"};
+    for (const char* game : games)
+    {
+        d[std::string("userdata_folders_") + game] = nlohmann::json::array();
+        d[std::string("active_userdata_") + game] = "";
+    }
     d["update_current_when_installing"] = true;
     d["launcher_locale"] = "";
     d["launcher_theme"] = "Godot_4.tres";  // Unused, kept for compatibility.

@@ -192,3 +192,19 @@ TEST_CASE("backups in the old folder are moved into userdata")
     REQUIRE(f.backups.list().size() == 1);
     REQUIRE(fs::exists(old_dir + "/stray/Beta.zip"));
 }
+
+TEST_CASE("old backups go to the default userdata even when another one is active")
+{
+    BackupFixture f("backup_move_custom");
+    std::string old_dir = f.dir + "/dda/save_backups";
+    write_file(old_dir + "/old one/Alpha.zip", "zip");
+    REQUIRE(f.paths.add_userdata(f.dir + "/modded", "Modded") == "");
+    f.paths.set_active_userdata(f.dir + "/modded");
+
+    REQUIRE(f.backups.list().empty());
+    REQUIRE(read_file(f.dir + "/dda/userdata/catapult/backups/old one/Alpha.zip") == "zip");
+    REQUIRE(!fs::exists(f.dir + "/modded"));
+
+    f.paths.set_active_userdata("");
+    REQUIRE(f.backups.list().size() == 1);
+}

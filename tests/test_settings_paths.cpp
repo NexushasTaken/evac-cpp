@@ -135,3 +135,68 @@ TEST_CASE("settings are saved into a config directory that does not exist yet")
     s.load();
     REQUIRE(fs::exists(dir + "/a/b/catapult_settings.json"));
 }
+
+TEST_CASE("custom userdata folders")
+{
+    std::string dir = make_temp_dir("userdata_folders");
+    Status status;
+    Settings s(dir + "/catapult_settings.json", status);
+    s.load();
+    Paths p(dir, s, status);
+
+    REQUIRE(p.custom_userdata().empty());
+    REQUIRE(p.is_default_userdata_active());
+
+    // Trailing slashes and ".." are cleaned up; nothing is created on disk.
+    REQUIRE(p.add_userdata(dir + "/x/../modded/", "Modded") == "");
+    REQUIRE(!fs::exists(dir + "/modded"));
+    REQUIRE(p.custom_userdata().size() == 1);
+    REQUIRE(p.custom_userdata()[0].path == dir + "/modded");
+    REQUIRE(p.userdata() == dir + "/dda/userdata");
+
+    REQUIRE(p.add_userdata(dir + "/modded", "Other") != "");       // Already there.
+    REQUIRE(p.add_userdata(dir + "/dda/userdata", "Again") != "");  // The default.
+    REQUIRE(p.add_userdata(dir + "/clean", "Modded") != "");        // Same name.
+    REQUIRE(p.add_userdata(dir + "/clean", "Default") != "");
+    REQUIRE(p.add_userdata(dir + "/clean", "  ") != "");
+    REQUIRE(p.add_userdata(dir + "/clean", "Clean") == "");
+
+    p.set_active_userdata(dir + "/modded");
+    REQUIRE(p.userdata() == dir + "/modded");
+    REQUIRE(p.savegames() == dir + "/modded/save");
+    REQUIRE(p.save_backups() == dir + "/modded/catapult/backups");
+    REQUIRE(p.mod_repo() == dir + "/dda/mod_repo");  // Not part of userdata.
+
+    // Renaming changes the label only.
+    REQUIRE(p.rename_userdata(dir + "/modded", "Clean") != "");
+    REQUIRE(p.rename_userdata(dir + "/modded", "Modded") == "");  // Its own name is fine.
+    REQUIRE(p.rename_userdata(dir + "/modded", "Heavy mods") == "");
+    REQUIRE(p.custom_userdata()[0].label == "Heavy mods");
+    REQUIRE(p.userdata() == dir + "/modded");
+
+    // Each game has its own list.
+    s.set_string("game", "bn");
+    REQUIRE(p.custom_userdata().empty());
+    REQUIRE(p.userdata() == dir + "/bn/userdata");
+    s.set_string("game", "dda");
+    REQUIRE(p.userdata() == dir + "/modded");
+
+    // Removing the active one forgets it and goes back to the default; files stay.
+    fs::create_directories(dir + "/modded/save");
+    p.remove_userdata(dir + "/modded");
+    REQUIRE(p.custom_userdata().size() == 1);
+    REQUIRE(p.is_default_userdata_active());
+    REQUIRE(s.get_string("active_userdata_dda") == "");
+    REQUIRE(fs::exists(dir + "/modded/save"));
+}
+
+TEST_CASE("a stale active userdata falls back to the default")
+{
+    std::string dir = make_temp_dir("userdata_stale");
+    std::ofstream(dir + "/catapult_settings.json") << "{\"active_userdata_dda\": \"/nowhere\"}";
+    Status status;
+    Settings s(dir + "/catapult_settings.json", status);
+    s.load();
+    Paths p(dir, s, status);
+    REQUIRE(p.userdata() == dir + "/dda/userdata");
+}

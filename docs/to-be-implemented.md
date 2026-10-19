@@ -15,7 +15,7 @@ in the same commit, and renumber the sections and their `#N` references so there
 
 1. Automatic backups, "before update" and "before launch" first (#1)
 2. Tracking the game process, then "backup after game end" (#2)
-3. Later: keeping user content on update (#3), changelog (#5), switching userdata folders (#6)
+3. Later: keeping user content on update (#3), changelog (#5)
 
 ## Worth porting
 
@@ -68,19 +68,6 @@ in the same commit, and renumber the sections and their `#N` references so there
 - **Reference:** `cddagl/ui/views/main.py:3106-3200`.
 - **In catapult-cpp:** already listed as "not done" in the README. Reuse `Http`
   (`src/core/http.h`) and the game definitions in `src/core/games.cpp` for the repo per game.
-
-### 6. Switching userdata folders
-- **Original:** none, this is not from the Kitten launcher. Use case: one userdata on the Windows
-  partition and one on the Linux side, same layout, picked from the launcher.
-- **In catapult-cpp:** everything already goes through `Paths::userdata()` (`src/core/paths.h`),
-  and the game gets it as `--userdir` (`src/core/game_launcher.cpp:120`). The change is to make
-  `userdata()` come from a setting (a list of folders plus the active one, per game) instead of
-  always `game_base_dir()/userdata`, add a selector in the UI, and reload every tab after a switch.
-- **Depends on:** nothing outside userdata may belong to one userdata. Done: zip backups and
-  snapshots live in `<userdata>/catapult/` (`Paths::launcher_dir()`, see `docs/git-backups.md`).
-- **Note:** the trash, settings and installs stay shared. Things to check: config files in a Windows
-  userdata that hold Windows paths (for example fonts in `config/fonts.json`), a game version older
-  than the one that wrote the saves, and an NTFS partition mounted read-only.
 
 ## Nice to have
 - GitHub rate-limit warning from the `X-RateLimit-Remaining`/`X-RateLimit-Reset` headers

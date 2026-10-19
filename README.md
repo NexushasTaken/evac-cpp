@@ -22,7 +22,7 @@ The original project is MIT licensed, see [License](#license).
 
 | Tab         | What it does                                                                        |
 |-------------|-------------------------------------------------------------------------------------|
-| Game        | Install, update, switch between and launch stable and experimental builds           |
+| Game        | Install, update, switch between and launch stable and experimental builds; switch between user data folders |
 | Mods        | Install and delete mods, get the Kenan modpack into a local repository              |
 | Soundpacks  | Install, reinstall and delete soundpacks, install from a downloaded file            |
 | Fonts       | Set bundled or your own fonts, edit the fallback lists, sizes and rendering options |

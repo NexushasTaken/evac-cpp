@@ -27,6 +27,14 @@ Locations xdg_locations(const std::string& home, const std::string& config_home,
 // Portable if catapult_settings.json sits next to the executable, XDG otherwise.
 Locations default_locations();
 
+// A userdata folder the user added for the current game. The label is only a
+// name for the list: renaming never touches the folder.
+struct UserdataFolder
+{
+    std::string path;
+    std::string label;
+};
+
 // The one place for all path resolution logic.
 class Paths
 {
@@ -46,7 +54,19 @@ public:
     std::string cache_dir() const;
     std::string game_dir();
     std::string next_install_dir();
+    // The active userdata folder of the current game: a custom one if chosen, the
+    // default otherwise. The launcher never creates it, the game fills it in.
     std::string userdata();
+    std::string default_userdata();  // <game base>/userdata, always there and never removed.
+    std::vector<UserdataFolder> custom_userdata();
+    // Each says why it can't be done, or "" once done. Paths are made absolute.
+    std::string add_userdata(const std::string& path, const std::string& label);
+    std::string rename_userdata(const std::string& path, const std::string& label);
+    std::string check_userdata_label(const std::string& label, const std::string& own_path = "");
+    // Forgets a custom folder; its files stay. The default becomes active if it was.
+    void remove_userdata(const std::string& path);
+    void set_active_userdata(const std::string& path);  // "" (or the default's path) for the default.
+    bool is_default_userdata_active();
     std::string config();
     std::string savegames();
     std::string mods_stock();
@@ -69,8 +89,9 @@ public:
     std::string launcher_dir();
     std::string save_backups();  // Zip backups (the Backups tab).
     std::string snapshots();     // One bare git repository per world (the Snapshots tab).
-    // Zip backups used to be in <game base>/save_backups. Moves them to save_backups()
-    // if that does not exist yet. Returns false only if the move failed.
+    // Zip backups used to be in <game base>/save_backups, from the time there was only
+    // the default userdata. Moves them into the default's backups folder, whatever
+    // userdata is active, if that does not exist yet. Returns false only if the move failed.
     bool move_old_backups();
     // Shared by all games, so it is next to the game directories, not in one.
     std::string trash_dir() const;
@@ -78,6 +99,7 @@ public:
 private:
     std::string game_base_dir();  // games_dir/<current game>
     std::string find_active_game_dir();
+    void store_custom_userdata(const std::vector<UserdataFolder>& folders);
 
     std::string games_dir_;
     std::string cache_dir_;

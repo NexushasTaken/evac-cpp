@@ -4,6 +4,7 @@
 #include <gtkmm.h>
 
 #include <functional>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -31,6 +32,7 @@ private:
     void apply_game_choice();
     void reload_builds_list();
     void refresh_installed();
+    void reload_userdata_list();
 
     // Slow jobs, run on the worker thread.
     void fetch_releases();
@@ -48,6 +50,14 @@ private:
     void on_delete_clicked();
     void on_installs_row_selected(Gtk::ListBoxRow* row);
     void on_installs_row_activated(Gtk::ListBoxRow* row);
+    void on_userdata_selected();
+    void on_userdata_add_clicked();
+    void on_userdata_rename_clicked();
+    void on_userdata_remove_clicked();
+
+    // Asks what to do when the active userdata folder is a custom one that is gone.
+    void check_missing_userdata();
+    std::string userdata_label(const std::string& path);
 
     void install_selected(bool update_active);
     std::string removal_detail(const std::string& install_name, bool update);
@@ -66,10 +76,19 @@ private:
     std::vector<Release> releases_;
     Paths::InstallsSummary installs_;
     std::vector<std::string> install_names_;  // Same order as the rows in installs_list_.
+    std::vector<std::string> userdata_paths_;  // Same order as userdata_dropdown_, the default first.
+    std::set<std::string> kept_missing_;      // Missing folders the user chose to keep, not asked again.
+    bool asking_missing_;
 
     Gtk::Box content_;
     Gtk::DropDown game_dropdown_;
     Gtk::Label description_;
+
+    // Userdata folder choice.
+    Gtk::DropDown userdata_dropdown_;
+    Gtk::Button userdata_add_button_;
+    Gtk::Button userdata_rename_button_;
+    Gtk::Button userdata_remove_button_;
 
     // Play section.
     Gtk::Label active_title_;
