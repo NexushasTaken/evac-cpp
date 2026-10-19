@@ -220,7 +220,8 @@ void TabTrash::on_selection_changed()
         if (item.kind == "saves")
             restore = "The worlds go back into " + plan.dest + ". Worlds whose names are taken get \" (restored)\" added.";
         else
-            restore = "Goes back as " + plan.dest + ", as the old place is taken.";
+            restore = "Goes back as " + plan.dest + ", as the old place is taken."
+                      + (Trash::can_choose_name(item.kind) ? " Restoring asks for the name." : "");
         break;
     case RestorePlan::CONFLICT:
         restore = plan.reason + " Restoring asks whether to replace it.";
@@ -261,6 +262,20 @@ void TabTrash::on_restore_clicked()
         break;
     case RestorePlan::RENAMED:
     {
+        if (Trash::can_choose_name(item.kind))
+        {
+            // The free name it would get is the default; the user can pick another.
+            std::string parent = std::filesystem::path(plan.dest).parent_path().string();
+            std::string suggested = std::filesystem::path(plan.dest).filename().string();
+            dialogs::ask_text(
+                parent_, "Restore " + item.name + "?",
+                "Its old place is taken, so it goes back under another name in\n" + parent, suggested, "Restore",
+                [this, id](const std::string& name) { return ctx_.trash.check_restore_name(id, name); },
+                [this, id](const std::string& name) {
+                    run_task([this, id, name]() { ctx_.trash.restore(id, false, name); });
+                });
+            break;
+        }
         Glib::ustring detail =
             (item.kind == "saves")
                 ? "The worlds go back into your current saves. Worlds whose names are taken get \" (restored)\" "

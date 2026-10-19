@@ -79,8 +79,15 @@ public:
 
     // Restores the item. A CONFLICT is only restored with replace, which first
     // moves the conflicting one to the trash. If something fails, what was not
-    // moved back stays in the trash.
-    bool restore(const std::string& id, bool replace);
+    // moved back stays in the trash. A name (see check_restore_name) is the
+    // folder name it goes back as, next to where it was, instead of plan.dest.
+    bool restore(const std::string& id, bool replace, const std::string& name = "");
+
+    // Whether a RENAMED item of this kind can be given a name by the user. Not
+    // saves (the worlds go back one by one) or installs (gameN folders).
+    static bool can_choose_name(const std::string& kind);
+    // Why the item can't be restored as name, or "" if it can.
+    std::string check_restore_name(const std::string& id, const std::string& name);
 
     static std::string make_id(const std::string& kind, const std::string& name, Clock::time_point when);
 

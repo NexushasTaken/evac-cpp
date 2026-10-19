@@ -15,9 +15,7 @@ in the same commit, and renumber the sections and their `#N` references so there
 
 1. Automatic backups, "before update" and "before launch" first (#1)
 2. Tracking the game process, then "backup after game end" (#2)
-3. Later: keeping user content on update (#3), changelog (#5), switching userdata folders (#6),
-   choosing the name of a renamed trash restore (#7, after every "Later" item in
-   `docs/git-backups.md` is done)
+3. Later: keeping user content on update (#3), changelog (#5), switching userdata folders (#6)
 
 ## Worth porting
 
@@ -83,21 +81,6 @@ in the same commit, and renumber the sections and their `#N` references so there
 - **Note:** the trash, settings and installs stay shared. Things to check: config files in a Windows
   userdata that hold Windows paths (for example fonts in `config/fonts.json`), a game version older
   than the one that wrote the saves, and an NTFS partition mounted read-only.
-
-### 7. Choosing the name when a trash restore is renamed
-- **Original:** none, this is not from the Kitten launcher. The idea comes from the name dialog of
-  Import snapshots in the Snapshots tab.
-- **In catapult-cpp:** when an item's old place is taken, `Trash::plan_restore` returns
-  `RestorePlan::RENAMED` and the restore picks the name itself: `" (restored)"`, then
-  `" (restored 2)"`, ... (`src/core/trash.cpp:73`). The Trash tab only says where it went
-  (`src/ui/tab_trash.cpp:262`). The change is to ask with `dialogs::ask_text` (`src/ui/dialogs.h`)
-  and offer that same free name as the default, which the user can keep or edit. The entry's
-  check rejects a taken name and, for worlds, the game's world-name rules
-  (`SnapshotManager::check_import_name` has them). Trash then needs a way to restore to a name
-  the user picked instead of the one it computed.
-- **Note:** saves are a folder of worlds, and several of them can be taken at once. Decide between
-  one dialog per taken world and keeping the automatic names there. `CONFLICT` (for example a mod
-  whose ID is taken) stays a replace, since a new folder name would not change the ID the game sees.
 
 ## Nice to have
 - GitHub rate-limit warning from the `X-RateLimit-Remaining`/`X-RateLimit-Reset` headers

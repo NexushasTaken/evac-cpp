@@ -317,6 +317,46 @@ TEST_CASE("restoring a mod whose ID is taken needs replace")
     REQUIRE(plan.dest == mods + "/ModA (restored)");
 }
 
+TEST_CASE("a renamed restore can get a name the user picked")
+{
+    TrashFixture f("trash_restore_named");
+    std::string sound = f.dir + "/dda/userdata/sound";
+    std::string pack = f.make_thing("dda/userdata/sound/CC-Sounds", 3);
+    REQUIRE(f.trash.remove(pack, "soundpack", "CC-Sounds", at(0)));
+    std::string id = newest(f).id;
+    write_file(pack + "/new.txt", "new");  // Reinstalled: the old place is taken.
+    write_file(sound + "/Other/x", "x");
+
+    REQUIRE(f.trash.check_restore_name(id, "") != "");
+    REQUIRE(f.trash.check_restore_name(id, "..") != "");
+    REQUIRE(f.trash.check_restore_name(id, "a/b") != "");
+    REQUIRE(f.trash.check_restore_name(id, "CC-Sounds") != "");  // Taken.
+    REQUIRE(f.trash.check_restore_name(id, "Other") != "");
+    REQUIRE(!f.trash.restore(id, false, "Other"));
+    REQUIRE(read_file(sound + "/Other/x") == "x");
+    REQUIRE(f.trash.list().size() == 1);
+
+    REQUIRE(f.trash.check_restore_name(id, "CC-Sounds old") == "");
+    REQUIRE(f.trash.restore(id, false, "CC-Sounds old"));
+    REQUIRE(fs::exists(sound + "/CC-Sounds old/data.bin"));
+    REQUIRE(read_file(pack + "/new.txt") == "new");
+    REQUIRE(!fs::exists(pack + " (restored)"));
+    REQUIRE(f.trash.list().empty());
+
+    // Backups follow the backup name rules.
+    std::string backup = f.make_thing("dda/userdata/catapult/backups/Manual", 1);
+    REQUIRE(f.trash.remove(backup, "backup", "Manual", at(1)));
+    write_file(backup + "/x.zip", "x");
+    REQUIRE(f.trash.check_restore_name(newest(f).id, "a:b") != "");
+    REQUIRE(f.trash.check_restore_name(newest(f).id, " Manual 2") != "");
+    REQUIRE(f.trash.check_restore_name(newest(f).id, "Manual 2") == "");
+
+    // Saves and installs keep their automatic names.
+    REQUIRE(!Trash::can_choose_name("saves"));
+    REQUIRE(!Trash::can_choose_name("install"));
+    REQUIRE(Trash::can_choose_name("mod"));
+}
+
 TEST_CASE("restoring an install")
 {
     TrashFixture f("trash_restore_install");

@@ -5,6 +5,7 @@
 #include <ctime>
 #include <filesystem>
 
+#include "core/backup_manager.h"
 #include "core/fs.h"
 #include "core/helpers.h"
 #include "core/mod_manager.h"
@@ -423,7 +424,30 @@ RestorePlan Trash::plan_restore(const std::string& id)
     return plan;
 }
 
-bool Trash::restore(const std::string& id, bool replace)
+bool Trash::can_choose_name(const std::string& kind)
+{
+    return kind != "saves" && kind != "install";
+}
+
+std::string Trash::check_restore_name(const std::string& id, const std::string& name)
+{
+    TrashItem item;
+    if (!load_item(id, item))
+        return "It is not in the trash.";
+    if (!can_choose_name(item.kind))
+        return "Its name can't be chosen.";
+    if (name.empty())
+        return "The name cannot be empty.";
+    if (name == "." || name == ".." || name.find('/') != std::string::npos || name.find('\0') != std::string::npos)
+        return "The name cannot be " + name + " or contain /.";
+    if (item.kind == "backup" && !BackupManager::is_valid_backup_name(name))
+        return "A backup name cannot contain :/\\?*\"|%<> or start or end with a space.";
+    if (exists_no_follow(fs::path(item.original_path).parent_path() / name))
+        return "Something named " + name + " is already there.";
+    return "";
+}
+
+bool Trash::restore(const std::string& id, bool replace, const std::string& name)
 {
     RestorePlan plan = plan_restore(id);
     TrashItem item;
@@ -431,6 +455,17 @@ bool Trash::restore(const std::string& id, bool replace)
     {
         status_.post("Can't restore: " + plan.reason, MSG_ERROR);
         return false;
+    }
+    if (!name.empty())
+    {
+        // Checked again: something may have taken the name since it was asked for.
+        std::string problem = plan.kind == RestorePlan::CONFLICT ? plan.reason : check_restore_name(id, name);
+        if (!problem.empty())
+        {
+            status_.post("Not restored as \"" + name + "\": " + problem, MSG_ERROR);
+            return false;
+        }
+        plan.dest = (fs::path(item.original_path).parent_path() / name).string();
     }
     if (plan.kind == RestorePlan::CONFLICT)
     {
