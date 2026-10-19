@@ -1,7 +1,9 @@
 #include "ui/tab_backups.h"
 
 #include <ctime>
+#include <memory>
 
+#include "core/git.h"
 #include "ui/dialogs.h"
 
 static const char* const NO_INFO_TEXT = "Select an existing backup to see its details here.";
@@ -206,14 +208,41 @@ void TabBackups::on_restore_clicked()
         return;
     std::string name = backups_[index].name;
 
+    // Running git status on every world can take a while, so the worlds with
+    // changes not in a snapshot are found on the worker thread.
+    std::shared_ptr<std::vector<std::string> > changed = std::make_shared<std::vector<std::string> >();
+    content_.set_sensitive(false);
+    bool started = runner_.run(
+        [this, changed]() {
+            if (git::available())
+                *changed = ctx_.snapshots.worlds_with_changes();
+        },
+        [this, changed, name]() {
+            content_.set_sensitive(true);
+            confirm_restore(name, *changed);
+        });
+    if (!started)
+        content_.set_sensitive(true);
+}
+
+void TabBackups::confirm_restore(const std::string& name, const std::vector<std::string>& changed)
+{
     // This replaces the current saves, so make sure that is what the user wants.
     std::string current = ctx_.settings.get_bool("use_trash")
                               ? "Your current saves of this game will be moved to the trash"
                               : "Your current saves of this game will be deleted for good";
-    dialogs::confirm(parent_, "Restore this backup?",
-                     current + " and replaced with the backup \"" + name
-                         + "\". Create a backup of the current saves first if you want to keep them.",
-                     "Restore", [this, name]() { run_task([this, name]() { ctx_.backups.restore(name); }); });
+    std::string detail = current + " and replaced with the backup \"" + name
+                         + "\". Create a backup of the current saves first if you want to keep them.";
+    if (!changed.empty())
+    {
+        std::string worlds;
+        for (size_t i = 0; i < changed.size(); ++i)
+            worlds += (i == 0 ? "" : (i + 1 == changed.size() ? " and " : ", ")) + changed[i];
+        detail += "\n\n" + worlds + (changed.size() == 1 ? " has" : " have")
+                  + " changes not in a snapshot. Take a snapshot on the Snapshots tab first to keep them there.";
+    }
+    dialogs::confirm(parent_, "Restore this backup?", detail, "Restore",
+                     [this, name]() { run_task([this, name]() { ctx_.backups.restore(name); }); });
 }
 
 void TabBackups::on_delete_clicked()

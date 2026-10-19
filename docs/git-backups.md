@@ -1,7 +1,6 @@
 # Git backups
 
-Design agreed on 2026-10-19. The first version (see Scope), Export snapshots, Import snapshots, Start fresh and Delete snapshots
-are implemented; the other "Later" item (the zip restore dialog) is not.
+Design agreed on 2026-10-19. The first version (see Scope) and every "Later" item are implemented.
 
 Adds a **Snapshots** tab: one git repository per world, the manual "git in userdata" workflow built
 into the launcher, limited to world saves. The existing **Backups** tab (zip backups,
@@ -162,8 +161,9 @@ The two tabs never touch each other's files: zip restore cannot break the repos 
 - **Zip restore** replaces every world. In the Snapshots tab those worlds show `● changed`, and the
   next snapshot records the restore. Correct as is.
 - **Zip restore with changes not in a snapshot:** the current saves go to the trash as today. The
-  restore dialog should add which worlds have changes not in a snapshot, e.g.
-  "Courtland has changes not in a snapshot".
+  restore dialog adds which worlds have changes not in a snapshot, e.g.
+  "Courtland has changes not in a snapshot" (`SnapshotManager::worlds_with_changes`, run on the
+  worker thread before the dialog opens). Worlds without any snapshots are not named.
 - **Zip restore removes a world** the zip does not contain: handled by "Worlds that no longer exist".
 
 ## UI
@@ -273,7 +273,7 @@ feature: this version only makes sure it will work.
   then goes to the trash), never a rename: `<World>.git (restored)` would be invisible to the tab.
 - **Delete snapshots…** for worlds that no longer exist (done): moves the repo to the trash, with
   confirmation. Disabled for worlds that exist (Start fresh is the way to shrink those).
-- The zip restore dialog naming worlds with changes not in a snapshot.
+- The zip restore dialog naming worlds with changes not in a snapshot (done).
 
 **Not planned:**
 - Automatic snapshots, until the launcher can track the game process.

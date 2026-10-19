@@ -4,6 +4,7 @@
 #include <gtkmm.h>
 
 #include <functional>
+#include <string>
 #include <vector>
 
 #include "core/backup_manager.h"
@@ -31,6 +32,7 @@ private:
     void on_name_changed();
     void on_create_clicked();
     void on_restore_clicked();
+    void confirm_restore(const std::string& name, const std::vector<std::string>& changed);
     void on_delete_clicked();
 
     AppContext& ctx_;

@@ -64,6 +64,9 @@ public:
 
     // Folders in save/, then the worlds that no longer exist, each sorted by name.
     std::vector<WorldInfo> list_worlds();
+    // Worlds in save/ that have snapshots and changes since the last one, sorted
+    // by name. For warnings before something replaces the saves.
+    std::vector<std::string> worlds_with_changes();
     // Newest first. Empty if there are none.
     std::vector<Snapshot> list_snapshots(const std::string& world);
     // Number of files the snapshot changed compared to the one before it.

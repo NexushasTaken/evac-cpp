@@ -122,7 +122,9 @@ TEST_CASE("take snapshots")
 
     write_file(f.world("Alpha") + "/master.gsav", "v2");
     REQUIRE(f.find("Alpha").state == WorldInfo::CHANGED);
+    REQUIRE(f.snapshots.worlds_with_changes() == std::vector<std::string>{"Alpha"});  // Not Beta: no snapshots.
     REQUIRE(f.snapshots.take_snapshot("Alpha", "#2 second", "") == SnapshotManager::DONE);
+    REQUIRE(f.snapshots.worlds_with_changes().empty());
 
     std::vector<Snapshot> list = f.snapshots.list_snapshots("Alpha");
     REQUIRE(list.size() == 2);

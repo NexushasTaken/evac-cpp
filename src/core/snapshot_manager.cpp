@@ -639,3 +639,15 @@ SnapshotManager::Result SnapshotManager::start_fresh(const std::string& world, c
         status_.post("Started fresh: " + world + " has one snapshot, \"" + trim(name) + "\".");
     return result;
 }
+
+std::vector<std::string> SnapshotManager::worlds_with_changes()
+{
+    std::vector<std::string> names;
+    std::vector<WorldInfo> worlds = list_worlds();
+    for (size_t i = 0; i < worlds.size(); ++i)
+    {
+        if (worlds[i].state == WorldInfo::CHANGED)
+            names.push_back(worlds[i].name);
+    }
+    return names;
+}
