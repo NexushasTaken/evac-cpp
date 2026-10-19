@@ -37,6 +37,7 @@ add_library(catapult_core STATIC
     src/core/soundpack_manager.cpp
     src/core/mod_manager.cpp
     src/core/backup_manager.cpp
+    src/core/git.cpp
     src/core/tips.cpp
     src/core/window_state.cpp
     src/core/licenses.cpp
