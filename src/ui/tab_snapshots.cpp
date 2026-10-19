@@ -57,8 +57,14 @@ void TabSnapshots::build_ui()
     content_.set_vexpand(true);
     append(content_);
 
-    Gtk::Box* columns = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 12);
+    // Draggable, so long world names can be shown in full.
+    Gtk::Paned* columns = Gtk::make_managed<Gtk::Paned>(Gtk::Orientation::HORIZONTAL);
     columns->set_vexpand(true);
+    columns->set_wide_handle(true);
+    columns->set_resize_start_child(false);
+    columns->set_shrink_start_child(false);
+    columns->set_shrink_end_child(false);
+    columns->set_position(340);
     content_.append(*columns);
 
     // Left: the worlds.
@@ -72,7 +78,8 @@ void TabSnapshots::build_ui()
     worlds_scroller->set_child(worlds_list_);
     worlds_list_.set_selection_mode(Gtk::SelectionMode::SINGLE);
     left->append(*worlds_scroller);
-    columns->append(*left);
+    left->set_margin_end(6);
+    columns->set_start_child(*left);
 
     // Right: the snapshots of the selected world.
     Gtk::Box* right = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 6);
@@ -107,7 +114,8 @@ void TabSnapshots::build_ui()
     details_scroller->set_has_frame(true);
     details_scroller->set_child(details_label_);
     right->append(*details_scroller);
-    columns->append(*right);
+    right->set_margin_start(6);
+    columns->set_end_child(*right);
 
     // Taking snapshots.
     content_.append(*Gtk::make_managed<Gtk::Separator>());
