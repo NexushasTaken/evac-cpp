@@ -1,7 +1,7 @@
 # Git backups
 
-Design agreed on 2026-10-19. The first version (see Scope), Export snapshots and Import snapshots are implemented; the other
-"Later" items are not.
+Design agreed on 2026-10-19. The first version (see Scope), Export snapshots, Import snapshots and Start fresh are implemented;
+the other "Later" items are not.
 
 Adds a **Snapshots** tab: one git repository per world, the manual "git in userdata" workflow built
 into the launcher, limited to world saves. The existing **Backups** tab (zip backups,
@@ -207,8 +207,8 @@ The two tabs never touch each other's files: zip restore cannot break the repos 
   For a `deleted` world, Take snapshot and Discard changes are disabled.
 - **Footer:** history size of the selected world, and the git command with a Copy button.
 - **`⋮` menu** (`Gtk::MenuButton`): Export snapshots…, Import snapshots…, Start fresh…,
-  Delete snapshots… (worlds that no longer exist only). All of these are later items. Export and
-  Import are done so far; the button is next to the "Snapshots of ..." title.
+  Delete snapshots… (worlds that no longer exist only). All of these are later items. Export, Import
+  and Start fresh are done so far; the button is next to the "Snapshots of ..." title.
 - The tab reloads when it is shown, no Refresh button. If many large worlds make `git status` slow,
   run it on the worker thread so the tab does not stall.
 
@@ -267,8 +267,10 @@ feature: this version only makes sure it will work.
   breaks the game's rules for world names (`worldfactory::valid_worldname` in DDA), ask for a new
   name or cancel, never overwrite. A failed import removes the repo and folder it created.
   Not done: a warning about mods from `mods.json` that are not installed.
-- **Start fresh** (per world): move the repo to the trash (with confirmation) and take one snapshot
-  of the current state. Shrinks the history.
+- **Start fresh** (per world, done): move the repo to the trash (with confirmation) and take one
+  snapshot of the current state, named from the Name and Description fields. Shrinks the history.
+  Restoring the old repo from the Trash tab is a conflict that asks to replace the new one (which
+  then goes to the trash), never a rename: `<World>.git (restored)` would be invisible to the tab.
 - **Delete snapshots…** for worlds that no longer exist.
 - The zip restore dialog naming worlds with changes not in a snapshot.
 

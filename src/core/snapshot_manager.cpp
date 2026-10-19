@@ -607,3 +607,35 @@ SnapshotManager::Result SnapshotManager::import_snapshots(const std::string& bun
     status_.post("Imported " + world + " with " + std::to_string(count) + (count == 1 ? " snapshot." : " snapshots."));
     return DONE;
 }
+
+SnapshotManager::Result SnapshotManager::start_fresh(const std::string& world, const std::string& name,
+                                                     const std::string& description)
+{
+    std::error_code ec;
+    if (!fs::is_directory(world_dir(world), ec) || !has_commits(world))
+    {
+        status_.post(world + " has no snapshots to start fresh from.", MSG_ERROR);
+        return FAILED;
+    }
+    if (trim(name).empty())
+    {
+        status_.post("A snapshot needs a name.", MSG_ERROR);
+        return FAILED;
+    }
+    std::string reason;
+    if (!can_write(reason))
+    {
+        status_.post(reason, MSG_ERROR);
+        return FAILED;
+    }
+    if (!trash_.remove(repo_path(world), "snapshots", world))
+        return FAILED;
+    Result result = take(world, name, description, true);
+    if (result == FAILED)
+        status_.post("The old snapshots of " + world + " are in the trash, but the new snapshot failed.", MSG_ERROR);
+    else if (result == NOTHING_TO_DO)
+        status_.post("Started fresh: " + world + " is empty, so it has no snapshots now.");
+    else
+        status_.post("Started fresh: " + world + " has one snapshot, \"" + trim(name) + "\".");
+    return result;
+}

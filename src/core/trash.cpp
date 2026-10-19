@@ -407,6 +407,16 @@ RestorePlan Trash::plan_restore(const std::string& id)
         }
         return plan;
     }
+    else if (item.kind == "snapshots" && exists_no_follow(original))
+    {
+        // Renamed, it would no longer be <World>.git and the Snapshots tab
+        // would not see it. Replacing keeps the newer history in the trash.
+        plan.kind = RestorePlan::CONFLICT;
+        plan.conflict_path = original.string();
+        plan.conflict_name = item.name;
+        plan.reason = "There are newer snapshots of " + item.name + " (for example after Start fresh).";
+        return plan;
+    }
 
     plan.dest = free_path(original.string());
     plan.kind = (plan.dest == original.string()) ? RestorePlan::ORIGINAL : RestorePlan::RENAMED;

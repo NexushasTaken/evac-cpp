@@ -94,6 +94,9 @@ public:
     bool mark_kept(const std::string& world);
     // Moves the repository to the trash.
     bool delete_snapshots(const std::string& world);
+    // Moves the world's snapshots to the trash and starts a new history with one
+    // snapshot of the world as it is now. Shrinks the history.
+    Result start_fresh(const std::string& world, const std::string& name, const std::string& description);
 
     // Writes every snapshot of the world to one git bundle file at path, to keep
     // elsewhere or share. Replaces the file if it exists.

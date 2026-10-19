@@ -355,3 +355,43 @@ TEST_CASE("import snapshots from a bundle")
     REQUIRE(f.snapshots.import_snapshots(f.dir + "/missing.bundle", "Junk") == SnapshotManager::FAILED);
     REQUIRE(!fs::exists(f.snapshots.repo_path("Junk")));
 }
+
+TEST_CASE("start fresh")
+{
+    SnapshotFixture f("snap_fresh");
+    f.settings.set_bool("use_trash", true);
+    write_file(f.world("Alpha") + "/master.gsav", "v1");
+    REQUIRE(f.snapshots.take_snapshot("Alpha", "one", "") == SnapshotManager::DONE);
+    write_file(f.world("Alpha") + "/master.gsav", "v2");
+    REQUIRE(f.snapshots.take_snapshot("Alpha", "two", "") == SnapshotManager::DONE);
+    write_file(f.world("Alpha") + "/master.gsav", "v3");  // Not in a snapshot yet.
+
+    REQUIRE(f.snapshots.start_fresh("Alpha", "fresh", "after the lab") == SnapshotManager::DONE);
+    std::vector<Snapshot> list = f.snapshots.list_snapshots("Alpha");
+    REQUIRE(list.size() == 1);
+    REQUIRE(list[0].name == "fresh");
+    REQUIRE(list[0].description == "after the lab");
+    REQUIRE(read_file(f.world("Alpha") + "/master.gsav") == "v3");  // The world is not touched.
+    REQUIRE(f.find("Alpha").state == WorldInfo::UNCHANGED);
+
+    // The old history is in the trash. Restoring it replaces the new one,
+    // which goes to the trash in turn: never renamed out of sight.
+    std::vector<TrashItem> trashed = f.trash.list();
+    REQUIRE(trashed.size() == 1);
+    REQUIRE(trashed[0].kind == "snapshots");
+    REQUIRE(f.trash.plan_restore(trashed[0].id).kind == RestorePlan::CONFLICT);
+    REQUIRE(!f.trash.restore(trashed[0].id, false));
+    REQUIRE(f.trash.restore(trashed[0].id, true));
+    REQUIRE(f.snapshots.list_snapshots("Alpha").size() == 2);
+    REQUIRE(f.trash.list().size() == 1);
+    REQUIRE(fs::directory_iterator(f.paths.snapshots()) != fs::directory_iterator());
+    for (const fs::directory_entry& e : fs::directory_iterator(f.paths.snapshots()))
+        REQUIRE(e.path().filename() == "Alpha.git");
+
+    // Nothing to start fresh from.
+    REQUIRE(f.snapshots.start_fresh("Nope", "x", "") == SnapshotManager::FAILED);
+    write_file(f.world("Beta") + "/master.gsav", "b");
+    REQUIRE(f.snapshots.start_fresh("Beta", "x", "") == SnapshotManager::FAILED);
+    REQUIRE(f.snapshots.start_fresh("Alpha", " ", "") == SnapshotManager::FAILED);
+    REQUIRE(f.snapshots.list_snapshots("Alpha").size() == 2);
+}
