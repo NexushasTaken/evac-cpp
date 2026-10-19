@@ -23,6 +23,14 @@ void confirm(Gtk::Window& parent, const Glib::ustring& title, const Glib::ustrin
 // Just a message, with an OK button.
 void tell(Gtk::Window& parent, const Glib::ustring& title, const Glib::ustring& detail);
 
+// Asks for one line of text. check says why the text can't be used ("" if it
+// can); the button stays disabled until it can. done is called only when the
+// button is pressed.
+void ask_text(Gtk::Window& parent, const Glib::ustring& title, const Glib::ustring& detail,
+              const Glib::ustring& initial, const Glib::ustring& button,
+              const std::function<std::string(const std::string&)>& check,
+              const std::function<void(const std::string&)>& done);
+
 // Wording for confirmations, depending on the "use_trash" setting.
 std::string removal_text(bool use_trash);    // "will be moved to the trash" / "will be deleted for good"
 std::string removal_button(bool use_trash);  // "Move to Trash" / "Delete"

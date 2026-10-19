@@ -44,6 +44,8 @@ private:
     void on_discard_clicked();
     void on_copy_clicked();
     void on_export_clicked();
+    void on_import_clicked();
+    void import_bundle(const std::string& path, const std::string& world);
 
     AppContext& ctx_;
     TaskRunner& runner_;
@@ -60,6 +62,7 @@ private:
     Gtk::Label snapshots_title_;
     Gtk::MenuButton menu_button_;
     Gtk::Button export_button_;
+    Gtk::Button import_button_;
     Gtk::ListBox snapshots_list_;
     Gtk::Button restore_button_;
     Gtk::Button discard_button_;

@@ -300,3 +300,58 @@ TEST_CASE("export snapshots to a bundle")
     fs::remove_all(f.world("Alpha"));
     REQUIRE(f.snapshots.export_snapshots("Alpha", f.dir + "/out/gone.bundle"));
 }
+
+TEST_CASE("import snapshots from a bundle")
+{
+    SnapshotFixture f("snap_import");
+    std::string bundle = f.dir + "/Alpha.bundle";
+    write_file(f.world("Alpha") + "/master.gsav", "v1");
+    write_file(f.world("Alpha") + "/maps/a.map", "map");
+    REQUIRE(f.snapshots.take_snapshot("Alpha", "one", "first") == SnapshotManager::DONE);
+    write_file(f.world("Alpha") + "/master.gsav", "v2");
+    fs::remove(f.world("Alpha") + "/maps/a.map");
+    REQUIRE(f.snapshots.take_snapshot("Alpha", "two", "") == SnapshotManager::DONE);
+    write_file(f.world("Alpha") + "/master.gsav", "not in a snapshot");
+    REQUIRE(f.snapshots.export_snapshots("Alpha", bundle));
+
+    REQUIRE(SnapshotManager::bundle_world_name("/x/My World.bundle") == "My World");
+    REQUIRE(SnapshotManager::bundle_world_name("/x/plain") == "plain");
+
+    // The name is taken: never replaced.
+    REQUIRE(f.snapshots.check_import_name("Alpha") != "");
+    REQUIRE(f.snapshots.import_snapshots(bundle, "Alpha") == SnapshotManager::FAILED);
+    REQUIRE(read_file(f.world("Alpha") + "/master.gsav") == "not in a snapshot");
+    REQUIRE(f.snapshots.list_snapshots("Alpha").size() == 2);
+
+    // The game's rules for world names.
+    REQUIRE(f.snapshots.check_import_name("") != "");
+    REQUIRE(f.snapshots.check_import_name("save") != "");
+    REQUIRE(f.snapshots.check_import_name("a/b") != "");
+    REQUIRE(f.snapshots.check_import_name("a:b") != "");
+    REQUIRE(f.snapshots.check_import_name("..") != "");
+    REQUIRE(f.snapshots.check_import_name("tab\there") != "");
+    REQUIRE(f.snapshots.check_import_name("Copy of 'Alpha' \xc3\xa9") == "");
+
+    // Under a new name: the history, and the world as in the latest snapshot.
+    REQUIRE(f.snapshots.import_snapshots(bundle, "Alpha 2") == SnapshotManager::DONE);
+    REQUIRE(read_file(f.world("Alpha 2") + "/master.gsav") == "v2");
+    REQUIRE(!fs::exists(f.world("Alpha 2") + "/maps/a.map"));
+    std::vector<Snapshot> list = f.snapshots.list_snapshots("Alpha 2");
+    REQUIRE(list.size() == 2);
+    REQUIRE(list[0].name == "two");
+    REQUIRE(list[1].description == "first");
+    REQUIRE(f.find("Alpha 2").state == WorldInfo::UNCHANGED);
+    REQUIRE(git::run({"--git-dir=" + f.snapshots.repo_path("Alpha 2"), "remote"}).out.empty());
+
+    // The imported world works like any other.
+    REQUIRE(f.snapshots.restore("Alpha 2", list[1].hash) == SnapshotManager::DONE);
+    REQUIRE(read_file(f.world("Alpha 2") + "/maps/a.map") == "map");
+
+    // A file that is not a bundle leaves nothing behind.
+    write_file(f.dir + "/junk.bundle", "junk");
+    REQUIRE(f.snapshots.import_snapshots(f.dir + "/junk.bundle", "Junk") == SnapshotManager::FAILED);
+    REQUIRE(!fs::exists(f.world("Junk")));
+    REQUIRE(!fs::exists(f.snapshots.repo_path("Junk")));
+    REQUIRE(f.snapshots.import_snapshots(f.dir + "/missing.bundle", "Junk") == SnapshotManager::FAILED);
+    REQUIRE(!fs::exists(f.snapshots.repo_path("Junk")));
+}

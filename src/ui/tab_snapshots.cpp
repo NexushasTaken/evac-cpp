@@ -94,6 +94,9 @@ void TabSnapshots::build_ui()
     export_button_.set_label("Export snapshots\xe2\x80\xa6");
     export_button_.set_tooltip_text("Save every snapshot of this world to one file (a git bundle), to keep elsewhere or share.");
     popover_box->append(export_button_);
+    import_button_.set_label("Import snapshots\xe2\x80\xa6");
+    import_button_.set_tooltip_text("Make a new world from an exported snapshots file. Existing worlds are never replaced.");
+    popover_box->append(import_button_);
     popover->set_child(*popover_box);
     menu_button_.set_icon_name("view-more-symbolic");
     menu_button_.set_tooltip_text("More actions");
@@ -182,6 +185,10 @@ void TabSnapshots::build_ui()
     export_button_.signal_clicked().connect([this, popover]() {
         popover->popdown();
         on_export_clicked();
+    });
+    import_button_.signal_clicked().connect([this, popover]() {
+        popover->popdown();
+        on_import_clicked();
     });
 }
 
@@ -380,7 +387,6 @@ void TabSnapshots::update_buttons()
     take_all_button_.set_sensitive(any_world && has_name);
     copy_button_.set_sensitive(world != nullptr);
     export_button_.set_sensitive(world && !snapshots_.empty());
-    menu_button_.set_sensitive(world != nullptr);
 }
 
 // A world folder that disappeared (deleted in the game, or by restoring a zip
@@ -535,4 +541,51 @@ void TabSnapshots::on_export_clicked()
         std::string path = file->get_path();
         run_task([this, world_name, path]() { ctx_.snapshots.export_snapshots(world_name, path); });
     });
+}
+
+void TabSnapshots::on_import_clicked()
+{
+    Glib::RefPtr<Gtk::FileDialog> dialog = Gtk::FileDialog::create();
+    dialog->set_title("Import snapshots");
+    Glib::RefPtr<Gtk::FileFilter> filter = Gtk::FileFilter::create();
+    filter->set_name("Git bundles (.bundle)");
+    filter->add_suffix("bundle");
+    Glib::RefPtr<Gio::ListStore<Gtk::FileFilter>> filters = Gio::ListStore<Gtk::FileFilter>::create();
+    filters->append(filter);
+    dialog->set_filters(filters);
+    dialog->open(parent_, [this, dialog](const Glib::RefPtr<Gio::AsyncResult>& result) {
+        Glib::RefPtr<Gio::File> file;
+        try
+        {
+            file = dialog->open_finish(result);
+        }
+        catch (const Glib::Error&)
+        {
+            return;  // Cancelled.
+        }
+        if (!file || file->get_path().empty())
+            return;
+        std::string path = file->get_path();
+        std::string world = SnapshotManager::bundle_world_name(path);
+        std::string problem = ctx_.snapshots.check_import_name(world);
+        if (problem.empty())
+        {
+            import_bundle(path, world);
+            return;
+        }
+        // Never replaces a world: ask for another name instead.
+        dialogs::ask_text(
+            parent_, "Name the imported world",
+            problem + " Choose a name for the world made from this file.", world, "Import",
+            [this](const std::string& name) { return ctx_.snapshots.check_import_name(name); },
+            [this, path](const std::string& name) { import_bundle(path, name); });
+    });
+}
+
+void TabSnapshots::import_bundle(const std::string& path, const std::string& world)
+{
+    if (!check_writable())
+        return;
+    selected_name_ = world;  // Shown once the reload is done.
+    run_task([this, path, world]() { ctx_.snapshots.import_snapshots(path, world); });
 }

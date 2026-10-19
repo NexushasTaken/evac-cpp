@@ -99,6 +99,15 @@ public:
     // elsewhere or share. Replaces the file if it exists.
     bool export_snapshots(const std::string& world, const std::string& path);
 
+    // The world name an imported bundle gets by default: its file name without ".bundle".
+    static std::string bundle_world_name(const std::string& path);
+    // Why world can't be the name of an imported world, or "" if it can. The
+    // game's rules for world names, and no world or snapshots by that name yet.
+    std::string check_import_name(const std::string& world);
+    // Makes a new world from a bundle made by export_snapshots: its snapshots,
+    // and the world folder as in the latest one. Never replaces an existing world.
+    Result import_snapshots(const std::string& bundle, const std::string& world);
+
 private:
     std::string world_dir(const std::string& world);
     std::vector<std::string> repo_args(const std::string& world);

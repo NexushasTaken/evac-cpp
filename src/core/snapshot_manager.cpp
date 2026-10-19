@@ -2,6 +2,7 @@
 
 #include <unistd.h>
 
+#include <cctype>
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
@@ -493,4 +494,116 @@ bool SnapshotManager::export_snapshots(const std::string& world, const std::stri
         return false;
     status_.post("Snapshots of " + world + " exported to " + target + ".");
     return true;
+}
+
+std::string SnapshotManager::bundle_world_name(const std::string& path)
+{
+    std::string name = fs::path(path).filename().string();
+    if (ends_with(name, ".bundle"))
+        name.resize(name.size() - 7);
+    return name;
+}
+
+// Same rules as the game's worldfactory::valid_worldname and is_char_allowed.
+std::string SnapshotManager::check_import_name(const std::string& world)
+{
+    if (world.empty())
+        return "World name cannot be empty.";
+    if (world == "save" || world == "TUTORIAL" || world == "DEFENSE")
+        return world + " is a reserved name.";
+    if (world == "." || world == "..")
+        return "World name cannot be " + world + ".";
+    for (size_t i = 0; i < world.size(); ++i)
+    {
+        unsigned char c = (unsigned char)world[i];
+        if (c >= 128)
+            continue;  // Part of a UTF-8 character.
+        if (!std::isprint(c))
+            return "World name contains an invalid character.";
+        if (std::string("\\/:*?\"<>|").find((char)c) != std::string::npos)
+            return std::string("World name contains invalid character: '") + (char)c + "'.";
+    }
+    std::error_code ec;
+    if (fs::exists(world_dir(world), ec))
+        return "A world named " + world + " already exists.";
+    if (fs::exists(repo_path(world), ec))
+        return "There are already snapshots of a world named " + world + ".";
+    return "";
+}
+
+// Picks the latest snapshot from the bundle's HEAD, or its only branch.
+static std::string bundle_head(const std::string& list_heads)
+{
+    std::vector<std::string> refs;
+    size_t start = 0;
+    while (start < list_heads.size())
+    {
+        size_t end = list_heads.find('\n', start);
+        if (end == std::string::npos)
+            end = list_heads.size();
+        std::string line = list_heads.substr(start, end - start);
+        size_t space = line.find(' ');
+        if (space != std::string::npos)
+            refs.push_back(line.substr(space + 1));
+        start = end + 1;
+    }
+    for (size_t i = 0; i < refs.size(); ++i)
+    {
+        if (refs[i] == "HEAD")
+            return "HEAD";
+    }
+    return refs.size() == 1 ? refs[0] : "";
+}
+
+SnapshotManager::Result SnapshotManager::import_snapshots(const std::string& bundle, const std::string& world)
+{
+    std::string problem = check_import_name(world);
+    if (!problem.empty())
+    {
+        status_.post("Cannot import as \"" + world + "\": " + problem, MSG_ERROR);
+        return FAILED;
+    }
+    std::string reason;
+    if (!can_write(reason))
+    {
+        status_.post(reason, MSG_ERROR);
+        return FAILED;
+    }
+    git::Result heads = git::run(args_of({"bundle", "list-heads", bundle}));
+    std::string head = heads.ok() ? bundle_head(heads.out) : "";
+    if (head.empty())
+    {
+        std::string detail = heads.ok() ? "it does not say which snapshot is the latest." : trim(heads.err);
+        status_.post("Cannot import " + bundle + ": " + detail, MSG_ERROR);
+        return FAILED;
+    }
+
+    // Both are new (check_import_name), so a failed import can remove them.
+    std::string repo = repo_path(world);
+    std::string dir = world_dir(world);
+    std::error_code ec;
+    if (!ensure_repo(world))
+    {
+        fs::remove_all(repo, ec);
+        return FAILED;
+    }
+    status_.post("Importing the snapshots of " + world + "...");
+    bool ok = run_or_report(world, args_of({"bundle", "verify", "-q", bundle}), "Checking the bundle")
+              && run_or_report(world, args_of({"fetch", "-q", bundle, "+" + head + ":refs/heads/main"}), "Import");
+    if (ok)
+    {
+        fs::create_directories(dir, ec);
+        if (ec)
+            status_.post("Cannot create " + dir + ": " + ec.message(), MSG_ERROR);
+        ok = !ec && reset_to(world, "HEAD");
+    }
+    if (!ok)
+    {
+        fs::remove_all(dir, ec);
+        fs::remove_all(repo, ec);
+        return FAILED;
+    }
+    size_t count = list_snapshots(world).size();
+    status_.post("Imported " + world + " with " + std::to_string(count) + (count == 1 ? " snapshot." : " snapshots."));
+    return DONE;
 }
