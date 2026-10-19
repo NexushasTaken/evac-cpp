@@ -372,20 +372,30 @@ void TabGame::reload_userdata_list()
     std::string active = ctx_.paths.userdata();
     std::vector<UserdataFolder> folders = ctx_.paths.custom_userdata();
 
-    Glib::RefPtr<Gtk::StringList> model = Gtk::StringList::create(std::vector<Glib::ustring>());
+    std::vector<std::string> labels;
     userdata_paths_.clear();
-    model->append("Default");
+    labels.push_back("Default");
     userdata_paths_.push_back(ctx_.paths.default_userdata());
     guint selected = 0;
     for (size_t i = 0; i < folders.size(); ++i)
     {
-        model->append(folders[i].label);
+        labels.push_back(folders[i].label);
         userdata_paths_.push_back(folders[i].path);
         if (folders[i].path == active)
             selected = (guint)(i + 1);
     }
-    userdata_dropdown_.set_model(model);
-    userdata_dropdown_.set_selected(selected);
+    // A new model only when the list changed. This also runs while the dropdown
+    // handles a choice, and a new model then makes it choose again, forever.
+    if (labels != userdata_labels_)
+    {
+        Glib::RefPtr<Gtk::StringList> model = Gtk::StringList::create(std::vector<Glib::ustring>());
+        for (size_t i = 0; i < labels.size(); ++i)
+            model->append(labels[i]);
+        userdata_dropdown_.set_model(model);
+        userdata_labels_ = labels;
+    }
+    if (userdata_dropdown_.get_selected() != selected)
+        userdata_dropdown_.set_selected(selected);
     userdata_dropdown_.set_tooltip_text("The user data folder the game uses (saves, configuration,\nuser mods, sound, etc.):\n" + active);
 
     bool custom = (selected != 0);

@@ -77,6 +77,7 @@ private:
     Paths::InstallsSummary installs_;
     std::vector<std::string> install_names_;  // Same order as the rows in installs_list_.
     std::vector<std::string> userdata_paths_;  // Same order as userdata_dropdown_, the default first.
+    std::vector<std::string> userdata_labels_;  // What userdata_dropdown_'s model holds now.
     std::set<std::string> kept_missing_;      // Missing folders the user chose to keep, not asked again.
     bool asking_missing_;
 
