@@ -1,23 +1,27 @@
 #include "ui/tab_mods.h"
 
-#include <algorithm>
-#include <strings.h>
+#include <QCheckBox>
+#include <QHBoxLayout>
+#include <QHeaderView>
+#include <QLabel>
+#include <QPushButton>
+#include <QTextBrowser>
+#include <QTreeWidget>
+#include <QVBoxLayout>
 
+#include <algorithm>
+
+#include "core/fs.h"
 #include "ui/dialogs.h"
 #include "ui/download_prompt.h"
+#include "ui/qt_helpers.h"
 
 static const char* const NO_INFO_TEXT = "Select a mod in either list to see its details here.";
 
-static Gtk::Label* make_label(const Glib::ustring& text)
-{
-    Gtk::Label* label = Gtk::make_managed<Gtk::Label>(text);
-    label->set_xalign(0.0f);
-    return label;
-}
-
+// Case-insensitive, like the original (strcasecmp is not on Windows).
 static bool name_less(const std::string& a, const std::string& b)
 {
-    return strcasecmp(a.c_str(), b.c_str()) < 0;
+    return QString::compare(qstr(a), qstr(b), Qt::CaseInsensitive) < 0;
 }
 
 // Authors and maintainers are a list, but sometimes just a string.
@@ -41,137 +45,115 @@ static std::string to_text_list(const nlohmann::json& value)
     return result;
 }
 
-TabMods::TabMods(AppContext& ctx, TaskRunner& runner, Gtk::Window& parent)
-    : Gtk::Box(Gtk::Orientation::VERTICAL, 8),
-      ctx_(ctx),
-      runner_(runner),
-      parent_(parent),
-      updating_(false),
-      content_(Gtk::Orientation::VERTICAL, 8)
+// A list with the name, and the reason it is greyed (if it is) on the right.
+static QTreeWidget* make_mod_list()
+{
+    QTreeWidget* list = new QTreeWidget();
+    list->setColumnCount(2);
+    list->setHeaderHidden(true);
+    list->setRootIsDecorated(false);
+    list->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    list->header()->setStretchLastSection(false);
+    list->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+    list->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    return list;
+}
+
+TabMods::TabMods(AppContext& ctx, TaskRunner& runner, QWidget& parent)
+    : ctx_(ctx), runner_(runner), parent_(parent), updating_(false)
 {
     build_ui();
 }
 
 void TabMods::build_ui()
 {
-    set_margin(12);
-    hint_label_.set_wrap(true);
-    hint_label_.set_xalign(0.0f);
-    append(hint_label_);
-    content_.set_vexpand(true);
-    append(content_);
+    QVBoxLayout* outer = new QVBoxLayout(this);
+    outer->setContentsMargins(12, 12, 12, 12);
+    hint_label_ = make_label("");
+    hint_label_->setWordWrap(true);
+    hint_label_->setAlignment(Qt::AlignLeft | Qt::AlignTop);  // Not in the middle of the empty tab.
+    outer->addWidget(hint_label_);
+    content_ = new QWidget();
+    outer->addWidget(content_, 1);
 
-    Gtk::Box* columns = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 12);
-    columns->set_vexpand(true);
-    columns->set_homogeneous(true);
-    content_.append(*columns);
+    QVBoxLayout* content = new QVBoxLayout(content_);
+    content->setContentsMargins(0, 0, 0, 0);
+    content->setSpacing(8);
+    QHBoxLayout* columns = new QHBoxLayout();
+    columns->setSpacing(12);
+    content->addLayout(columns, 1);
 
     // Both columns have the same structure: header, list, footer.
 
     // Installed mods.
-    Gtk::Box* left = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 6);
-    installed_caption_.set_xalign(0.0f);
-    installed_caption_.set_hexpand(true);
-    installed_caption_.add_css_class("heading");
-    Gtk::Box* left_header = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 6);
-    left_header->append(installed_caption_);
-    left->append(*left_header);
+    QVBoxLayout* left = new QVBoxLayout();
+    left->setSpacing(6);
+    installed_caption_ = make_heading("");
+    QHBoxLayout* left_header = new QHBoxLayout();
+    left_header->addWidget(installed_caption_, 1);
+    left->addLayout(left_header);
 
-    Gtk::ScrolledWindow* installed_scroller = Gtk::make_managed<Gtk::ScrolledWindow>();
-    installed_scroller->set_vexpand(true);
-    installed_scroller->set_has_frame(true);
-    installed_scroller->set_child(installed_list_);
-    left->append(*installed_scroller);
+    installed_list_ = make_mod_list();
+    left->addWidget(installed_list_, 1);
 
-    show_stock_check_.set_label("Show stock");
-    show_stock_check_.set_tooltip_text("Show mods from data/mods on this list.");
-    show_stock_check_.set_hexpand(true);
-    show_stock_check_.set_valign(Gtk::Align::CENTER);
-    delete_button_.set_label("Delete Selected");
-    delete_button_.set_tooltip_text("Remove selected mods from your game installation.");
-    delete_button_.add_css_class("destructive-action");
-    Gtk::Box* left_footer = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 6);
-    left_footer->append(show_stock_check_);
-    left_footer->append(delete_button_);
-    left->append(*left_footer);
-    columns->append(*left);
+    show_stock_check_ = new QCheckBox("Show stock");
+    show_stock_check_->setToolTip("Show mods from data/mods on this list.");
+    delete_button_ = new QPushButton("Delete Selected");
+    delete_button_->setToolTip("Remove selected mods from your game installation.");
+    QHBoxLayout* left_footer = new QHBoxLayout();
+    left_footer->addWidget(show_stock_check_, 1);
+    left_footer->addWidget(delete_button_);
+    left->addLayout(left_footer);
+    columns->addLayout(left, 1);
 
     // The local repository.
-    Gtk::Box* right = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 6);
-    available_caption_.set_xalign(0.0f);
-    available_caption_.set_hexpand(true);
-    available_caption_.add_css_class("heading");
-    kenan_button_.set_label("Get Kenan Modpack");
-    kenan_button_.set_tooltip_text("Download Kenan Modpack and add its mods\nto the local repository.");
-    Gtk::Box* right_header = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 6);
-    right_header->append(available_caption_);
-    right_header->append(kenan_button_);
-    right->append(*right_header);
+    QVBoxLayout* right = new QVBoxLayout();
+    right->setSpacing(6);
+    available_caption_ = make_heading("");
+    kenan_button_ = new QPushButton("Get Kenan Modpack");
+    kenan_button_->setToolTip("Download Kenan Modpack and add its mods\nto the local repository.");
+    QHBoxLayout* right_header = new QHBoxLayout();
+    right_header->addWidget(available_caption_, 1);
+    right_header->addWidget(kenan_button_);
+    right->addLayout(right_header);
 
-    Gtk::ScrolledWindow* available_scroller = Gtk::make_managed<Gtk::ScrolledWindow>();
-    available_scroller->set_vexpand(true);
-    available_scroller->set_has_frame(true);
-    available_scroller->set_child(available_list_);
-    right->append(*available_scroller);
+    available_list_ = make_mod_list();
+    right->addWidget(available_list_, 1);
 
-    show_installed_check_.set_label("Show already installed");
-    show_installed_check_.set_tooltip_text("Show already installed mods on this list\nin case you want to re-install them.");
-    show_installed_check_.set_hexpand(true);
-    show_installed_check_.set_valign(Gtk::Align::CENTER);
-    add_all_button_.set_label("Add All");
-    add_all_button_.set_tooltip_text("Add all listed mods to your game installation.");
-    add_selected_button_.set_label("Add Selected");
-    add_selected_button_.set_tooltip_text("Add selected mods to your game installation.");
-    add_selected_button_.add_css_class("suggested-action");
-    Gtk::Box* right_footer = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 6);
-    right_footer->append(show_installed_check_);
-    right_footer->append(add_all_button_);
-    right_footer->append(add_selected_button_);
-    right->append(*right_footer);
-    columns->append(*right);
-
-    // Empty lists say what to do.
-    Gtk::Label* installed_placeholder = Gtk::make_managed<Gtk::Label>("No mods installed.");
-    installed_placeholder->add_css_class("dim-label");
-    installed_placeholder->set_margin(12);
-    installed_list_.set_placeholder(*installed_placeholder);
-    Gtk::Label* available_placeholder =
-        Gtk::make_managed<Gtk::Label>("The local repository is empty.\nUse Get Kenan Modpack to fill it.");
-    available_placeholder->add_css_class("dim-label");
-    available_placeholder->set_justify(Gtk::Justification::CENTER);
-    available_placeholder->set_margin(12);
-    available_list_.set_placeholder(*available_placeholder);
+    show_installed_check_ = new QCheckBox("Show already installed");
+    show_installed_check_->setToolTip("Show already installed mods on this list\nin case you want to re-install them.");
+    add_all_button_ = new QPushButton("Add All");
+    add_all_button_->setToolTip("Add all listed mods to your game installation.");
+    add_selected_button_ = new QPushButton("Add Selected");
+    add_selected_button_->setToolTip("Add selected mods to your game installation.");
+    QHBoxLayout* right_footer = new QHBoxLayout();
+    right_footer->addWidget(show_installed_check_, 1);
+    right_footer->addWidget(add_all_button_);
+    right_footer->addWidget(add_selected_button_);
+    right->addLayout(right_footer);
+    columns->addLayout(right, 1);
 
     // Details of the selected mod.
-    info_label_.set_wrap(true);
-    info_label_.set_xalign(0.0f);
-    info_label_.set_yalign(0.0f);
-    info_label_.set_use_markup(true);
-    info_label_.set_selectable(true);
-    Gtk::ScrolledWindow* info_scroller = Gtk::make_managed<Gtk::ScrolledWindow>();
-    info_scroller->set_min_content_height(110);
-    info_scroller->set_has_frame(true);
-    info_scroller->set_child(info_label_);
-    content_.append(*info_scroller);
+    info_view_ = new QTextBrowser();
+    info_view_->setOpenExternalLinks(true);
+    info_view_->setFixedHeight(110);
+    content->addWidget(info_view_);
 
-    installed_list_.set_selection_mode(Gtk::SelectionMode::MULTIPLE);
-    available_list_.set_selection_mode(Gtk::SelectionMode::MULTIPLE);
-
-    installed_list_.signal_selected_rows_changed().connect(sigc::mem_fun(*this, &TabMods::on_installed_selection_changed));
-    available_list_.signal_selected_rows_changed().connect(sigc::mem_fun(*this, &TabMods::on_available_selection_changed));
-    show_stock_check_.signal_toggled().connect(sigc::mem_fun(*this, &TabMods::on_show_stock_toggled));
-    show_installed_check_.signal_toggled().connect(sigc::mem_fun(*this, &TabMods::on_show_installed_toggled));
-    delete_button_.signal_clicked().connect(sigc::mem_fun(*this, &TabMods::on_delete_clicked));
-    add_selected_button_.signal_clicked().connect(sigc::mem_fun(*this, &TabMods::on_add_selected_clicked));
-    add_all_button_.signal_clicked().connect(sigc::mem_fun(*this, &TabMods::on_add_all_clicked));
-    kenan_button_.signal_clicked().connect(sigc::mem_fun(*this, &TabMods::on_kenan_clicked));
+    connect(installed_list_, &QTreeWidget::itemSelectionChanged, this, &TabMods::on_installed_selection_changed);
+    connect(available_list_, &QTreeWidget::itemSelectionChanged, this, &TabMods::on_available_selection_changed);
+    connect(show_stock_check_, &QCheckBox::toggled, this, &TabMods::on_show_stock_toggled);
+    connect(show_installed_check_, &QCheckBox::toggled, this, &TabMods::on_show_installed_toggled);
+    connect(delete_button_, &QPushButton::clicked, this, &TabMods::on_delete_clicked);
+    connect(add_selected_button_, &QPushButton::clicked, this, &TabMods::on_add_selected_clicked);
+    connect(add_all_button_, &QPushButton::clicked, this, &TabMods::on_add_all_clicked);
+    connect(kenan_button_, &QPushButton::clicked, this, &TabMods::on_kenan_clicked);
 }
 
-void TabMods::show_unavailable(const Glib::ustring& message)
+void TabMods::show_unavailable(const QString& message)
 {
-    hint_label_.set_text(message);
-    hint_label_.set_visible(true);
-    content_.set_visible(false);
+    hint_label_->setText(message);
+    hint_label_->setVisible(true);
+    content_->setVisible(false);
 }
 
 void TabMods::refresh()
@@ -183,56 +165,58 @@ void TabMods::refresh()
         show_unavailable("Install the game first (on the Game tab).");
         return;
     }
-    hint_label_.set_visible(false);
-    content_.set_visible(true);
+    hint_label_->setVisible(false);
+    content_->setVisible(true);
 
     updating_ = true;
-    show_stock_check_.set_active(ctx_.settings.get_bool("show_stock_mods"));
-    show_installed_check_.set_active(ctx_.settings.get_bool("show_installed_mods_in_available"));
+    show_stock_check_->setChecked(ctx_.settings.get_bool("show_stock_mods"));
+    show_installed_check_->setChecked(ctx_.settings.get_bool("show_installed_mods_in_available"));
     updating_ = false;
 
     bool have_pack = (ModManager::modpack_for_game(game) != nullptr);
-    kenan_button_.set_sensitive(have_pack);
+    kenan_button_->setEnabled(have_pack);
     if (!have_pack)
-        kenan_button_.set_tooltip_text("There is no modpack for this game.");
+        kenan_button_->setToolTip("There is no modpack for this game.");
 
-    info_label_.set_markup(NO_INFO_TEXT);
+    info_view_->setPlainText(NO_INFO_TEXT);
     ctx_.mods.refresh_installed();
     ctx_.mods.refresh_available();
     reload_installed();
     reload_available();
 }
 
-std::set<int> TabMods::selected_rows(Gtk::ListBox& list)
+std::set<int> TabMods::selected_rows(QTreeWidget* list)
 {
     std::set<int> result;
-    std::vector<Gtk::ListBoxRow*> rows = list.get_selected_rows();
-    for (size_t i = 0; i < rows.size(); ++i)
-        result.insert(rows[i]->get_index());
+    QList<QTreeWidgetItem*> items = list->selectedItems();
+    for (int i = 0; i < items.size(); ++i)
+        result.insert(list->indexOfTopLevelItem(items[i]));
     return result;
 }
 
-void TabMods::fill_list(Gtk::ListBox& list, const std::vector<ModRow>& rows)
+// Empty lists say what to do, in a row that can't be selected.
+void TabMods::fill_list(QTreeWidget* list, const std::vector<ModRow>& rows, const QString& placeholder)
 {
     updating_ = true;
-    while (Gtk::ListBoxRow* row = list.get_row_at_index(0))
-        list.remove(*row);
+    list->clear();
+    QBrush dim = dim_brush(list);
     for (size_t i = 0; i < rows.size(); ++i)
     {
-        Gtk::Box* box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 8);
-        Gtk::Label* label = make_label(rows[i].name);
-        label->set_hexpand(true);
-        box->append(*label);
-        if (!rows[i].badge.empty())
-        {
-            Gtk::Label* badge = Gtk::make_managed<Gtk::Label>(rows[i].badge);
-            badge->add_css_class("dim-label");
-            box->append(*badge);
-        }
-        box->set_tooltip_text("Location: " + rows[i].location);
+        QTreeWidgetItem* item = new QTreeWidgetItem(list);
+        item->setText(0, qstr(rows[i].name));
+        item->setText(1, qstr(rows[i].badge));
+        item->setForeground(1, dim);
         if (rows[i].greyed)
-            box->set_sensitive(false);
-        list.append(*box);
+            item->setForeground(0, dim);
+        item->setToolTip(0, qstr("Location: " + rows[i].location));
+        item->setToolTip(1, item->toolTip(0));
+    }
+    if (rows.empty())
+    {
+        QTreeWidgetItem* item = new QTreeWidgetItem(list);
+        item->setText(0, placeholder);
+        item->setForeground(0, dim);
+        item->setFlags(Qt::NoItemFlags);
     }
     updating_ = false;
 }
@@ -278,7 +262,7 @@ void TabMods::reload_installed()
         row.name = it->second.name;
         if (show_obsolete && status == MOD_STOCK_OBSOLETE)
             row.name += " [obsolete]";
-        row.location = it->second.location;
+        row.location = to_utf8(it->second.location);
         row.greyed = it->second.is_stock;
         if (row.greyed)
             row.badge = "stock";
@@ -290,11 +274,11 @@ void TabMods::reload_installed()
     std::string caption = "Installed";
     if (hidden > 0)
         caption += " (" + std::to_string(hidden) + " hidden)";
-    installed_caption_.set_text(caption + ":");
+    installed_caption_->setText(qstr(caption + ":"));
 
-    fill_list(installed_list_, installed_rows_);
+    fill_list(installed_list_, installed_rows_, "No mods installed.");
     previous_installed_selection_.clear();
-    delete_button_.set_sensitive(false);
+    delete_button_->setEnabled(false);
 }
 
 void TabMods::reload_available()
@@ -317,7 +301,7 @@ void TabMods::reload_available()
         ModRow row;
         row.id = it->first;
         row.name = it->second.name;
-        row.location = it->second.location;
+        row.location = to_utf8(it->second.location);
         row.greyed = !installable;
         if (row.greyed)
             row.badge = "installed";
@@ -329,12 +313,12 @@ void TabMods::reload_available()
     std::string caption = "Local repository";
     if (hidden > 0)
         caption += " (" + std::to_string(hidden) + " hidden)";
-    available_caption_.set_text(caption + ":");
+    available_caption_->setText(qstr(caption + ":"));
 
-    fill_list(available_list_, available_rows_);
+    fill_list(available_list_, available_rows_, "The local repository is empty. Use Get Kenan Modpack to fill it.");
     previous_available_selection_.clear();
-    add_selected_button_.set_sensitive(false);
-    add_all_button_.set_sensitive(!available_rows_.empty());
+    add_selected_button_->setEnabled(false);
+    add_all_button_->setEnabled(!available_rows_.empty());
 }
 
 void TabMods::show_mod_info(const std::string& id, bool from_available)
@@ -345,17 +329,17 @@ void TabMods::show_mod_info(const std::string& id, bool from_available)
         return;
     const nlohmann::json& info = it->second.modinfo;
 
-    Glib::ustring text = "<u>Name:</u> " + Glib::Markup::escape_text(it->second.name);
-    text += " (<u>ID:</u> " + Glib::Markup::escape_text(id) + ")";
+    QString text = "<u>Name:</u> " + escape(it->second.name);
+    text += " (<u>ID:</u> " + escape(id) + ")";
     if (info.contains("authors"))
-        text += "\n<u>Authors:</u> " + Glib::Markup::escape_text(to_text_list(info["authors"]));
+        text += "<br><u>Authors:</u> " + escape(to_text_list(info["authors"]));
     if (info.contains("maintainers"))
-        text += "\n<u>Maintainers:</u> " + Glib::Markup::escape_text(to_text_list(info["maintainers"]));
+        text += "<br><u>Maintainers:</u> " + escape(to_text_list(info["maintainers"]));
     if (info.contains("category") && info["category"].is_string())
-        text += "\n<u>Category:</u> " + Glib::Markup::escape_text(info["category"].get<std::string>());
+        text += "<br><u>Category:</u> " + escape(info["category"].get<std::string>());
     if (info.contains("description") && info["description"].is_string())
-        text += "\n<u>Description:</u> " + Glib::Markup::escape_text(info["description"].get<std::string>());
-    info_label_.set_markup(text);
+        text += "<br><u>Description:</u> " + escape(info["description"].get<std::string>());
+    info_view_->setHtml(text);
 }
 
 // The mod to show details of: the one that was just selected, or if the last
@@ -388,10 +372,10 @@ void TabMods::on_installed_selection_changed()
     bool can_delete = false;
     for (std::set<int>::const_iterator it = now.begin(); it != now.end(); ++it)
     {
-        if ((size_t)*it < installed_rows_.size() && !installed_rows_[*it].greyed)
+        if (*it >= 0 && (size_t)*it < installed_rows_.size() && !installed_rows_[*it].greyed)
             can_delete = true;
     }
-    delete_button_.set_sensitive(can_delete);
+    delete_button_->setEnabled(can_delete);
 }
 
 void TabMods::on_available_selection_changed()
@@ -411,20 +395,20 @@ void TabMods::on_available_selection_changed()
     const std::map<std::string, ModEntry>& installed = ctx_.mods.installed();
     for (std::set<int>::const_iterator it = now.begin(); it != now.end(); ++it)
     {
-        if ((size_t)*it >= available_rows_.size())
+        if (*it < 0 || (size_t)*it >= available_rows_.size())
             continue;
         std::map<std::string, ModEntry>::const_iterator inst = installed.find(available_rows_[*it].id);
         if (inst == installed.end() || inst->second.is_obsolete)
             can_add = true;
     }
-    add_selected_button_.set_sensitive(can_add);
+    add_selected_button_->setEnabled(can_add);
 }
 
 void TabMods::on_show_stock_toggled()
 {
     if (updating_)
         return;
-    ctx_.settings.set_bool("show_stock_mods", show_stock_check_.get_active());
+    ctx_.settings.set_bool("show_stock_mods", show_stock_check_->isChecked());
     ctx_.settings.save();
     reload_installed();
 }
@@ -433,7 +417,7 @@ void TabMods::on_show_installed_toggled()
 {
     if (updating_)
         return;
-    ctx_.settings.set_bool("show_installed_mods_in_available", show_installed_check_.get_active());
+    ctx_.settings.set_bool("show_installed_mods_in_available", show_installed_check_->isChecked());
     ctx_.settings.save();
     reload_available();
 }
@@ -441,38 +425,14 @@ void TabMods::on_show_installed_toggled()
 // Runs a slow job on the worker thread, with the whole tab disabled until it is done.
 void TabMods::run_task(const std::function<void()>& work)
 {
-    content_.set_sensitive(false);
+    content_->setEnabled(false);
     bool started = runner_.run(work, [this]() {
-        content_.set_sensitive(true);
+        content_->setEnabled(true);
         reload_installed();
         reload_available();
     });
     if (!started)
-        content_.set_sensitive(true);
-}
-
-// Shows a message with buttons; `answer` gets the number of the button pressed,
-// 0 being the first one (always cancel, also when the dialog is dismissed).
-void TabMods::ask(const Glib::ustring& title, const Glib::ustring& detail, const std::vector<Glib::ustring>& buttons,
-                  const std::function<void(int)>& answer)
-{
-    Glib::RefPtr<Gtk::AlertDialog> dialog = Gtk::AlertDialog::create(title);
-    dialog->set_detail(detail);
-    dialog->set_buttons(buttons);
-    dialog->set_cancel_button(0);
-    dialog->set_default_button(0);
-    dialog->choose(parent_, [dialog, answer](const Glib::RefPtr<Gio::AsyncResult>& result) {
-        int choice = 0;
-        try
-        {
-            choice = dialog->choose_finish(result);
-        }
-        catch (const Glib::Error&)
-        {
-            choice = 0;
-        }
-        answer(choice);
-    });
+        content_->setEnabled(true);
 }
 
 void TabMods::on_delete_clicked()
@@ -482,7 +442,7 @@ void TabMods::on_delete_clicked()
     std::set<int> selection = selected_rows(installed_list_);
     for (std::set<int>::const_iterator it = selection.begin(); it != selection.end(); ++it)
     {
-        if ((size_t)*it >= installed_rows_.size())
+        if (*it < 0 || (size_t)*it >= installed_rows_.size())
             continue;
         if (installed_rows_[*it].greyed)
             ++skipped;
@@ -509,13 +469,9 @@ void TabMods::on_delete_clicked()
     {
         detail = std::to_string(ids.size()) + " mods " + dialogs::removal_text(use_trash) + ".";
     }
-    std::vector<Glib::ustring> buttons;
-    buttons.push_back("Cancel");
-    buttons.push_back(dialogs::removal_button(use_trash));
-    ask(ids.size() == 1 ? "Delete the mod?" : "Delete the mods?", detail, buttons, [this, ids](int choice) {
-        if (choice == 1)
-            run_task([this, ids]() { ctx_.mods.delete_mods(ids); });
-    });
+    dialogs::confirm(parent_, ids.size() == 1 ? "Delete the mod?" : "Delete the mods?", qstr(detail),
+                     qstr(dialogs::removal_button(use_trash)),
+                     [this, ids]() { run_task([this, ids]() { ctx_.mods.delete_mods(ids); }); });
 }
 
 void TabMods::on_add_selected_clicked()
@@ -527,7 +483,7 @@ void TabMods::on_add_selected_clicked()
     std::set<int> selection = selected_rows(available_list_);
     for (std::set<int>::const_iterator it = selection.begin(); it != selection.end(); ++it)
     {
-        if ((size_t)*it >= available_rows_.size())
+        if (*it < 0 || (size_t)*it >= available_rows_.size())
             continue;
         const std::string& id = available_rows_[*it].id;
         ModStatus status = ctx_.mods.mod_status(id);
@@ -556,11 +512,9 @@ void TabMods::on_add_selected_clicked()
                              ? "One of the selected mods is already installed.\nDelete and reinstall it?"
                              : std::to_string(reinstall_ids.size()) + " of the selected mods are already installed.\nDelete and reinstall them?";
     detail += "\n" + old_copies;
-    std::vector<Glib::ustring> buttons;
-    buttons.push_back("Cancel");
-    buttons.push_back("No, skip them");
-    buttons.push_back("Yes, reinstall");
-    ask("Reinstall mods?", detail, buttons, [this, new_ids, reinstall_ids](int choice) {
+    QStringList buttons;
+    buttons << "Cancel" << "No, skip them" << "Yes, reinstall";
+    dialogs::ask(parent_, "Reinstall mods?", qstr(detail), buttons, [this, new_ids, reinstall_ids](int choice) {
         if (choice == 2)
             install_mods(new_ids, reinstall_ids);
         else if (choice == 1)
@@ -585,7 +539,7 @@ void TabMods::install_mods(const std::vector<std::string>& new_ids, const std::v
 
 void TabMods::on_add_all_clicked()
 {
-    available_list_.select_all();
+    available_list_->selectAll();
     on_add_selected_clicked();
 }
 
@@ -612,6 +566,6 @@ void TabMods::on_kenan_clicked()
                           "replaced with a fresh download of " + copy.name + ".\nInstalled mods are not affected.";
         question.button = "Replace Repository";
     }
-    confirm_download(ctx_, runner_, parent_, content_, question,
+    confirm_download(ctx_, runner_, parent_, *content_, question,
                      [this, copy]() { run_task([this, copy]() { ctx_.mods.retrieve_modpack(copy); }); });
 }

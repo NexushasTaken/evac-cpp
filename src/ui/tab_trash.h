@@ -1,7 +1,7 @@
 #ifndef EVAC_TAB_TRASH_H
 #define EVAC_TAB_TRASH_H
 
-#include <gtkmm.h>
+#include <QWidget>
 
 #include <functional>
 #include <string>
@@ -11,11 +11,16 @@
 #include "ui/app_context.h"
 #include "ui/task_runner.h"
 
+class QLabel;
+class QPushButton;
+class QTextBrowser;
+class QTreeWidget;
+
 // The Trash tab: what was deleted, to restore it or delete it for good.
-class TabTrash : public Gtk::Box
+class TabTrash : public QWidget
 {
 public:
-    TabTrash(AppContext& ctx, TaskRunner& runner, Gtk::Window& parent);
+    TabTrash(AppContext& ctx, TaskRunner& runner, QWidget& parent);
 
     // Reloads the list. Call when the tab is shown.
     void refresh();
@@ -40,19 +45,19 @@ private:
 
     AppContext& ctx_;
     TaskRunner& runner_;
-    Gtk::Window& parent_;
+    QWidget& parent_;
     bool updating_;
     std::vector<TrashItem> items_;
 
-    Gtk::Label summary_label_;
-    Gtk::Box content_;
-    Gtk::ListBox list_;
-    Gtk::Label info_label_;
-    Gtk::Button restore_button_;
-    Gtk::Button delete_button_;
-    Gtk::Button empty_button_;
-    Gtk::Button free_up_button_;
-    Gtk::Button open_folder_button_;
+    QWidget* content_;
+    QLabel* summary_label_;
+    QTreeWidget* list_;
+    QTextBrowser* info_view_;
+    QPushButton* restore_button_;
+    QPushButton* delete_button_;
+    QPushButton* empty_button_;
+    QPushButton* free_up_button_;
+    QPushButton* open_folder_button_;
 };
 
 #endif

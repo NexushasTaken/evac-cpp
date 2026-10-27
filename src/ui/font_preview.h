@@ -1,24 +1,26 @@
 #ifndef EVAC_FONT_PREVIEW_H
 #define EVAC_FONT_PREVIEW_H
 
-#include <gtkmm.h>
+#include <QGroupBox>
 
-#include <string>
+#include <filesystem>
+
+class QLabel;
 
 // Shows text in the font of a file at a pixel size, as a rough idea of how the
 // game shows it: the game renders fonts itself, with the hinting and fallback
 // fonts from fonts.json, which this does not.
-// The file is made known to Pango (through fontconfig) the first time.
-class FontPreview : public Gtk::Frame
+// The file is made known to Qt (QFontDatabase) the first time.
+class FontPreview : public QGroupBox
 {
 public:
     FontPreview();
 
     // An empty path clears the preview.
-    void show_font(const std::string& path, int pixel_size);
+    void show_font(const std::filesystem::path& path, int pixel_size);
 
 private:
-    Gtk::Label label_;
+    QLabel* label_;
 };
 
 #endif

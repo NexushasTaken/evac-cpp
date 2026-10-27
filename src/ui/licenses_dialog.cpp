@@ -1,34 +1,50 @@
 #include "ui/licenses_dialog.h"
 
+#include <QFontDatabase>
+#include <QPlainTextEdit>
+#include <QTextBlockFormat>
+#include <QTextCharFormat>
+#include <QTextCursor>
+#include <QVBoxLayout>
+
 #include "core/licenses.h"
+#include "ui/qt_helpers.h"
 
-LicensesDialog::LicensesDialog(Gtk::Window& parent, const std::string& data_dir)
+LicensesDialog::LicensesDialog(QWidget& parent, const std::filesystem::path& data_dir) : QDialog(&parent)
 {
-    set_title("Open source licenses");
-    set_transient_for(parent);
-    set_modal(true);
-    set_hide_on_close(true);
-    set_default_size(720, 600);
+    setWindowTitle("Open source licenses");
+    setModal(true);
+    resize(720, 600);
 
-    text_view_.set_editable(false);
-    text_view_.set_cursor_visible(false);
-    text_view_.set_wrap_mode(Gtk::WrapMode::WORD);
-    text_view_.set_monospace(true);
-    text_view_.set_left_margin(12);
-    text_view_.set_right_margin(12);
-    scroller_.set_child(text_view_);
-    set_child(scroller_);
+    QPlainTextEdit* text_view = new QPlainTextEdit();
+    text_view->setReadOnly(true);
+    text_view->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+    text_view->document()->setDocumentMargin(12);
+    QVBoxLayout* layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->addWidget(text_view);
 
-    Glib::RefPtr<Gtk::TextBuffer> buffer = text_view_.get_buffer();
-    Glib::RefPtr<Gtk::TextBuffer::Tag> heading = buffer->create_tag();
-    heading->property_weight() = 700;
-    heading->property_scale() = 1.3;
-    heading->property_justification() = Gtk::Justification::CENTER;
+    QTextBlockFormat heading_block;
+    heading_block.setAlignment(Qt::AlignHCenter);
+    heading_block.setTopMargin(12);
+    heading_block.setBottomMargin(12);
+    QTextCharFormat heading;
+    heading.setFontWeight(QFont::Bold);
+    heading.setFontPointSize(text_view->font().pointSizeF() * 1.3);
+    QTextBlockFormat body_block;
+    QTextCharFormat body;
 
+    QTextCursor cursor(text_view->document());
     std::vector<LicenseSection> sections = load_license_sections(data_dir);
     for (size_t i = 0; i < sections.size(); ++i)
     {
-        buffer->insert_with_tag(buffer->end(), "\n" + sections[i].heading + "\n\n", heading);
-        buffer->insert(buffer->end(), sections[i].text + "\n\n");
+        if (i > 0)
+            cursor.insertBlock(heading_block, heading);
+        else
+            cursor.setBlockFormat(heading_block);
+        cursor.insertText(qstr(sections[i].heading), heading);
+        cursor.insertBlock(body_block, body);
+        cursor.insertText(qstr(sections[i].text + "\n"), body);
     }
+    text_view->moveCursor(QTextCursor::Start);
 }

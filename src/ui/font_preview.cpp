@@ -1,88 +1,67 @@
 #include "ui/font_preview.h"
 
-#include <fontconfig/fontconfig.h>
-#include <pango/pangofc-fontmap.h>
+#include <QFontDatabase>
+#include <QLabel>
+#include <QRawFont>
+#include <QVBoxLayout>
 
-#include <set>
+#include <map>
+
+#include "ui/qt_helpers.h"
 
 static const char SAMPLE[] = "The quick brown fox jumps over the lazy dog.\n"
                              "0123456789 !?@#$%&*()[]{}<>=+-~\n"
                              "┌──┬──┐ │ ░▒▓█ ←↑→↓ ♥ ♦ ☺\n"
                              "Съешь же ещё этих мягких булок. Ελληνικά";
 
-// The Pango description ("Hack Bold" and so on) of the font in a file, or ""
-// if Pango can't use it. Fonts added here stay known until the launcher exits.
-static std::string description_for_file(Gtk::Widget& widget, const std::string& path)
+// The font in a file ("Hack" "Bold" and so on), or false if Qt can't use it.
+// Fonts added here stay known until the launcher exits.
+static bool font_for_file(const QString& path, int pixel_size, QFont& font)
 {
-    PangoFontMap* map = widget.get_pango_context()->get_font_map()->gobj();
-    if (!PANGO_IS_FC_FONT_MAP(map))
-        return "";
-    PangoFcFontMap* fc_map = PANGO_FC_FONT_MAP(map);
-    FcConfig* config = pango_fc_font_map_get_config(fc_map);
+    static std::map<QString, int> added;  // Path -> QFontDatabase id, -1 if it failed.
+    std::map<QString, int>::const_iterator it = added.find(path);
+    int id = (it != added.end()) ? it->second : (added[path] = QFontDatabase::addApplicationFont(path));
+    if (id < 0)
+        return false;
+    QStringList families = QFontDatabase::applicationFontFamilies(id);
+    if (families.isEmpty())
+        return false;
 
-    static std::set<std::string> added;
-    if (added.find(path) == added.end())
-    {
-        if (!FcConfigAppFontAddFile(config, (const FcChar8*)path.c_str()))
-            return "";
-        pango_fc_font_map_config_changed(fc_map);
-        added.insert(path);
-    }
-
-    FcPattern* pattern = FcPatternCreate();
-    FcPatternAddString(pattern, FC_FILE, (const FcChar8*)path.c_str());
-    FcObjectSet* objects = FcObjectSetBuild(FC_FAMILY, FC_STYLE, FC_WEIGHT, FC_SLANT, FC_WIDTH, (char*)nullptr);
-    FcFontSet* found = FcFontList(config, pattern, objects);
-    FcObjectSetDestroy(objects);
-    FcPatternDestroy(pattern);
-
-    std::string result;
-    if (found && found->nfont > 0)
-    {
-        PangoFontDescription* desc = pango_fc_font_description_from_pattern(found->fonts[0], FALSE);
-        char* text = pango_font_description_to_string(desc);
-        result = text;
-        g_free(text);
-        pango_font_description_free(desc);
-    }
-    if (found)
-        FcFontSetDestroy(found);
-    return result;
+    // A family has several files (Regular, Bold...): the style picks this one.
+    QRawFont raw(path, pixel_size);
+    font = QFont(families[0]);
+    if (raw.isValid())
+        font.setStyleName(raw.styleName());
+    font.setPixelSize(pixel_size);  // The game's font size is in pixels.
+    return true;
 }
 
 FontPreview::FontPreview()
 {
-    set_label("Preview (roughly how it looks; the game draws fonts itself)");
-    label_.set_xalign(0.0f);
-    label_.set_margin(8);
-    label_.set_selectable(true);
-    set_child(label_);
+    setTitle("Preview (roughly how it looks; the game draws fonts itself)");
+    label_ = make_label("");
+    label_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    label_->setContentsMargins(8, 8, 8, 8);
+    QVBoxLayout* layout = new QVBoxLayout(this);
+    layout->addWidget(label_);
 }
 
-void FontPreview::show_font(const std::string& path, int pixel_size)
+void FontPreview::show_font(const std::filesystem::path& path, int pixel_size)
 {
-    Pango::AttrList none;
     if (path.empty())
     {
-        label_.set_attributes(none);
-        label_.set_text("Select a font to see it here.");
+        label_->setFont(font());
+        label_->setText("Select a font to see it here.");
         return;
     }
 
-    std::string description = description_for_file(label_, path);
-    if (description.empty())
+    QFont preview;
+    if (!font_for_file(qstr(path), pixel_size, preview))
     {
-        label_.set_attributes(none);
-        label_.set_text("This font can't be shown here.");
+        label_->setFont(font());
+        label_->setText("This font can't be shown here.");
         return;
     }
-
-    Pango::AttrList attributes;
-    Pango::Attribute font = Pango::Attribute::create_attr_font_desc(Pango::FontDescription(description));
-    attributes.insert(font);
-    // The game's font size is in pixels.
-    Pango::Attribute size = Pango::Attribute::create_attr_size_absolute(pixel_size * PANGO_SCALE);
-    attributes.insert(size);
-    label_.set_text(SAMPLE);
-    label_.set_attributes(attributes);
+    label_->setText(SAMPLE);
+    label_->setFont(preview);
 }

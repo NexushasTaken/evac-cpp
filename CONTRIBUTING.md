@@ -24,9 +24,9 @@ Scopes are the tab or core area you touched: `game`, `mods`, `soundpacks`, `font
 
 ## Code rules
 
-- `src/core/` never includes GTK, so it can be tested without a window.
+- `src/core/` never includes Qt, so it can be tested without a window.
 - Slow work (downloads, installs, backups) runs on the worker thread through `TaskRunner`
-  (`src/ui/task_runner.h`), never on the GTK main thread.
+  (`src/ui/task_runner.h`), never on the Qt main (GUI) thread.
 - Every delete or replace asks the user to confirm first.
 - Files that belong to the game (saves, configs, mod folders) are read and written in the game's own format.
   Don't invent launcher-only fields or layouts for them.

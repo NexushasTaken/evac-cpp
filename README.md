@@ -1,6 +1,6 @@
 # Evac
 
-A C++17 / GTK4 launcher and content manager for
+A C++17 / Qt 6 launcher and content manager for
 [Cataclysm: Dark Days Ahead](https://github.com/CleverRaven/Cataclysm-DDA) and
 [Cataclysm: Bright Nights](https://github.com/cataclysmbn/Cataclysm-BN) (and the forks Era of Decay,
 There Is Still Hope and The Last Generation), based on [Catapult](https://github.com/qrrk/Catapult).
@@ -59,7 +59,7 @@ Not done yet:
 
 Differences from the original:
 
-- The launcher always uses your system GTK theme and display scaling. There are no launcher themes and no scale
+- The launcher always uses your system theme (Qt style) and display scaling. There are no launcher themes and no scale
   setting; the old `launcher_theme` and `ui_scale_*` keys in the settings file are kept but ignored.
 - It is not a single self-contained executable. The `data/` folder (bundled fonts, licenses) has to be next to it.
 - Files go to the XDG directories by default instead of next to the executable (see Running).
@@ -72,10 +72,10 @@ Differences from the original:
 
 You need:
 
-- a C++17 compiler (GCC or Clang), CMake 3.23 or newer, `pkg-config`
+- a C++17 compiler (GCC or Clang), CMake 3.23 or newer
 - [Conan](https://conan.io) 2
-- the gtkmm 4 and fontconfig development files (fontconfig comes with GTK on most systems), for example `gtkmm-4.0` on Arch, `libgtkmm-4.0-dev` on Debian/Ubuntu or
-  `gtkmm4.0-devel` on Fedora. (gtkmm is not on Conan Center, so it comes from your system.)
+- Qt 6.5 or newer (the Widgets module), for example `qt6-base` on Arch, `qt6-base-dev` on Debian/Ubuntu or
+  `qt6-qtbase-devel` on Fedora. (It comes from your system: building Qt with Conan takes a long time.)
 
 The other libraries (cpr and libcurl, libarchive, nlohmann_json, spdlog, Catch2) are fetched and built by Conan.
 
@@ -144,7 +144,7 @@ ctest --preset conan-debug
 build/Debug/core_tests
 ```
 
-The tests cover the core library (everything except the GTK interface) and need no network access: downloads
+The tests cover the core library (everything except the Qt interface) and need no network access: downloads
 are tested with `file://` URLs and archives built on the fly. Two extra tests are skipped unless you point them
 at a server:
 
@@ -156,7 +156,7 @@ EVAC_TEST_HTTPS_URL=https://api.github.com/zen build/Debug/core_tests "[network]
 
 ```
 src/core/   Everything that does not need a window (settings, paths, downloads, installs, mods, ...).
-src/ui/     The gtkmm interface: one file pair per tab, and a worker thread helper.
+src/ui/     The Qt Widgets interface: one file pair per tab, and a worker thread helper.
 tests/      Catch2 tests for src/core.
 data/       Files that ship with the launcher: bundled fonts and license texts.
 ```

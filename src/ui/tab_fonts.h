@@ -1,29 +1,38 @@
 #ifndef EVAC_TAB_FONTS_H
 #define EVAC_TAB_FONTS_H
 
-#include <gtkmm.h>
+#include <QWidget>
 
 #include <string>
 #include <vector>
 
 #include "ui/app_context.h"
-#include "ui/font_preview.h"
+
+class QCheckBox;
+class QComboBox;
+class QLabel;
+class QListWidget;
+class QPushButton;
+class QScrollArea;
+class QSpinBox;
+class QVBoxLayout;
+class FontPreview;
 
 // The Fonts tab: pick a bundled font or one from a file for each font list of
 // the game, edit those lists (order, hinting, antialiasing), and set the font
 // sizes. This only edits two small files, so it all happens on the main thread.
-class TabFonts : public Gtk::Box
+class TabFonts : public QWidget
 {
 public:
-    TabFonts(AppContext& ctx, Gtk::Window& parent);
+    TabFonts(AppContext& ctx, QWidget& parent);
 
     // Reloads everything from the game's config files. Call when the tab is shown.
     void refresh();
 
 private:
     void build_ui();
-    void build_sizes(Gtk::Box& box);
-    void show_unavailable(const Glib::ustring& message);
+    void build_sizes(QVBoxLayout& box);
+    void show_unavailable(const QString& message);
     void fill_fonts_list(int select);
     int selected_font_index();
     void update_preview();
@@ -39,7 +48,7 @@ private:
     void add_font_file(const std::string& path);
     void on_set_font(const std::vector<std::string>& fields);
     void on_reset();
-    void on_entry_style_changed(size_t index, Gtk::DropDown* hinting, Gtk::CheckButton* antialiasing);
+    void on_entry_style_changed(size_t index, QComboBox* hinting, QCheckBox* antialiasing);
     void on_move_entry(int offset);
     void on_remove_entry();
     void on_size_changed();
@@ -47,40 +56,39 @@ private:
     void on_save();
 
     AppContext& ctx_;
-    Gtk::Window& parent_;
+    QWidget& parent_;
     bool updating_;
     std::vector<FontEntry> entries_;  // As shown in entries_list_.
 
-    Gtk::Label hint_label_;
-    Gtk::ScrolledWindow scroller_;
-    Gtk::Box content_;
+    QLabel* hint_label_;
+    QScrollArea* scroller_;
 
-    Gtk::ListBox fonts_list_;
-    Gtk::Button add_file_button_;
-    Gtk::Label description_label_;
-    FontPreview preview_;
-    Gtk::Button set_ui_button_;
-    Gtk::Button set_menus_button_;
-    Gtk::Button set_map_button_;
-    Gtk::Button set_overmap_button_;
-    Gtk::Button set_all_button_;
-    Gtk::Button reset_button_;
+    QListWidget* fonts_list_;
+    QPushButton* add_file_button_;
+    QLabel* description_label_;
+    FontPreview* preview_;
+    QPushButton* set_ui_button_;
+    QPushButton* set_menus_button_;
+    QPushButton* set_map_button_;
+    QPushButton* set_overmap_button_;
+    QPushButton* set_all_button_;
+    QPushButton* reset_button_;
 
-    Gtk::DropDown field_dropdown_;
-    Gtk::Label missing_field_label_;
-    Gtk::ListBox entries_list_;
-    Gtk::Button move_up_button_;
-    Gtk::Button move_down_button_;
-    Gtk::Button remove_button_;
+    QComboBox* field_dropdown_;
+    QLabel* missing_field_label_;
+    QListWidget* entries_list_;
+    QPushButton* move_up_button_;
+    QPushButton* move_down_button_;
+    QPushButton* remove_button_;
 
     // UI (also the menus), map, overmap.
-    Gtk::SpinButton size_spins_[3];
-    Gtk::SpinButton width_spins_[3];
-    Gtk::SpinButton height_spins_[3];
-    Gtk::CheckButton manual_check_;
-    Gtk::CheckButton blending_check_;
-    Gtk::CheckButton ascii_check_;
-    Gtk::Button save_button_;
+    QSpinBox* size_spins_[3];
+    QSpinBox* width_spins_[3];
+    QSpinBox* height_spins_[3];
+    QCheckBox* manual_check_;
+    QCheckBox* blending_check_;
+    QCheckBox* ascii_check_;
+    QPushButton* save_button_;
 };
 
 #endif

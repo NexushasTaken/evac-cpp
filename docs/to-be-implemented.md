@@ -60,7 +60,7 @@ in the same commit, and renumber the sections and their `#N` references so there
   compression ratio and modified date.
 - **Reference:** `cddagl/ui/views/backups.py:1137-1270`.
 - **In Evac:** extend `BackupSummary` (`src/core/backup_manager.h`) and show the columns in
-  `src/ui/tab_backups.cpp` (for example with a `Gtk::ColumnView`).
+  `src/ui/tab_backups.cpp` (for example with the columns and sorting of `QTreeWidget`).
 
 ### 5. Changelog
 - **Original:** lists recently merged PRs from the game repo, using the GitHub search API
@@ -82,11 +82,12 @@ in the same commit, and renumber the sections and their `#N` references so there
 - Crash dialog with the error and a link to report it (`cddagl/ui/views/dialogs.py:304`).
 - Help menu with a FAQ and a "Game issue" link.
 - Translations (already listed in the README).
+- Single instance: starting Evac again should bring up the open window. `Gtk::Application` did this;
+  `QApplication` does not (`QLocalServer`/`QLocalSocket` can).
 
 ## Not porting
 - `cddagl/win32.py`: recycle bin, Windows process detection, reading the version from the exe.
-- Dark theme `.qss`: Evac follows the system GTK theme on purpose.
+- Dark theme `.qss`: Evac follows the system theme on purpose.
 - SQLite settings and alembic: the JSON settings stay compatible with the original Catapult.
-- Single-instance named pipe: `Gtk::Application` already does this.
 - Already in Evac: stable/experimental, keep download cache, install soundpack from file,
   keep launcher open, licenses dialog.

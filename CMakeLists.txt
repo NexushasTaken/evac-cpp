@@ -12,12 +12,9 @@ find_package(LibArchive REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(Catch2 REQUIRED)
 
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(GTKMM REQUIRED IMPORTED_TARGET gtkmm-4.0)
-# For the font preview: fonts from files are loaded through fontconfig.
-pkg_check_modules(FONTCONFIG REQUIRED IMPORTED_TARGET fontconfig pangoft2)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets)
 
-# Core library: no GTK in here.
+# Core library: no Qt in here.
 add_library(evac_core STATIC
     src/core/version.cpp
     src/core/process.cpp
@@ -55,8 +52,10 @@ target_include_directories(evac_core PUBLIC src)
 target_link_libraries(evac_core PUBLIC
     cpr::cpr nlohmann_json::nlohmann_json LibArchive::LibArchive spdlog::spdlog)
 
+# The UI. moc (AUTOMOC) generates the code for classes with Q_OBJECT.
 add_executable(evac
     src/main.cpp
+    src/ui/qt_helpers.cpp
     src/ui/main_window.cpp
     src/ui/tab_game.cpp
     src/ui/tab_fonts.cpp
@@ -72,7 +71,8 @@ add_executable(evac
     src/ui/licenses_dialog.cpp
     src/ui/log_view.cpp
     src/ui/task_runner.cpp)
-target_link_libraries(evac PRIVATE evac_core PkgConfig::GTKMM PkgConfig::FONTCONFIG)
+set_target_properties(evac PROPERTIES AUTOMOC ON)
+target_link_libraries(evac PRIVATE evac_core Qt6::Widgets)
 
 # The bundled data (fonts, ...) goes next to the executable.
 add_custom_command(TARGET evac POST_BUILD

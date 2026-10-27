@@ -4,7 +4,6 @@
 
 TaskRunner::TaskRunner(Status& status) : status_(status), busy_(false)
 {
-    dispatcher_.connect(sigc::mem_fun(*this, &TaskRunner::on_finished));
 }
 
 TaskRunner::~TaskRunner()
@@ -28,7 +27,9 @@ bool TaskRunner::run(const std::function<void()>& work, const std::function<void
         {
             status_.post(std::string("Unexpected error: ") + e.what(), MSG_ERROR);
         }
-        dispatcher_.emit();
+        // Queued: runs on the thread this object lives in (the main thread).
+        // Dropped if the runner is gone by then.
+        QMetaObject::invokeMethod(this, [this]() { on_finished(); }, Qt::QueuedConnection);
     });
     return true;
 }
@@ -43,7 +44,7 @@ void TaskRunner::on_finished()
     done_ = nullptr;
     if (done)
         done();
-    finished_.emit();
+    emit finished();
 }
 
 void TaskRunner::wait()

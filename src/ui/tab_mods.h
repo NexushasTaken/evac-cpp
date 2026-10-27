@@ -1,7 +1,7 @@
 #ifndef EVAC_TAB_MODS_H
 #define EVAC_TAB_MODS_H
 
-#include <gtkmm.h>
+#include <QWidget>
 
 #include <functional>
 #include <set>
@@ -11,13 +11,19 @@
 #include "ui/app_context.h"
 #include "ui/task_runner.h"
 
+class QCheckBox;
+class QLabel;
+class QPushButton;
+class QTextBrowser;
+class QTreeWidget;
+
 // The Mods tab: the installed mods on the left, the local repository (where
 // the Kenan modpack is unpacked to) on the right, and details of the selected
 // mod at the bottom.
-class TabMods : public Gtk::Box
+class TabMods : public QWidget
 {
 public:
-    TabMods(AppContext& ctx, TaskRunner& runner, Gtk::Window& parent);
+    TabMods(AppContext& ctx, TaskRunner& runner, QWidget& parent);
 
     // Reads the mods from disk and updates both lists. Call when the tab is shown.
     void refresh();
@@ -34,16 +40,14 @@ private:
     };
 
     void build_ui();
-    void show_unavailable(const Glib::ustring& message);
+    void show_unavailable(const QString& message);
     void reload_installed();
     void reload_available();
     void show_mod_info(const std::string& id, bool from_available);
     void run_task(const std::function<void()>& work);
-    void ask(const Glib::ustring& title, const Glib::ustring& detail, const std::vector<Glib::ustring>& buttons,
-             const std::function<void(int)>& answer);
 
-    std::set<int> selected_rows(Gtk::ListBox& list);
-    void fill_list(Gtk::ListBox& list, const std::vector<ModRow>& rows);
+    std::set<int> selected_rows(QTreeWidget* list);
+    void fill_list(QTreeWidget* list, const std::vector<ModRow>& rows, const QString& placeholder);
 
     void on_installed_selection_changed();
     void on_available_selection_changed();
@@ -57,26 +61,26 @@ private:
 
     AppContext& ctx_;
     TaskRunner& runner_;
-    Gtk::Window& parent_;
+    QWidget& parent_;
     bool updating_;
     std::vector<ModRow> installed_rows_;
     std::vector<ModRow> available_rows_;
     std::set<int> previous_installed_selection_;
     std::set<int> previous_available_selection_;
 
-    Gtk::Label hint_label_;
-    Gtk::Box content_;
-    Gtk::Label installed_caption_;
-    Gtk::Label available_caption_;
-    Gtk::ListBox installed_list_;
-    Gtk::ListBox available_list_;
-    Gtk::CheckButton show_stock_check_;
-    Gtk::CheckButton show_installed_check_;
-    Gtk::Button delete_button_;
-    Gtk::Button add_selected_button_;
-    Gtk::Button add_all_button_;
-    Gtk::Button kenan_button_;
-    Gtk::Label info_label_;
+    QLabel* hint_label_;
+    QWidget* content_;
+    QLabel* installed_caption_;
+    QLabel* available_caption_;
+    QTreeWidget* installed_list_;
+    QTreeWidget* available_list_;
+    QCheckBox* show_stock_check_;
+    QCheckBox* show_installed_check_;
+    QPushButton* delete_button_;
+    QPushButton* add_selected_button_;
+    QPushButton* add_all_button_;
+    QPushButton* kenan_button_;
+    QTextBrowser* info_view_;
 };
 
 #endif

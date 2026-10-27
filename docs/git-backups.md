@@ -195,7 +195,7 @@ The two tabs never touch each other's files: zip restore cannot break the repos 
 └────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Worlds list** (`Gtk::ListBox`): every folder in `save/` plus kept repos of worlds that no longer
+- **Worlds list** (`QTreeWidget`): every folder in `save/` plus kept repos of worlds that no longer
   exist. Status from `git status --porcelain`: `● changed`, `no snapshots` (no repo yet), `deleted`
   (greyed out), or nothing when the world matches its last snapshot. A list rather than a dropdown,
   so it is visible which worlds need a snapshot.
@@ -206,7 +206,7 @@ The two tabs never touch each other's files: zip restore cannot break the repos 
 - **Take snapshot:** name defaults to the date, description is a one-line optional entry.
   For a `deleted` world, Take snapshot and Discard changes are disabled.
 - **Footer:** history size of the selected world, and the git command with a Copy button.
-- **`⋮` menu** (`Gtk::MenuButton`): Export snapshots…, Import snapshots…, Start fresh…,
+- **`⋮` menu** (`QToolButton` with a `QMenu`): Export snapshots…, Import snapshots…, Start fresh…,
   Delete snapshots… (worlds that no longer exist only). All four are done; the button is next to
   the "Snapshots of ..." title.
 - The tab reloads when it is shown, no Refresh button. If many large worlds make `git status` slow,
@@ -235,7 +235,7 @@ Follow the zip backups as the model (`BackupManager` + `TabBackups`):
   above) and returns exit status, stdout and stderr. Plus "is git installed".
 - `src/core/snapshot_manager.{h,cpp}`: list worlds with their status, list snapshots, take
   snapshot, take snapshot of all worlds, restore, discard, find repos of worlds that no longer
-  exist, mark kept. No GTK in here.
+  exist, mark kept. No Qt in here.
 - `src/core/paths.{h,cpp}`: `launcher_dir()` = `userdata()/evac`, `snapshots()` =
   `launcher_dir()/snapshots`, and `save_backups()` changed to `launcher_dir()/backups`, plus the
   one-time move of the old folder.

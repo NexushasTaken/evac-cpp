@@ -10,7 +10,7 @@ static std::vector<GameInfo> make_games()
     g.description =
         "<b>Cataclysm: Dark Days Ahead</b> is a turn-based survival game set in a post-apocalyptic world. "
         "Scavenge, explore, craft, build, farm, repair and modify vehicles, install bionics, mutate, defend "
-        "against <span foreground=\"#009900\">zombies</span> and countless other monstrosities \xe2\x80\x94 "
+        "against <span style=\"color:#009900\">zombies</span> and countless other monstrosities \xe2\x80\x94 "
         "all in a limitless, procedurally generated world!";
     g.has_stable_channel = true;
     games.push_back(g);
@@ -18,7 +18,7 @@ static std::vector<GameInfo> make_games()
     g.key = "bn";
     g.name = "Cataclysm: Bright Nights";
     g.description =
-        "<b>Cataclysm: Bright Nights</b>. Reject pedantry, embrace <span foreground=\"#ff3300\">!!fun!!</span>. "
+        "<b>Cataclysm: Bright Nights</b>. Reject pedantry, embrace <span style=\"color:#ff3300\">!!fun!!</span>. "
         "This fork takes the game back to its sci-fi roguelike roots and reverts many controversial changes by "
         "the DDA team (pockets, proficiencies, freezing, and "
         "<a href=\"https://docs.cataclysmbn.org/game/changelog/\">more</a>). "
@@ -32,7 +32,7 @@ static std::vector<GameInfo> make_games()
         "<b>Cataclysm: Era of Decay</b> is a fork of DDA, primarily aiming to have as much player-accessible "
         "configurability as practically possible, without completely removing any of the original game's "
         "features or content and leaving the game realistic with default settings. Have fun in the way that "
-        "<span foreground=\"#ff3300\">you</span> want.";
+        "<span style=\"color:#ff3300\">you</span> want.";
     g.has_stable_channel = false;
     games.push_back(g);
 

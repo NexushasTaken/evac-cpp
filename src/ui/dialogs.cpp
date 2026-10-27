@@ -1,123 +1,126 @@
 #include "ui/dialogs.h"
 
+#include <QDesktopServices>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QLabel>
+#include <QLineEdit>
+#include <QMessageBox>
+#include <QPushButton>
+#include <QUrl>
+#include <QVBoxLayout>
+
+#include <vector>
+
+#include "ui/qt_helpers.h"
+
 namespace dialogs
 {
 
-void ask(Gtk::Window& parent, const Glib::ustring& title, const Glib::ustring& detail,
-         const std::vector<Glib::ustring>& buttons, const std::function<void(int)>& answer)
+// The title is the main text and the detail the smaller text under it.
+static QMessageBox* make_message(QWidget& parent, const QString& title, const QString& detail)
 {
-    Glib::RefPtr<Gtk::AlertDialog> dialog = Gtk::AlertDialog::create(title);
-    dialog->set_detail(detail);
-    dialog->set_buttons(buttons);
-    dialog->set_cancel_button(0);
-    dialog->set_default_button(0);
-    dialog->choose(parent, [dialog, answer](const Glib::RefPtr<Gio::AsyncResult>& result) {
-        int choice = 0;
-        try
+    QMessageBox* box = new QMessageBox(&parent);
+    box->setAttribute(Qt::WA_DeleteOnClose);
+    box->setWindowTitle(title);
+    box->setTextFormat(Qt::PlainText);
+    box->setText(title);
+    // As rich text, so that names with "<" in them can't be taken for markup.
+    if (!detail.isEmpty())
+        box->setInformativeText(Qt::convertFromPlainText(detail, Qt::WhiteSpaceNormal));
+    return box;
+}
+
+void ask(QWidget& parent, const QString& title, const QString& detail, const QStringList& buttons,
+         const std::function<void(int)>& answer)
+{
+    QMessageBox* box = make_message(parent, title, detail);
+    std::vector<QAbstractButton*> added;
+    for (int i = 0; i < buttons.size(); ++i)
+    {
+        QPushButton* button = box->addButton(buttons[i], i == 0 ? QMessageBox::RejectRole : QMessageBox::AcceptRole);
+        added.push_back(button);
+        if (i == 0)
         {
-            choice = dialog->choose_finish(result);
+            box->setDefaultButton(button);
+            box->setEscapeButton(button);
         }
-        catch (const Glib::Error&)
+    }
+    QObject::connect(box, &QDialog::finished, box, [box, added, answer](int) {
+        int choice = 0;  // Dismissed.
+        for (size_t i = 0; i < added.size(); ++i)
         {
-            choice = 0;  // Dismissed.
+            if (box->clickedButton() == added[i])
+                choice = (int)i;
         }
         answer(choice);
     });
+    box->open();
 }
 
-void confirm(Gtk::Window& parent, const Glib::ustring& title, const Glib::ustring& detail, const Glib::ustring& button,
+void confirm(QWidget& parent, const QString& title, const QString& detail, const QString& button,
              const std::function<void()>& yes)
 {
-    std::vector<Glib::ustring> buttons;
-    buttons.push_back("Cancel");
-    buttons.push_back(button);
+    QStringList buttons;
+    buttons << "Cancel" << button;
     ask(parent, title, detail, buttons, [yes](int choice) {
         if (choice == 1)
             yes();
     });
 }
 
-void tell(Gtk::Window& parent, const Glib::ustring& title, const Glib::ustring& detail)
+void tell(QWidget& parent, const QString& title, const QString& detail)
 {
-    Glib::RefPtr<Gtk::AlertDialog> dialog = Gtk::AlertDialog::create(title);
-    dialog->set_detail(detail);
-    dialog->show(parent);
+    QMessageBox* box = make_message(parent, title, detail);
+    box->setStandardButtons(QMessageBox::Ok);
+    box->open();
 }
 
-void ask_text(Gtk::Window& parent, const Glib::ustring& title, const Glib::ustring& detail,
-              const Glib::ustring& initial, const Glib::ustring& button,
-              const std::function<std::string(const std::string&)>& check,
+void ask_text(QWidget& parent, const QString& title, const QString& detail, const QString& initial,
+              const QString& button, const std::function<std::string(const std::string&)>& check,
               const std::function<void(const std::string&)>& done)
 {
-    // Gtk::AlertDialog has no text entry, so this is a small window of its own.
-    Gtk::Window* window = new Gtk::Window();
-    window->set_title(title);
-    window->set_transient_for(parent);
-    window->set_modal(true);
-    window->set_resizable(false);
-    window->set_default_size(420, -1);
+    // QMessageBox has no text entry, so this is a small dialog of its own.
+    QDialog* dialog = new QDialog(&parent);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->setWindowTitle(title);
+    dialog->setMinimumWidth(420);
 
-    Gtk::Box* box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 8);
-    box->set_margin(16);
-    Gtk::Label* heading = Gtk::make_managed<Gtk::Label>();
-    heading->set_markup("<b>" + Glib::Markup::escape_text(title) + "</b>");
-    heading->set_xalign(0.0f);
-    Gtk::Label* text = Gtk::make_managed<Gtk::Label>(detail);
-    text->set_wrap(true);
-    text->set_max_width_chars(50);
-    text->set_xalign(0.0f);
-    Gtk::Entry* entry = Gtk::make_managed<Gtk::Entry>();
-    entry->set_text(initial);
-    entry->set_activates_default(true);
-    Gtk::Label* problem = Gtk::make_managed<Gtk::Label>();
-    problem->set_wrap(true);
-    problem->set_xalign(0.0f);
-    problem->add_css_class("error");
-    Gtk::Box* buttons = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 6);
-    buttons->set_halign(Gtk::Align::END);
-    buttons->set_margin_top(8);
-    Gtk::Button* cancel = Gtk::make_managed<Gtk::Button>("Cancel");
-    Gtk::Button* ok = Gtk::make_managed<Gtk::Button>(button);
-    ok->add_css_class("suggested-action");
-    buttons->append(*cancel);
-    buttons->append(*ok);
-    box->append(*heading);
-    box->append(*text);
-    box->append(*entry);
-    box->append(*problem);
-    box->append(*buttons);
-    window->set_child(*box);
-    window->set_default_widget(*ok);
+    QVBoxLayout* box = new QVBoxLayout(dialog);
+    box->setSpacing(8);
+    box->addWidget(make_heading(title));
+    QLabel* text = make_label(detail);
+    text->setWordWrap(true);
+    box->addWidget(text);
+    QLineEdit* entry = new QLineEdit(initial);
+    box->addWidget(entry);
+    QLabel* problem = make_label("");
+    problem->setWordWrap(true);
+    problem->setStyleSheet("color: #d02020;");
+    box->addWidget(problem);
+    QDialogButtonBox* buttons = new QDialogButtonBox(QDialogButtonBox::Cancel);
+    QPushButton* ok = buttons->addButton(button, QDialogButtonBox::AcceptRole);
+    ok->setDefault(true);
+    box->addWidget(buttons);
 
     std::function<void()> update = [entry, problem, ok, check]() {
-        std::string why = check(entry->get_text());
-        problem->set_text(why);
-        problem->set_visible(!why.empty());
-        ok->set_sensitive(why.empty());
+        std::string why = check(str(entry->text()));
+        problem->setText(qstr(why));
+        problem->setVisible(!why.empty());
+        ok->setEnabled(why.empty());
     };
     update();
-    entry->signal_changed().connect(update);
-    cancel->signal_clicked().connect([window]() { window->close(); });
-    ok->signal_clicked().connect([window, entry, check, done]() {
-        std::string value = entry->get_text();
+    QObject::connect(entry, &QLineEdit::textChanged, dialog, update);
+    QObject::connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
+    QObject::connect(buttons, &QDialogButtonBox::accepted, dialog, [dialog, entry, check, done]() {
+        std::string value = str(entry->text());
         if (!check(value).empty())
             return;
-        window->close();
+        dialog->accept();
         done(value);
     });
-    Glib::RefPtr<Gtk::EventControllerKey> keys = Gtk::EventControllerKey::create();
-    keys->signal_key_pressed().connect(
-        [window](guint keyval, guint, Gdk::ModifierType) {
-            if (keyval != GDK_KEY_Escape)
-                return false;
-            window->close();
-            return true;
-        },
-        false);
-    window->add_controller(keys);
-    window->signal_hide().connect([window]() { Glib::signal_idle().connect_once([window]() { delete window; }); });
-    window->present();
-    entry->grab_focus();
+    dialog->open();
+    entry->setFocus();
 }
 
 std::string removal_text(bool use_trash)
@@ -130,21 +133,12 @@ std::string removal_button(bool use_trash)
     return use_trash ? "Move to Trash" : "Delete";
 }
 
-void open_folder(Gtk::Window& parent, const std::string& dir)
+void open_folder(const std::filesystem::path& dir)
 {
-    Glib::RefPtr<Gio::File> file = Gio::File::create_for_path(dir);
-    if (!file->query_exists())
+    std::error_code ec;
+    if (!std::filesystem::exists(dir, ec))
         return;
-    Glib::RefPtr<Gtk::FileLauncher> launcher = Gtk::FileLauncher::create(file);
-    launcher->launch(parent, [launcher](const Glib::RefPtr<Gio::AsyncResult>& result) {
-        try
-        {
-            launcher->launch_finish(result);
-        }
-        catch (const Glib::Error&)
-        {
-        }
-    });
+    QDesktopServices::openUrl(QUrl::fromLocalFile(qstr(dir)));
 }
 
 }  // namespace dialogs

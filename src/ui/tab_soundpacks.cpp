@@ -1,97 +1,94 @@
 #include "ui/tab_soundpacks.h"
 
+#include <QCheckBox>
+#include <QFileDialog>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QListWidget>
+#include <QPushButton>
+#include <QStandardPaths>
+#include <QVBoxLayout>
+
 #include <map>
 
 #include "core/fs.h"
 #include "ui/dialogs.h"
 #include "ui/download_prompt.h"
+#include "ui/qt_helpers.h"
 
-static Gtk::Label* make_label(const Glib::ustring& text)
-{
-    Gtk::Label* label = Gtk::make_managed<Gtk::Label>(text);
-    label->set_xalign(0.0f);
-    return label;
-}
-
-TabSoundpacks::TabSoundpacks(AppContext& ctx, TaskRunner& runner, Gtk::Window& parent)
-    : Gtk::Box(Gtk::Orientation::VERTICAL, 8),
-      ctx_(ctx),
-      runner_(runner),
-      parent_(parent),
-      updating_(false),
-      content_(Gtk::Orientation::HORIZONTAL, 12)
+TabSoundpacks::TabSoundpacks(AppContext& ctx, TaskRunner& runner, QWidget& parent)
+    : ctx_(ctx), runner_(runner), parent_(parent), updating_(false)
 {
     build_ui();
 }
 
 void TabSoundpacks::build_ui()
 {
-    set_margin(12);
-    hint_label_.set_wrap(true);
-    hint_label_.set_xalign(0.0f);
-    append(hint_label_);
-    content_.set_vexpand(true);
-    append(content_);
+    QVBoxLayout* outer = new QVBoxLayout(this);
+    outer->setContentsMargins(12, 12, 12, 12);
+    hint_label_ = make_label("");
+    hint_label_->setWordWrap(true);
+    hint_label_->setAlignment(Qt::AlignLeft | Qt::AlignTop);  // Not in the middle of the empty tab.
+    outer->addWidget(hint_label_);
+    content_ = new QWidget();
+    outer->addWidget(content_, 1);
+
+    QHBoxLayout* columns = new QHBoxLayout(content_);
+    columns->setContentsMargins(0, 0, 0, 0);
+    columns->setSpacing(12);
 
     // Installed packs.
-    Gtk::Box* left = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 6);
-    left->set_hexpand(true);
-    left->append(*make_label("Installed:"));
-    Gtk::ScrolledWindow* installed_scroller = Gtk::make_managed<Gtk::ScrolledWindow>();
-    installed_scroller->set_vexpand(true);
-    installed_scroller->set_has_frame(true);
-    installed_scroller->set_child(installed_list_);
-    left->append(*installed_scroller);
-    show_stock_check_.set_label("Show stock");
-    show_stock_check_.set_tooltip_text("Show soundpacks from data/sound on the list.");
-    left->append(show_stock_check_);
-    toggle_button_.set_label("Disable Selected");
-    toggle_button_.set_tooltip_text("Turn the selected soundpack off or on without deleting it.");
-    left->append(toggle_button_);
-    delete_button_.set_label("Delete Selected");
-    delete_button_.set_tooltip_text("Remove the selected soundpack from your game installation.");
-    left->append(delete_button_);
-    content_.append(*left);
+    QVBoxLayout* left = new QVBoxLayout();
+    left->setSpacing(6);
+    left->addWidget(make_label("Installed:"));
+    installed_list_ = new QListWidget();
+    installed_list_->setSelectionMode(QAbstractItemView::SingleSelection);
+    left->addWidget(installed_list_, 1);
+    show_stock_check_ = new QCheckBox("Show stock");
+    show_stock_check_->setToolTip("Show soundpacks from data/sound on the list.");
+    left->addWidget(show_stock_check_);
+    toggle_button_ = new QPushButton("Disable Selected");
+    toggle_button_->setToolTip("Turn the selected soundpack off or on without deleting it.");
+    left->addWidget(toggle_button_);
+    delete_button_ = new QPushButton("Delete Selected");
+    delete_button_->setToolTip("Remove the selected soundpack from your game installation.");
+    left->addWidget(delete_button_);
+    columns->addLayout(left, 1);
 
     // Packs that can be downloaded.
-    Gtk::Box* right = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 6);
-    right->set_hexpand(true);
-    right->append(*make_label("Downloadable:"));
-    Gtk::ScrolledWindow* available_scroller = Gtk::make_managed<Gtk::ScrolledWindow>();
-    available_scroller->set_vexpand(true);
-    available_scroller->set_has_frame(true);
-    available_scroller->set_child(available_list_);
-    right->append(*available_scroller);
-    install_button_.set_label("Install Selected");
-    install_button_.set_tooltip_text("Download the selected soundpack and add it to your game installation.");
-    right->append(install_button_);
-    install_from_file_button_.set_label("Install From File...");
-    install_from_file_button_.set_tooltip_text("Install the selected soundpack from a .zip you have already downloaded.");
-    right->append(install_from_file_button_);
-    content_.append(*right);
+    QVBoxLayout* right = new QVBoxLayout();
+    right->setSpacing(6);
+    right->addWidget(make_label("Downloadable:"));
+    available_list_ = new QListWidget();
+    available_list_->setSelectionMode(QAbstractItemView::SingleSelection);
+    right->addWidget(available_list_, 1);
+    install_button_ = new QPushButton("Install Selected");
+    install_button_->setToolTip("Download the selected soundpack and add it to your game installation.");
+    right->addWidget(install_button_);
+    install_from_file_button_ = new QPushButton("Install From File...");
+    install_from_file_button_->setToolTip("Install the selected soundpack from a .zip you have already downloaded.");
+    right->addWidget(install_from_file_button_);
+    columns->addLayout(right, 1);
 
     // The list of downloadable packs never changes.
     const std::vector<SoundpackSource>& packs = available_soundpacks();
     for (size_t i = 0; i < packs.size(); ++i)
-        available_list_.append(*make_label(packs[i].name));
+        available_list_->addItem(qstr(packs[i].name));
 
-    installed_list_.set_selection_mode(Gtk::SelectionMode::SINGLE);
-    available_list_.set_selection_mode(Gtk::SelectionMode::SINGLE);
-
-    show_stock_check_.signal_toggled().connect(sigc::mem_fun(*this, &TabSoundpacks::on_show_stock_toggled));
-    installed_list_.signal_row_selected().connect([this](Gtk::ListBoxRow*) { on_installed_selected(); });
-    available_list_.signal_row_selected().connect([this](Gtk::ListBoxRow*) { on_available_selected(); });
-    toggle_button_.signal_clicked().connect(sigc::mem_fun(*this, &TabSoundpacks::on_toggle_clicked));
-    delete_button_.signal_clicked().connect(sigc::mem_fun(*this, &TabSoundpacks::on_delete_clicked));
-    install_button_.signal_clicked().connect(sigc::mem_fun(*this, &TabSoundpacks::on_install_clicked));
-    install_from_file_button_.signal_clicked().connect(sigc::mem_fun(*this, &TabSoundpacks::on_install_from_file_clicked));
+    connect(show_stock_check_, &QCheckBox::toggled, this, &TabSoundpacks::on_show_stock_toggled);
+    connect(installed_list_, &QListWidget::itemSelectionChanged, this, &TabSoundpacks::on_installed_selected);
+    connect(available_list_, &QListWidget::itemSelectionChanged, this, &TabSoundpacks::on_available_selected);
+    connect(toggle_button_, &QPushButton::clicked, this, &TabSoundpacks::on_toggle_clicked);
+    connect(delete_button_, &QPushButton::clicked, this, &TabSoundpacks::on_delete_clicked);
+    connect(install_button_, &QPushButton::clicked, this, &TabSoundpacks::on_install_clicked);
+    connect(install_from_file_button_, &QPushButton::clicked, this, &TabSoundpacks::on_install_from_file_clicked);
 }
 
-void TabSoundpacks::show_unavailable(const Glib::ustring& message)
+void TabSoundpacks::show_unavailable(const QString& message)
 {
-    hint_label_.set_text(message);
-    hint_label_.set_visible(true);
-    content_.set_visible(false);
+    hint_label_->setText(message);
+    hint_label_->setVisible(true);
+    content_->setVisible(false);
 }
 
 void TabSoundpacks::refresh()
@@ -103,11 +100,11 @@ void TabSoundpacks::refresh()
         show_unavailable("Install the game first (on the Game tab).");
         return;
     }
-    hint_label_.set_visible(false);
-    content_.set_visible(true);
+    hint_label_->setVisible(false);
+    content_->setVisible(true);
 
     updating_ = true;
-    show_stock_check_.set_active(ctx_.settings.get_bool("show_stock_sound"));
+    show_stock_check_->setChecked(ctx_.settings.get_bool("show_stock_sound"));
     updating_ = false;
 
     refresh_installed();
@@ -118,10 +115,9 @@ void TabSoundpacks::refresh_installed()
     installed_ = ctx_.soundpacks.get_installed(ctx_.settings.get_bool("show_stock_sound"));
 
     updating_ = true;
-    while (Gtk::ListBoxRow* row = installed_list_.get_row_at_index(0))
-        installed_list_.remove(*row);
+    installed_list_->clear();
     // Packs can share a name (a restored copy, a copy of a stock pack...): tell
-    // those apart by their folder, dimmed after the name.
+    // those apart by their folder, after the name.
     std::map<std::string, int> name_count;
     for (size_t i = 0; i < installed_.size(); ++i)
         ++name_count[installed_[i].name];
@@ -130,18 +126,16 @@ void TabSoundpacks::refresh_installed()
     {
         const InstalledSoundpack& pack = installed_[i];
         std::string folder = to_utf8(pack.location.filename());
-        Glib::ustring markup = Glib::Markup::escape_text(pack.name);
+        std::string text = pack.name;
         if (name_count[pack.name] > 1)
-            markup += " <span alpha=\"60%\">(" + Glib::Markup::escape_text(pack.is_stock ? "stock" : folder) + ")</span>";
+            text += " (" + (pack.is_stock ? std::string("stock") : folder) + ")";
         if (!pack.enabled)
-            markup += " (Disabled)";
-        Gtk::Label* label = make_label("");
-        label->set_markup(markup);
-        label->set_tooltip_text((pack.description.empty() ? "No description provided." : pack.description)
-                                + "\nFolder: " + folder);
-        if (installed_[i].is_stock)
-            label->set_sensitive(false);  // Greyed out, like in the original.
-        installed_list_.append(*label);
+            text += " (Disabled)";
+        QListWidgetItem* item = new QListWidgetItem(qstr(text), installed_list_);
+        item->setToolTip(qstr((pack.description.empty() ? "No description provided." : pack.description)
+                              + "\nFolder: " + folder));
+        if (pack.is_stock)
+            item->setForeground(dim_brush(installed_list_));  // Greyed out, like in the original.
     }
     updating_ = false;
 
@@ -150,43 +144,43 @@ void TabSoundpacks::refresh_installed()
 
 int TabSoundpacks::selected_installed()
 {
-    Gtk::ListBoxRow* row = installed_list_.get_selected_row();
-    if (!row || row->get_index() < 0 || (size_t)row->get_index() >= installed_.size())
+    int row = selected_row(installed_list_);
+    if (row < 0 || (size_t)row >= installed_.size())
         return -1;
-    return row->get_index();
+    return row;
 }
 
 int TabSoundpacks::selected_available()
 {
-    Gtk::ListBoxRow* row = available_list_.get_selected_row();
-    if (!row || row->get_index() < 0 || (size_t)row->get_index() >= available_soundpacks().size())
+    int row = selected_row(available_list_);
+    if (row < 0 || (size_t)row >= available_soundpacks().size())
         return -1;
-    return row->get_index();
+    return row;
 }
 
 void TabSoundpacks::update_buttons()
 {
     int installed = selected_installed();
     bool can_change = (installed >= 0 && !installed_[installed].is_stock);
-    delete_button_.set_sensitive(can_change);
-    toggle_button_.set_sensitive(can_change);
+    delete_button_->setEnabled(can_change);
+    toggle_button_->setEnabled(can_change);
     bool disabled = (installed >= 0 && !installed_[installed].enabled);
-    toggle_button_.set_label(disabled ? "Enable Selected" : "Disable Selected");
+    toggle_button_->setText(disabled ? "Enable Selected" : "Disable Selected");
 
     int available = selected_available();
-    install_button_.set_sensitive(available >= 0);
-    install_from_file_button_.set_sensitive(available >= 0);
+    install_button_->setEnabled(available >= 0);
+    install_from_file_button_->setEnabled(available >= 0);
     // By the directory the install writes to, not by name: a stock pack with
     // the same name is not replaced.
     bool reinstall = (available >= 0 && ctx_.soundpacks.has_user_copy(available_soundpacks()[available]));
-    install_button_.set_label(reinstall ? "Reinstall Selected" : "Install Selected");
+    install_button_->setText(reinstall ? "Reinstall Selected" : "Install Selected");
 }
 
 void TabSoundpacks::on_show_stock_toggled()
 {
     if (updating_)
         return;
-    ctx_.settings.set_bool("show_stock_sound", show_stock_check_.get_active());
+    ctx_.settings.set_bool("show_stock_sound", show_stock_check_->isChecked());
     ctx_.settings.save();
     refresh_installed();
 }
@@ -206,13 +200,13 @@ void TabSoundpacks::on_available_selected()
 // Runs a slow job on the worker thread, with the whole tab disabled until it is done.
 void TabSoundpacks::run_task(const std::function<void()>& work)
 {
-    content_.set_sensitive(false);
+    content_->setEnabled(false);
     bool started = runner_.run(work, [this]() {
-        content_.set_sensitive(true);
+        content_->setEnabled(true);
         refresh_installed();
     });
     if (!started)
-        content_.set_sensitive(true);
+        content_->setEnabled(true);
 }
 
 void TabSoundpacks::on_toggle_clicked()
@@ -220,7 +214,7 @@ void TabSoundpacks::on_toggle_clicked()
     int index = selected_installed();
     if (index < 0 || installed_[index].is_stock)
         return;
-    std::string location = installed_[index].location;
+    std::filesystem::path location = installed_[index].location;
     bool enable = !installed_[index].enabled;
     run_task([this, location, enable]() { ctx_.soundpacks.set_enabled(location, enable); });
 }
@@ -231,13 +225,13 @@ void TabSoundpacks::on_delete_clicked()
     if (index < 0 || installed_[index].is_stock)
         return;
     std::string name = installed_[index].name;
-    std::string location = installed_[index].location;
+    std::filesystem::path location = installed_[index].location;
 
     // Show the folder too: two packs can have the same name.
     bool use_trash = ctx_.settings.get_bool("use_trash");
     dialogs::confirm(parent_, "Delete the soundpack?",
-                     name + " (" + Glib::path_get_basename(location) + ") " + dialogs::removal_text(use_trash) + ".",
-                     dialogs::removal_button(use_trash),
+                     qstr(name + " (" + to_utf8(location.filename()) + ") " + dialogs::removal_text(use_trash) + "."),
+                     qstr(dialogs::removal_button(use_trash)),
                      [this, location]() { run_task([this, location]() { ctx_.soundpacks.delete_pack(location); }); });
 }
 
@@ -257,16 +251,16 @@ void TabSoundpacks::install_selected(const std::string& from_file)
 
     std::function<void()> install = [this, pack, from_file, reinstall, keep_archive]() {
         run_task([this, pack, from_file, reinstall, keep_archive]() {
-            ctx_.soundpacks.install_pack(pack, from_file, reinstall, keep_archive);
+            ctx_.soundpacks.install_pack(pack, to_path(from_file), reinstall, keep_archive);
         });
     };
 
     // Reinstalling replaces the installed copy.
-    Glib::ustring title = (reinstall ? "Reinstall " : "Install ") + pack.name + "?";
+    std::string title = (reinstall ? "Reinstall " : "Install ") + pack.name + "?";
     std::string detail = reinstall ? "The installed copy " + dialogs::removal_text(ctx_.settings.get_bool("use_trash"))
                                          + ", and a fresh copy is installed."
                                    : std::string();
-    Glib::ustring button = reinstall ? "Reinstall" : "Install";
+    std::string button = reinstall ? "Reinstall" : "Install";
 
     if (!from_file.empty())
     {
@@ -274,7 +268,7 @@ void TabSoundpacks::install_selected(const std::string& from_file)
         if (!reinstall)
             install();
         else
-            dialogs::confirm(parent_, title, detail, button, install);
+            dialogs::confirm(parent_, qstr(title), qstr(detail), qstr(button), install);
         return;
     }
 
@@ -284,7 +278,7 @@ void TabSoundpacks::install_selected(const std::string& from_file)
     question.button = button;
     question.url = pack.url;
     question.filename = pack.filename;
-    confirm_download(ctx_, runner_, parent_, content_, question, install);
+    confirm_download(ctx_, runner_, parent_, *content_, question, install);
 }
 
 void TabSoundpacks::on_install_from_file_clicked()
@@ -292,21 +286,8 @@ void TabSoundpacks::on_install_from_file_clicked()
     if (selected_available() < 0)
         return;
 
-    Glib::RefPtr<Gtk::FileDialog> dialog = Gtk::FileDialog::create();
-    dialog->set_title("Choose the soundpack archive");
-    std::string downloads = Glib::get_user_special_dir(Glib::UserDirectory::DOWNLOAD);
-    if (!downloads.empty())
-        dialog->set_initial_folder(Gio::File::create_for_path(downloads));
-    dialog->open(parent_, [this, dialog](const Glib::RefPtr<Gio::AsyncResult>& result) {
-        try
-        {
-            Glib::RefPtr<Gio::File> file = dialog->open_finish(result);
-            if (file)
-                install_selected(file->get_path());
-        }
-        catch (const Glib::Error&)
-        {
-            // Cancelled.
-        }
-    });
+    QString downloads = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
+    QString file = QFileDialog::getOpenFileName(&parent_, "Choose the soundpack archive", downloads);
+    if (!file.isEmpty())
+        install_selected(str(file));
 }

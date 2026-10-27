@@ -1,7 +1,7 @@
 #ifndef EVAC_TAB_BACKUPS_H
 #define EVAC_TAB_BACKUPS_H
 
-#include <gtkmm.h>
+#include <QWidget>
 
 #include <functional>
 #include <string>
@@ -11,18 +11,24 @@
 #include "ui/app_context.h"
 #include "ui/task_runner.h"
 
+class QLabel;
+class QLineEdit;
+class QListWidget;
+class QPushButton;
+class QTextBrowser;
+
 // The Backups tab: back up the saved games, and restore or delete backups.
-class TabBackups : public Gtk::Box
+class TabBackups : public QWidget
 {
 public:
-    TabBackups(AppContext& ctx, TaskRunner& runner, Gtk::Window& parent);
+    TabBackups(AppContext& ctx, TaskRunner& runner, QWidget& parent);
 
     // Reloads the list of backups. Call when the tab is shown.
     void refresh();
 
 private:
     void build_ui();
-    void show_unavailable(const Glib::ustring& message);
+    void show_unavailable(const QString& message);
     void reload_list();
     void update_buttons();
     void run_task(const std::function<void()>& work);
@@ -37,19 +43,19 @@ private:
 
     AppContext& ctx_;
     TaskRunner& runner_;
-    Gtk::Window& parent_;
+    QWidget& parent_;
     bool updating_;
     std::vector<BackupSummary> backups_;
 
-    Gtk::Label hint_label_;
-    Gtk::Box content_;
-    Gtk::ListBox list_;
-    Gtk::Button restore_button_;
-    Gtk::Button delete_button_;
-    Gtk::Button refresh_button_;
-    Gtk::Label info_label_;
-    Gtk::Entry name_entry_;
-    Gtk::Button create_button_;
+    QLabel* hint_label_;
+    QWidget* content_;
+    QListWidget* list_;
+    QPushButton* restore_button_;
+    QPushButton* delete_button_;
+    QPushButton* refresh_button_;
+    QTextBrowser* info_view_;
+    QLineEdit* name_entry_;
+    QPushButton* create_button_;
 };
 
 #endif

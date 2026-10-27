@@ -4,7 +4,7 @@
 #include "core/settings.h"
 
 // What we remember about the main window between runs. Only the size and
-// whether it is maximized: GTK4 programs can't place their own windows.
+// whether it is maximized: on Wayland, programs can't place their own windows.
 struct WindowState
 {
     bool valid = false;  // False if nothing usable was saved.

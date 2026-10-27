@@ -1,27 +1,43 @@
 #include "ui/tab_snapshots.h"
 
+#include <QAction>
+#include <QClipboard>
+#include <QDateTime>
+#include <QFileDialog>
+#include <QFontDatabase>
+#include <QFrame>
+#include <QGridLayout>
+#include <QGuiApplication>
+#include <QHBoxLayout>
+#include <QHeaderView>
+#include <QLabel>
+#include <QLineEdit>
+#include <QMenu>
+#include <QPushButton>
+#include <QSplitter>
+#include <QTextBrowser>
+#include <QToolButton>
+#include <QTreeWidget>
+#include <QVBoxLayout>
+
 #include <ctime>
 #include <memory>
 
+#include "core/fs.h"
 #include "core/git.h"
+#include "core/platform.h"
 #include "ui/dialogs.h"
+#include "ui/qt_helpers.h"
 
 static const char* const NO_DETAILS_TEXT = "Select a snapshot to see its details here.";
+static const char* const BUNDLE_FILTER = "Git bundles (.bundle) (*.bundle)";
 
-static Gtk::Label* make_label(const Glib::ustring& text)
+static QString format_time(std::int64_t time, const char* format)
 {
-    Gtk::Label* label = Gtk::make_managed<Gtk::Label>(text);
-    label->set_xalign(0.0f);
-    return label;
+    return QDateTime::fromSecsSinceEpoch(time).toString(format);
 }
 
-static Glib::ustring format_time(std::int64_t time, const char* format)
-{
-    Glib::DateTime when = Glib::DateTime::create_now_local((gint64)time);
-    return when ? when.format(format) : Glib::ustring();
-}
-
-static Glib::ustring state_text(const WorldInfo& world)
+static QString state_text(const WorldInfo& world)
 {
     switch (world.state)
     {
@@ -37,181 +53,181 @@ static Glib::ustring state_text(const WorldInfo& world)
     return "";
 }
 
-TabSnapshots::TabSnapshots(AppContext& ctx, TaskRunner& runner, Gtk::Window& parent)
-    : Gtk::Box(Gtk::Orientation::VERTICAL, 8),
-      ctx_(ctx),
-      runner_(runner),
-      parent_(parent),
-      updating_(false),
-      content_(Gtk::Orientation::VERTICAL, 8)
+// A list with a text column that takes the room and an other one that fits its content.
+static QTreeWidget* make_two_column_list(int stretch_column)
+{
+    QTreeWidget* list = new QTreeWidget();
+    list->setColumnCount(2);
+    list->setHeaderHidden(true);
+    list->setRootIsDecorated(false);
+    list->setSelectionMode(QAbstractItemView::SingleSelection);
+    list->header()->setStretchLastSection(false);
+    list->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    list->header()->setSectionResizeMode(stretch_column, QHeaderView::Stretch);
+    return list;
+}
+
+static QFrame* make_separator()
+{
+    QFrame* separator = new QFrame();
+    separator->setFrameShape(QFrame::HLine);
+    separator->setFrameShadow(QFrame::Sunken);
+    return separator;
+}
+
+TabSnapshots::TabSnapshots(AppContext& ctx, TaskRunner& runner, QWidget& parent)
+    : ctx_(ctx), runner_(runner), parent_(parent), updating_(false)
 {
     build_ui();
 }
 
 void TabSnapshots::build_ui()
 {
-    set_margin(12);
-    hint_label_.set_wrap(true);
-    hint_label_.set_xalign(0.0f);
-    append(hint_label_);
-    content_.set_vexpand(true);
-    append(content_);
+    QVBoxLayout* outer = new QVBoxLayout(this);
+    outer->setContentsMargins(12, 12, 12, 12);
+    hint_label_ = make_label("");
+    hint_label_->setWordWrap(true);
+    hint_label_->setAlignment(Qt::AlignLeft | Qt::AlignTop);  // Not in the middle of the empty tab.
+    outer->addWidget(hint_label_);
+    content_ = new QWidget();
+    outer->addWidget(content_, 1);
+
+    QVBoxLayout* content = new QVBoxLayout(content_);
+    content->setContentsMargins(0, 0, 0, 0);
+    content->setSpacing(8);
 
     // Draggable, so long world names can be shown in full.
-    Gtk::Paned* columns = Gtk::make_managed<Gtk::Paned>(Gtk::Orientation::HORIZONTAL);
-    columns->set_vexpand(true);
-    columns->set_wide_handle(true);
-    columns->set_resize_start_child(false);
-    columns->set_shrink_start_child(false);
-    columns->set_shrink_end_child(false);
-    columns->set_position(340);
-    content_.append(*columns);
+    QSplitter* columns = new QSplitter(Qt::Horizontal);
+    columns->setChildrenCollapsible(false);
+    content->addWidget(columns, 1);
 
     // Left: the worlds.
-    Gtk::Box* left = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 6);
-    left->append(*make_label("Worlds"));
-    Gtk::ScrolledWindow* worlds_scroller = Gtk::make_managed<Gtk::ScrolledWindow>();
-    worlds_scroller->set_vexpand(true);
-    worlds_scroller->set_has_frame(true);
-    worlds_scroller->set_min_content_width(220);
-    worlds_scroller->set_policy(Gtk::PolicyType::NEVER, Gtk::PolicyType::AUTOMATIC);
-    worlds_scroller->set_child(worlds_list_);
-    worlds_list_.set_selection_mode(Gtk::SelectionMode::SINGLE);
-    left->append(*worlds_scroller);
-    left->set_margin_end(6);
-    columns->set_start_child(*left);
+    QWidget* left = new QWidget();
+    QVBoxLayout* left_box = new QVBoxLayout(left);
+    left_box->setContentsMargins(0, 0, 6, 0);
+    left_box->setSpacing(6);
+    left_box->addWidget(make_label("Worlds"));
+    worlds_list_ = make_two_column_list(0);
+    worlds_list_->setMinimumWidth(220);
+    left_box->addWidget(worlds_list_, 1);
+    columns->addWidget(left);
 
     // Right: the snapshots of the selected world.
-    Gtk::Box* right = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 6);
-    right->set_hexpand(true);
-    snapshots_title_.set_xalign(0.0f);
-    snapshots_title_.set_hexpand(true);
-    snapshots_title_.set_ellipsize(Pango::EllipsizeMode::END);
+    QWidget* right = new QWidget();
+    QVBoxLayout* right_box = new QVBoxLayout(right);
+    right_box->setContentsMargins(6, 0, 0, 0);
+    right_box->setSpacing(6);
+    snapshots_title_ = make_label("");
+    snapshots_title_->setMinimumWidth(1);  // Long world names don't make the column wider.
     // Rarely needed actions on the selected world's snapshots.
-    Gtk::Popover* popover = Gtk::make_managed<Gtk::Popover>();
-    Gtk::Box* popover_box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 4);
-    popover_box->set_margin(6);
-    export_button_.set_label("Export snapshots\xe2\x80\xa6");
-    export_button_.set_tooltip_text("Save every snapshot of this world to one file (a git bundle), to keep elsewhere or share.");
-    popover_box->append(export_button_);
-    import_button_.set_label("Import snapshots\xe2\x80\xa6");
-    import_button_.set_tooltip_text("Make a new world from an exported snapshots file. Existing worlds are never replaced.");
-    popover_box->append(import_button_);
-    start_fresh_button_.set_label("Start fresh\xe2\x80\xa6");
-    start_fresh_button_.set_tooltip_text("Move all snapshots of this world to the trash and start a new history with "
-                                         "one snapshot (Name and Description below). Frees disk space.");
-    popover_box->append(start_fresh_button_);
-    delete_button_.set_label("Delete snapshots\xe2\x80\xa6");
-    delete_button_.set_tooltip_text("For a world that no longer exists: remove its snapshots too.");
-    popover_box->append(delete_button_);
-    popover->set_child(*popover_box);
-    menu_button_.set_icon_name("view-more-symbolic");
-    menu_button_.set_tooltip_text("More actions");
-    menu_button_.set_popover(*popover);
-    Gtk::Box* title_row = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 6);
-    title_row->append(snapshots_title_);
-    title_row->append(menu_button_);
-    right->append(*title_row);
-    Gtk::ScrolledWindow* snapshots_scroller = Gtk::make_managed<Gtk::ScrolledWindow>();
-    snapshots_scroller->set_vexpand(true);
-    snapshots_scroller->set_has_frame(true);
-    snapshots_scroller->set_child(snapshots_list_);
-    snapshots_list_.set_selection_mode(Gtk::SelectionMode::SINGLE);
-    right->append(*snapshots_scroller);
+    QMenu* menu = new QMenu(this);
+    menu->setToolTipsVisible(true);
+    export_action_ = menu->addAction("Export snapshots\xe2\x80\xa6");
+    export_action_->setToolTip("Save every snapshot of this world to one file (a git bundle), to keep elsewhere or share.");
+    import_action_ = menu->addAction("Import snapshots\xe2\x80\xa6");
+    import_action_->setToolTip("Make a new world from an exported snapshots file. Existing worlds are never replaced.");
+    start_fresh_action_ = menu->addAction("Start fresh\xe2\x80\xa6");
+    start_fresh_action_->setToolTip("Move all snapshots of this world to the trash and start a new history with "
+                                    "one snapshot (Name and Description below). Frees disk space.");
+    delete_action_ = menu->addAction("Delete snapshots\xe2\x80\xa6");
+    delete_action_->setToolTip("For a world that no longer exists: remove its snapshots too.");
+    QToolButton* menu_button = new QToolButton();
+    set_icon(menu_button, "view-more-symbolic", "\xe2\x80\xa6");
+    menu_button->setToolTip("More actions");
+    menu_button->setPopupMode(QToolButton::InstantPopup);
+    menu_button->setMenu(menu);
+    QHBoxLayout* title_row = new QHBoxLayout();
+    title_row->setSpacing(6);
+    title_row->addWidget(snapshots_title_, 1);
+    title_row->addWidget(menu_button);
+    right_box->addLayout(title_row);
+    snapshots_list_ = make_two_column_list(1);
+    right_box->addWidget(snapshots_list_, 1);
 
-    Gtk::Box* buttons = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 6);
-    buttons->set_homogeneous(true);
-    restore_button_.set_label("Restore snapshot");
-    restore_button_.set_tooltip_text("Make the world match the selected snapshot. Changes not in a snapshot are kept as a snapshot first.");
-    discard_button_.set_label("Discard changes");
-    discard_button_.set_tooltip_text("Throw away the changes since the last snapshot.");
-    buttons->append(restore_button_);
-    buttons->append(discard_button_);
-    right->append(*buttons);
+    QHBoxLayout* buttons = new QHBoxLayout();
+    buttons->setSpacing(6);
+    restore_button_ = new QPushButton("Restore snapshot");
+    restore_button_->setToolTip("Make the world match the selected snapshot. Changes not in a snapshot are kept as a snapshot first.");
+    discard_button_ = new QPushButton("Discard changes");
+    discard_button_->setToolTip("Throw away the changes since the last snapshot.");
+    buttons->addWidget(restore_button_, 1);
+    buttons->addWidget(discard_button_, 1);
+    right_box->addLayout(buttons);
 
-    details_label_.set_wrap(true);
-    details_label_.set_wrap_mode(Pango::WrapMode::WORD_CHAR);
-    details_label_.set_xalign(0.0f);
-    details_label_.set_yalign(0.0f);
-    details_label_.set_selectable(true);
-    Gtk::ScrolledWindow* details_scroller = Gtk::make_managed<Gtk::ScrolledWindow>();
-    details_scroller->set_min_content_height(90);
-    details_scroller->set_has_frame(true);
-    details_scroller->set_child(details_label_);
-    right->append(*details_scroller);
-    right->set_margin_start(6);
-    columns->set_end_child(*right);
+    details_view_ = new QTextBrowser();
+    details_view_->setWordWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+    details_view_->setFixedHeight(90);
+    right_box->addWidget(details_view_);
+    columns->addWidget(right);
+    columns->setStretchFactor(0, 0);
+    columns->setStretchFactor(1, 1);
+    columns->setSizes(QList<int>() << 340 << 400);
 
     // Taking snapshots.
-    content_.append(*Gtk::make_managed<Gtk::Separator>());
-    Gtk::Grid* form = Gtk::make_managed<Gtk::Grid>();
-    form->set_row_spacing(6);
-    form->set_column_spacing(6);
-    form->attach(*make_label("Name:"), 0, 0);
-    name_entry_.set_hexpand(true);
-    form->attach(name_entry_, 1, 0);
-    form->attach(*make_label("Description:"), 0, 1);
-    description_entry_.set_placeholder_text("Optional");
-    form->attach(description_entry_, 1, 1);
-    Gtk::Box* take_row = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 6);
-    take_button_.set_label("Take snapshot");
-    take_button_.set_tooltip_text("Take a snapshot of the selected world.");
-    take_all_button_.set_label("Take snapshot of all worlds");
-    take_all_button_.set_tooltip_text("Take a snapshot of every world that has changes.");
-    take_row->append(take_button_);
-    take_row->append(take_all_button_);
-    form->attach(*take_row, 1, 2);
-    content_.append(*form);
+    content->addWidget(make_separator());
+    QGridLayout* form = new QGridLayout();
+    form->setVerticalSpacing(6);
+    form->setHorizontalSpacing(6);
+    form->addWidget(make_label("Name:"), 0, 0);
+    name_entry_ = new QLineEdit();
+    form->addWidget(name_entry_, 0, 1);
+    form->addWidget(make_label("Description:"), 1, 0);
+    description_entry_ = new QLineEdit();
+    description_entry_->setPlaceholderText("Optional");
+    form->addWidget(description_entry_, 1, 1);
+    QHBoxLayout* take_row = new QHBoxLayout();
+    take_row->setSpacing(6);
+    take_button_ = new QPushButton("Take snapshot");
+    take_button_->setToolTip("Take a snapshot of the selected world.");
+    take_all_button_ = new QPushButton("Take snapshot of all worlds");
+    take_all_button_->setToolTip("Take a snapshot of every world that has changes.");
+    take_row->addWidget(take_button_);
+    take_row->addWidget(take_all_button_);
+    take_row->addStretch(1);
+    form->addLayout(take_row, 2, 1);
+    content->addLayout(form);
 
     // Footer: size and the command to use the repository from a terminal.
-    content_.append(*Gtk::make_managed<Gtk::Separator>());
-    Gtk::Box* footer = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 12);
-    footer_label_.set_xalign(0.0f);
-    command_label_.set_xalign(0.0f);
-    command_label_.set_hexpand(true);
-    command_label_.set_ellipsize(Pango::EllipsizeMode::MIDDLE);
-    command_label_.set_selectable(true);
-    command_label_.add_css_class("monospace");
-    copy_button_.set_label("Copy");
-    copy_button_.set_tooltip_text("Copy the git command for this world, to use its snapshots from a terminal.");
-    footer->append(footer_label_);
-    footer->append(command_label_);
-    footer->append(copy_button_);
-    content_.append(*footer);
+    content->addWidget(make_separator());
+    QHBoxLayout* footer = new QHBoxLayout();
+    footer->setSpacing(12);
+    footer_label_ = make_label("");
+    command_entry_ = new QLineEdit();
+    command_entry_->setReadOnly(true);
+    command_entry_->setFrame(false);
+    command_entry_->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+    // Looks like a label (selectable, and it scrolls instead of making the window wider).
+    QPalette label_like = command_entry_->palette();
+    label_like.setColor(QPalette::Base, label_like.color(QPalette::Window));
+    command_entry_->setPalette(label_like);
+    copy_button_ = new QPushButton("Copy");
+    copy_button_->setToolTip("Copy the git command for this world, to use its snapshots from a terminal.");
+    footer->addWidget(footer_label_);
+    footer->addWidget(command_entry_, 1);
+    footer->addWidget(copy_button_);
+    content->addLayout(footer);
 
-    worlds_list_.signal_row_selected().connect([this](Gtk::ListBoxRow*) { on_world_selected(); });
-    snapshots_list_.signal_row_selected().connect([this](Gtk::ListBoxRow*) { on_snapshot_selected(); });
-    name_entry_.signal_changed().connect(sigc::mem_fun(*this, &TabSnapshots::update_buttons));
-    name_entry_.signal_activate().connect(sigc::mem_fun(*this, &TabSnapshots::on_take_clicked));
-    description_entry_.signal_activate().connect(sigc::mem_fun(*this, &TabSnapshots::on_take_clicked));
-    take_button_.signal_clicked().connect(sigc::mem_fun(*this, &TabSnapshots::on_take_clicked));
-    take_all_button_.signal_clicked().connect(sigc::mem_fun(*this, &TabSnapshots::on_take_all_clicked));
-    restore_button_.signal_clicked().connect(sigc::mem_fun(*this, &TabSnapshots::on_restore_clicked));
-    discard_button_.signal_clicked().connect(sigc::mem_fun(*this, &TabSnapshots::on_discard_clicked));
-    copy_button_.signal_clicked().connect(sigc::mem_fun(*this, &TabSnapshots::on_copy_clicked));
-    export_button_.signal_clicked().connect([this, popover]() {
-        popover->popdown();
-        on_export_clicked();
-    });
-    import_button_.signal_clicked().connect([this, popover]() {
-        popover->popdown();
-        on_import_clicked();
-    });
-    start_fresh_button_.signal_clicked().connect([this, popover]() {
-        popover->popdown();
-        on_start_fresh_clicked();
-    });
-    delete_button_.signal_clicked().connect([this, popover]() {
-        popover->popdown();
-        on_delete_clicked();
-    });
+    connect(worlds_list_, &QTreeWidget::itemSelectionChanged, this, &TabSnapshots::on_world_selected);
+    connect(snapshots_list_, &QTreeWidget::itemSelectionChanged, this, &TabSnapshots::on_snapshot_selected);
+    connect(name_entry_, &QLineEdit::textChanged, this, &TabSnapshots::update_buttons);
+    connect(name_entry_, &QLineEdit::returnPressed, this, &TabSnapshots::on_take_clicked);
+    connect(description_entry_, &QLineEdit::returnPressed, this, &TabSnapshots::on_take_clicked);
+    connect(take_button_, &QPushButton::clicked, this, &TabSnapshots::on_take_clicked);
+    connect(take_all_button_, &QPushButton::clicked, this, &TabSnapshots::on_take_all_clicked);
+    connect(restore_button_, &QPushButton::clicked, this, &TabSnapshots::on_restore_clicked);
+    connect(discard_button_, &QPushButton::clicked, this, &TabSnapshots::on_discard_clicked);
+    connect(copy_button_, &QPushButton::clicked, this, &TabSnapshots::on_copy_clicked);
+    connect(export_action_, &QAction::triggered, this, &TabSnapshots::on_export_clicked);
+    connect(import_action_, &QAction::triggered, this, &TabSnapshots::on_import_clicked);
+    connect(start_fresh_action_, &QAction::triggered, this, &TabSnapshots::on_start_fresh_clicked);
+    connect(delete_action_, &QAction::triggered, this, &TabSnapshots::on_delete_clicked);
 }
 
-void TabSnapshots::show_unavailable(const Glib::ustring& message)
+void TabSnapshots::show_unavailable(const QString& message)
 {
-    hint_label_.set_text(message);
-    hint_label_.set_visible(true);
-    content_.set_visible(false);
+    hint_label_->setText(message);
+    hint_label_->setVisible(true);
+    content_->setVisible(false);
 }
 
 void TabSnapshots::refresh()
@@ -229,14 +245,12 @@ void TabSnapshots::refresh()
                          "manager, then come back to this tab.");
         return;
     }
-    hint_label_.set_visible(false);
-    content_.set_visible(true);
+    hint_label_->setVisible(false);
+    content_->setVisible(true);
 
-    std::time_t now = std::time(nullptr);
-    std::tm local;
-    localtime_r(&now, &local);
-    name_entry_.set_text(SnapshotManager::default_snapshot_name(local));
-    description_entry_.set_text("");
+    std::tm local = platform::local_time(std::time(nullptr));
+    name_entry_->setText(qstr(SnapshotManager::default_snapshot_name(local)));
+    description_entry_->setText("");
 
     reload();
 }
@@ -245,15 +259,15 @@ void TabSnapshots::refresh()
 void TabSnapshots::reload()
 {
     std::shared_ptr<std::vector<WorldInfo> > loaded = std::make_shared<std::vector<WorldInfo> >();
-    content_.set_sensitive(false);
+    content_->setEnabled(false);
     bool started = runner_.run([this, loaded]() { *loaded = ctx_.snapshots.list_worlds(); },
                                [this, loaded]() {
-                                   content_.set_sensitive(true);
+                                   content_->setEnabled(true);
                                    fill_worlds(*loaded);
                                    ask_about_deleted_worlds();
                                });
     if (!started)
-        content_.set_sensitive(true);
+        content_->setEnabled(true);
 }
 
 void TabSnapshots::fill_worlds(const std::vector<WorldInfo>& worlds)
@@ -261,31 +275,26 @@ void TabSnapshots::fill_worlds(const std::vector<WorldInfo>& worlds)
     worlds_ = worlds;
 
     updating_ = true;
-    while (Gtk::ListBoxRow* row = worlds_list_.get_row_at_index(0))
-        worlds_list_.remove(*row);
+    worlds_list_->clear();
+    QBrush dim = dim_brush(worlds_list_);
     int reselect = -1;
     for (size_t i = 0; i < worlds_.size(); ++i)
     {
         const WorldInfo& world = worlds_[i];
-        Gtk::Box* row = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 12);
-        Gtk::Label* name = make_label(world.name);
-        name->set_hexpand(true);
-        name->set_ellipsize(Pango::EllipsizeMode::END);
-        Gtk::Label* state = make_label(state_text(world));
-        state->add_css_class("dim-label");
+        QTreeWidgetItem* row = new QTreeWidgetItem(worlds_list_);
+        row->setText(0, qstr(world.name));
+        row->setText(1, state_text(world));
+        row->setForeground(1, dim);
         if (world.state == WorldInfo::DELETED)
-            name->add_css_class("dim-label");
-        row->append(*name);
-        row->append(*state);
-        row->set_tooltip_text(world.name);
-        worlds_list_.append(*row);
+            row->setForeground(0, dim);
+        row->setToolTip(0, qstr(world.name));
         if (world.name == selected_name_)
             reselect = (int)i;
     }
     if (reselect < 0 && !worlds_.empty())
         reselect = 0;
     if (reselect >= 0)
-        worlds_list_.select_row(*worlds_list_.get_row_at_index(reselect));
+        worlds_list_->setCurrentItem(worlds_list_->topLevelItem(reselect));
     updating_ = false;
 
     on_world_selected();
@@ -293,18 +302,18 @@ void TabSnapshots::fill_worlds(const std::vector<WorldInfo>& worlds)
 
 const WorldInfo* TabSnapshots::selected_world()
 {
-    Gtk::ListBoxRow* row = worlds_list_.get_selected_row();
-    if (!row || row->get_index() < 0 || (size_t)row->get_index() >= worlds_.size())
+    int row = selected_row(worlds_list_);
+    if (row < 0 || (size_t)row >= worlds_.size())
         return nullptr;
-    return &worlds_[row->get_index()];
+    return &worlds_[row];
 }
 
 const Snapshot* TabSnapshots::selected_snapshot()
 {
-    Gtk::ListBoxRow* row = snapshots_list_.get_selected_row();
-    if (!row || row->get_index() < 0 || (size_t)row->get_index() >= snapshots_.size())
+    int row = selected_row(snapshots_list_);
+    if (row < 0 || (size_t)row >= snapshots_.size())
         return nullptr;
-    return &snapshots_[row->get_index()];
+    return &snapshots_[row];
 }
 
 void TabSnapshots::on_world_selected()
@@ -323,38 +332,34 @@ void TabSnapshots::fill_snapshots()
     snapshots_ = world ? ctx_.snapshots.list_snapshots(world->name) : std::vector<Snapshot>();
 
     updating_ = true;
-    while (Gtk::ListBoxRow* row = snapshots_list_.get_row_at_index(0))
-        snapshots_list_.remove(*row);
+    snapshots_list_->clear();
+    QBrush dim = dim_brush(snapshots_list_);
     for (size_t i = 0; i < snapshots_.size(); ++i)
     {
-        Gtk::Box* row = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 12);
-        Gtk::Label* when = make_label(format_time(snapshots_[i].time, "%b %d %H:%M"));
-        when->add_css_class("dim-label");
-        Gtk::Label* name = make_label(snapshots_[i].name);
-        name->set_hexpand(true);
-        name->set_ellipsize(Pango::EllipsizeMode::END);
-        row->append(*when);
-        row->append(*name);
-        snapshots_list_.append(*row);
+        QTreeWidgetItem* row = new QTreeWidgetItem(snapshots_list_);
+        row->setText(0, format_time(snapshots_[i].time, "MMM dd HH:mm"));
+        row->setForeground(0, dim);
+        row->setText(1, qstr(snapshots_[i].name));
     }
     updating_ = false;
 
     if (!world)
     {
-        snapshots_title_.set_text(worlds_.empty() ? "There are no worlds yet." : "Select a world.");
-        footer_label_.set_text("");
-        command_label_.set_text("");
+        snapshots_title_->setText(worlds_.empty() ? "There are no worlds yet." : "Select a world.");
+        footer_label_->setText("");
+        command_entry_->setText("");
     }
     else
     {
-        snapshots_title_.set_text("Snapshots of " + world->name);
+        snapshots_title_->setText(qstr("Snapshots of " + world->name));
         if (snapshots_.empty())
-            footer_label_.set_text("No snapshots yet");
+            footer_label_->setText("No snapshots yet");
         else
-            footer_label_.set_text(std::to_string(snapshots_.size()) + (snapshots_.size() == 1 ? " snapshot, " : " snapshots, ")
-                                   + Glib::format_size(ctx_.snapshots.history_size(world->name)));
-        command_label_.set_text(ctx_.snapshots.git_command(world->name));
-        command_label_.set_tooltip_text(command_label_.get_text());
+            footer_label_->setText(qstr(std::to_string(snapshots_.size()) + (snapshots_.size() == 1 ? " snapshot, " : " snapshots, "))
+                                   + format_size(ctx_.snapshots.history_size(world->name)));
+        command_entry_->setText(qstr(ctx_.snapshots.git_command(world->name)));
+        command_entry_->setCursorPosition(0);
+        command_entry_->setToolTip(command_entry_->text());
     }
     update_details();
     update_buttons();
@@ -374,36 +379,36 @@ void TabSnapshots::update_details()
     const Snapshot* snap = selected_snapshot();
     if (!world || !snap)
     {
-        details_label_.set_text(NO_DETAILS_TEXT);
+        details_view_->setPlainText(NO_DETAILS_TEXT);
         return;
     }
     int files = ctx_.snapshots.changed_files(world->name, snap->hash);
-    Glib::ustring line = format_time(snap->time, "%b %d %Y, %H:%M");
+    QString line = format_time(snap->time, "MMM dd yyyy, HH:mm");
     if (files >= 0)
-        line += " \xc2\xb7 " + std::to_string(files) + (files == 1 ? " file changed" : " files changed");
-    Glib::ustring text = "<b>" + Glib::Markup::escape_text(snap->name) + "</b>\n" + Glib::Markup::escape_text(line);
+        line += qstr(" \xc2\xb7 " + std::to_string(files) + (files == 1 ? " file changed" : " files changed"));
+    QString text = "<b>" + escape(snap->name) + "</b><br>" + line.toHtmlEscaped();
     if (!snap->description.empty())
-        text += "\n\n" + Glib::Markup::escape_text(snap->description);
-    details_label_.set_markup(text);
+        text += "<br><br>" + escape(snap->description);
+    details_view_->setHtml(text);
 }
 
 void TabSnapshots::update_buttons()
 {
     const WorldInfo* world = selected_world();
     bool deleted = world && world->state == WorldInfo::DELETED;
-    bool has_name = !Glib::ustring(name_entry_.get_text()).empty();
+    bool has_name = !name_entry_->text().isEmpty();
     bool any_world = false;
     for (size_t i = 0; i < worlds_.size(); ++i)
         any_world = any_world || worlds_[i].state != WorldInfo::DELETED;
 
-    restore_button_.set_sensitive(world && selected_snapshot());
-    discard_button_.set_sensitive(world && world->state == WorldInfo::CHANGED);
-    take_button_.set_sensitive(world && !deleted && has_name);
-    take_all_button_.set_sensitive(any_world && has_name);
-    copy_button_.set_sensitive(world != nullptr);
-    export_button_.set_sensitive(world && !snapshots_.empty());
-    start_fresh_button_.set_sensitive(world && !deleted && !snapshots_.empty() && has_name);
-    delete_button_.set_sensitive(deleted);
+    restore_button_->setEnabled(world && selected_snapshot());
+    discard_button_->setEnabled(world && world->state == WorldInfo::CHANGED);
+    take_button_->setEnabled(world && !deleted && has_name);
+    take_all_button_->setEnabled(any_world && has_name);
+    copy_button_->setEnabled(world != nullptr);
+    export_action_->setEnabled(world && !snapshots_.empty());
+    start_fresh_action_->setEnabled(world && !deleted && !snapshots_.empty() && has_name);
+    delete_action_->setEnabled(deleted);
 }
 
 // A world folder that disappeared (deleted in the game, or by restoring a zip
@@ -419,13 +424,12 @@ void TabSnapshots::ask_about_deleted_worlds()
         std::string name = world.name;
         asked_.insert(name);
         bool use_trash = ctx_.settings.get_bool("use_trash");
-        std::vector<Glib::ustring> buttons;
-        buttons.push_back("Cancel");
-        buttons.push_back(dialogs::removal_button(use_trash));
-        dialogs::ask(parent_, name + " no longer exists",
-                     "Delete its snapshots too? They " + dialogs::removal_text(use_trash)
-                         + ".\n\nCancel keeps them: the world stays in the list as deleted, and restoring one of its "
-                           "snapshots brings it back.",
+        QStringList buttons;
+        buttons << "Cancel" << qstr(dialogs::removal_button(use_trash));
+        dialogs::ask(parent_, qstr(name + " no longer exists"),
+                     qstr("Delete its snapshots too? They " + dialogs::removal_text(use_trash)
+                          + ".\n\nCancel keeps them: the world stays in the list as deleted, and restoring one of its "
+                            "snapshots brings it back."),
                      buttons, [this, name](int choice) {
                          if (choice == 1)
                          {
@@ -444,13 +448,13 @@ void TabSnapshots::ask_about_deleted_worlds()
 // Runs a slow job on the worker thread, with the whole tab disabled until it is done.
 void TabSnapshots::run_task(const std::function<void()>& work)
 {
-    content_.set_sensitive(false);
+    content_->setEnabled(false);
     bool started = runner_.run(work, [this]() {
-        content_.set_sensitive(true);
+        content_->setEnabled(true);
         reload();
     });
     if (!started)
-        content_.set_sensitive(true);
+        content_->setEnabled(true);
 }
 
 // Says so in a dialog, instead of failing with a git error.
@@ -459,27 +463,27 @@ bool TabSnapshots::check_writable()
     std::string reason;
     if (ctx_.snapshots.can_write(reason))
         return true;
-    dialogs::tell(parent_, "Can't change the saves", reason);
+    dialogs::tell(parent_, "Can't change the saves", qstr(reason));
     return false;
 }
 
 void TabSnapshots::on_take_clicked()
 {
     const WorldInfo* world = selected_world();
-    std::string name = name_entry_.get_text();
+    std::string name = str(name_entry_->text());
     if (!world || world->state == WorldInfo::DELETED || name.empty() || !check_writable())
         return;
     std::string world_name = world->name;
-    std::string description = description_entry_.get_text();
+    std::string description = str(description_entry_->text());
     run_task([this, world_name, name, description]() { ctx_.snapshots.take_snapshot(world_name, name, description); });
 }
 
 void TabSnapshots::on_take_all_clicked()
 {
-    std::string name = name_entry_.get_text();
+    std::string name = str(name_entry_->text());
     if (name.empty() || !check_writable())
         return;
-    std::string description = description_entry_.get_text();
+    std::string description = str(description_entry_->text());
     run_task([this, name, description]() { ctx_.snapshots.take_snapshot_all(name, description); });
 }
 
@@ -497,7 +501,7 @@ void TabSnapshots::on_restore_clicked()
                              : world_name + " will be changed to match \"" + snap->name
                                    + "\". Changes not in a snapshot are first kept as the snapshot \"Before restoring "
                                    + snap->name + "\", so nothing is lost.";
-    dialogs::confirm(parent_, "Restore this snapshot?", detail + " Close the game first.", "Restore",
+    dialogs::confirm(parent_, "Restore this snapshot?", qstr(detail + " Close the game first."), "Restore",
                      [this, world_name, hash]() {
                          run_task([this, world_name, hash]() { ctx_.snapshots.restore(world_name, hash); });
                      });
@@ -511,8 +515,8 @@ void TabSnapshots::on_discard_clicked()
     std::string world_name = world->name;
     std::string last = snapshots_.empty() ? "" : " \"" + snapshots_[0].name + "\"";
     dialogs::confirm(parent_, "Discard changes?",
-                     "The changes to " + world_name + " since the last snapshot" + last
-                         + " will be thrown away. They are not in any snapshot, so they can't be brought back.",
+                     qstr("The changes to " + world_name + " since the last snapshot" + last
+                          + " will be thrown away. They are not in any snapshot, so they can't be brought back."),
                      "Discard", [this, world_name]() {
                          run_task([this, world_name]() { ctx_.snapshots.discard_changes(world_name); });
                      });
@@ -523,7 +527,7 @@ void TabSnapshots::on_copy_clicked()
     const WorldInfo* world = selected_world();
     if (!world)
         return;
-    get_clipboard()->set_text(ctx_.snapshots.git_command(world->name));
+    QGuiApplication::clipboard()->setText(qstr(ctx_.snapshots.git_command(world->name)));
     ctx_.status.post("Copied the git command for " + world->name + ".");
 }
 
@@ -533,73 +537,36 @@ void TabSnapshots::on_export_clicked()
     if (!world || snapshots_.empty())
         return;
     std::string world_name = world->name;
-    Glib::RefPtr<Gtk::FileDialog> dialog = Gtk::FileDialog::create();
-    dialog->set_title("Export the snapshots of " + world_name);
-    dialog->set_initial_name(world_name + ".bundle");
-    Glib::RefPtr<Gtk::FileFilter> filter = Gtk::FileFilter::create();
-    filter->set_name("Git bundles (.bundle)");
-    filter->add_suffix("bundle");
-    Glib::RefPtr<Gio::ListStore<Gtk::FileFilter>> filters = Gio::ListStore<Gtk::FileFilter>::create();
-    filters->append(filter);
-    dialog->set_filters(filters);
     // The file dialog asks before replacing an existing file.
-    dialog->save(parent_, [this, dialog, world_name](const Glib::RefPtr<Gio::AsyncResult>& result) {
-        Glib::RefPtr<Gio::File> file;
-        try
-        {
-            file = dialog->save_finish(result);
-        }
-        catch (const Glib::Error&)
-        {
-            return;  // Cancelled.
-        }
-        if (!file || file->get_path().empty())
-            return;
-        std::string path = file->get_path();
-        run_task([this, world_name, path]() { ctx_.snapshots.export_snapshots(world_name, path); });
-    });
+    QString file = QFileDialog::getSaveFileName(&parent_, qstr("Export the snapshots of " + world_name),
+                                                qstr(world_name + ".bundle"), BUNDLE_FILTER);
+    if (file.isEmpty())
+        return;
+    std::filesystem::path path = to_path(str(file));
+    run_task([this, world_name, path]() { ctx_.snapshots.export_snapshots(world_name, path); });
 }
 
 void TabSnapshots::on_import_clicked()
 {
-    Glib::RefPtr<Gtk::FileDialog> dialog = Gtk::FileDialog::create();
-    dialog->set_title("Import snapshots");
-    Glib::RefPtr<Gtk::FileFilter> filter = Gtk::FileFilter::create();
-    filter->set_name("Git bundles (.bundle)");
-    filter->add_suffix("bundle");
-    Glib::RefPtr<Gio::ListStore<Gtk::FileFilter>> filters = Gio::ListStore<Gtk::FileFilter>::create();
-    filters->append(filter);
-    dialog->set_filters(filters);
-    dialog->open(parent_, [this, dialog](const Glib::RefPtr<Gio::AsyncResult>& result) {
-        Glib::RefPtr<Gio::File> file;
-        try
-        {
-            file = dialog->open_finish(result);
-        }
-        catch (const Glib::Error&)
-        {
-            return;  // Cancelled.
-        }
-        if (!file || file->get_path().empty())
-            return;
-        std::string path = file->get_path();
-        std::string world = SnapshotManager::bundle_world_name(path);
-        std::string problem = ctx_.snapshots.check_import_name(world);
-        if (problem.empty())
-        {
-            import_bundle(path, world);
-            return;
-        }
-        // Never replaces a world: ask for another name instead.
-        dialogs::ask_text(
-            parent_, "Name the imported world",
-            problem + " Choose a name for the world made from this file.", world, "Import",
-            [this](const std::string& name) { return ctx_.snapshots.check_import_name(name); },
-            [this, path](const std::string& name) { import_bundle(path, name); });
-    });
+    QString file = QFileDialog::getOpenFileName(&parent_, "Import snapshots", QString(), BUNDLE_FILTER);
+    if (file.isEmpty())
+        return;
+    std::filesystem::path path = to_path(str(file));
+    std::string world = SnapshotManager::bundle_world_name(path);
+    std::string problem = ctx_.snapshots.check_import_name(world);
+    if (problem.empty())
+    {
+        import_bundle(path, world);
+        return;
+    }
+    // Never replaces a world: ask for another name instead.
+    dialogs::ask_text(
+        parent_, "Name the imported world", qstr(problem + " Choose a name for the world made from this file."),
+        qstr(world), "Import", [this](const std::string& name) { return ctx_.snapshots.check_import_name(name); },
+        [this, path](const std::string& name) { import_bundle(path, name); });
 }
 
-void TabSnapshots::import_bundle(const std::string& path, const std::string& world)
+void TabSnapshots::import_bundle(const std::filesystem::path& path, const std::string& world)
 {
     if (!check_writable())
         return;
@@ -610,17 +577,17 @@ void TabSnapshots::import_bundle(const std::string& path, const std::string& wor
 void TabSnapshots::on_start_fresh_clicked()
 {
     const WorldInfo* world = selected_world();
-    std::string name = name_entry_.get_text();
+    std::string name = str(name_entry_->text());
     if (!world || world->state == WorldInfo::DELETED || snapshots_.empty() || name.empty() || !check_writable())
         return;
     std::string world_name = world->name;
-    std::string description = description_entry_.get_text();
+    std::string description = str(description_entry_->text());
     std::string count = std::to_string(snapshots_.size()) + (snapshots_.size() == 1 ? " snapshot" : " snapshots");
     bool use_trash = ctx_.settings.get_bool("use_trash");
-    dialogs::confirm(parent_, "Start fresh with " + world_name + "?",
-                     "Its " + count + " (" + Glib::format_size(ctx_.snapshots.history_size(world_name)) + ") "
-                         + dialogs::removal_text(use_trash) + ". A new history starts with one snapshot of the world "
-                         "as it is now, \"" + name + "\". The world itself is not changed.",
+    dialogs::confirm(parent_, qstr("Start fresh with " + world_name + "?"),
+                     qstr("Its " + count + " (" + str(format_size(ctx_.snapshots.history_size(world_name))) + ") "
+                          + dialogs::removal_text(use_trash) + ". A new history starts with one snapshot of the world "
+                          "as it is now, \"" + name + "\". The world itself is not changed."),
                      "Start Fresh", [this, world_name, name, description]() {
                          run_task([this, world_name, name, description]() {
                              ctx_.snapshots.start_fresh(world_name, name, description);
@@ -636,10 +603,11 @@ void TabSnapshots::on_delete_clicked()
     std::string world_name = world->name;
     std::string count = std::to_string(snapshots_.size()) + (snapshots_.size() == 1 ? " snapshot" : " snapshots");
     bool use_trash = ctx_.settings.get_bool("use_trash");
-    dialogs::confirm(parent_, "Delete the snapshots of " + world_name + "?",
-                     world_name + " no longer exists. Its " + count + " (" + Glib::format_size(ctx_.snapshots.history_size(world_name))
-                         + ") " + dialogs::removal_text(use_trash) + ".",
-                     dialogs::removal_button(use_trash), [this, world_name]() {
+    dialogs::confirm(parent_, qstr("Delete the snapshots of " + world_name + "?"),
+                     qstr(world_name + " no longer exists. Its " + count + " ("
+                          + str(format_size(ctx_.snapshots.history_size(world_name))) + ") "
+                          + dialogs::removal_text(use_trash) + "."),
+                     qstr(dialogs::removal_button(use_trash)), [this, world_name]() {
                          run_task([this, world_name]() { ctx_.snapshots.delete_snapshots(world_name); });
                      });
 }

@@ -1,7 +1,7 @@
 #ifndef EVAC_TAB_SOUNDPACKS_H
 #define EVAC_TAB_SOUNDPACKS_H
 
-#include <gtkmm.h>
+#include <QWidget>
 
 #include <functional>
 #include <string>
@@ -11,18 +11,23 @@
 #include "ui/app_context.h"
 #include "ui/task_runner.h"
 
+class QCheckBox;
+class QLabel;
+class QListWidget;
+class QPushButton;
+
 // The Soundpacks tab: installed packs on the left, downloadable ones on the right.
-class TabSoundpacks : public Gtk::Box
+class TabSoundpacks : public QWidget
 {
 public:
-    TabSoundpacks(AppContext& ctx, TaskRunner& runner, Gtk::Window& parent);
+    TabSoundpacks(AppContext& ctx, TaskRunner& runner, QWidget& parent);
 
     // Reloads the lists from disk. Call when the tab is shown.
     void refresh();
 
 private:
     void build_ui();
-    void show_unavailable(const Glib::ustring& message);
+    void show_unavailable(const QString& message);
     void refresh_installed();
     void update_buttons();
     void run_task(const std::function<void()>& work);
@@ -41,19 +46,19 @@ private:
 
     AppContext& ctx_;
     TaskRunner& runner_;
-    Gtk::Window& parent_;
+    QWidget& parent_;
     bool updating_;
     std::vector<InstalledSoundpack> installed_;
 
-    Gtk::Label hint_label_;
-    Gtk::Box content_;
-    Gtk::ListBox installed_list_;
-    Gtk::ListBox available_list_;
-    Gtk::CheckButton show_stock_check_;
-    Gtk::Button toggle_button_;
-    Gtk::Button delete_button_;
-    Gtk::Button install_button_;
-    Gtk::Button install_from_file_button_;
+    QLabel* hint_label_;
+    QWidget* content_;
+    QListWidget* installed_list_;
+    QListWidget* available_list_;
+    QCheckBox* show_stock_check_;
+    QPushButton* toggle_button_;
+    QPushButton* delete_button_;
+    QPushButton* install_button_;
+    QPushButton* install_from_file_button_;
 };
 
 #endif
