@@ -83,8 +83,11 @@ static void setup_common(cpr::Session& session, const std::string& url, const st
     session.SetUserAgent(cpr::UserAgent{USER_AGENT});
     session.SetConnectTimeout(cpr::ConnectTimeout{std::chrono::seconds(30)});
 
-#ifndef _WIN32
-    // On Windows cpr uses the system certificate store by itself.
+#ifdef _WIN32
+    // Windows has no bundle file. Setting any SSL options makes cpr use the
+    // system certificate store (CURLSSLOPT_NATIVE_CA).
+    session.SetSslOptions(cpr::SslOptions{});
+#else
     const char* ca = find_ca_bundle();
     if (ca)
         session.SetSslOptions(cpr::Ssl(cpr::ssl::CaInfo{ca}));
