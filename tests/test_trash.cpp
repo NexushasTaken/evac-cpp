@@ -312,7 +312,14 @@ TEST_CASE("restoring a mod whose ID is taken needs replace")
     // Another mod in a folder with the same name is not a conflict: it gets renamed.
     REQUIRE(f.trash.remove(mods + "/ModA", "mod", "Old A", at(5)));
     write_file(mods + "/ModA/modinfo.json", "{\"type\": \"MOD_INFO\", \"id\": \"b\", \"name\": \"B\"}");
-    plan = f.trash.plan_restore(newest(f).id);
+    // Not newest(f): "New A" went to the trash with the real clock, so which one is
+    // newer depends on today's date.
+    std::string again_id;
+    for (const TrashItem& item : f.trash.list())
+        if (item.name == "Old A")
+            again_id = item.id;
+    REQUIRE(!again_id.empty());
+    plan = f.trash.plan_restore(again_id);
     REQUIRE(plan.kind == RestorePlan::RENAMED);
     REQUIRE(plan.dest == mods + "/ModA (restored)");
 }
