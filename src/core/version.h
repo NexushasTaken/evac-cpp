@@ -1,8 +1,8 @@
-#ifndef CATAPULT_VERSION_H
-#define CATAPULT_VERSION_H
+#ifndef EVAC_VERSION_H
+#define EVAC_VERSION_H
 
 #include <string>
 
-std::string catapult_version();
+std::string evac_version();
 
 #endif

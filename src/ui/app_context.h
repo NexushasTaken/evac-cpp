@@ -1,5 +1,5 @@
-#ifndef CATAPULT_APP_CONTEXT_H
-#define CATAPULT_APP_CONTEXT_H
+#ifndef EVAC_APP_CONTEXT_H
+#define EVAC_APP_CONTEXT_H
 
 #include <string>
 

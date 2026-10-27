@@ -1,5 +1,5 @@
-#ifndef CATAPULT_SNAPSHOT_MANAGER_H
-#define CATAPULT_SNAPSHOT_MANAGER_H
+#ifndef EVAC_SNAPSHOT_MANAGER_H
+#define EVAC_SNAPSHOT_MANAGER_H
 
 #include <cstdint>
 #include <ctime>

@@ -1,5 +1,5 @@
-#ifndef CATAPULT_RELEASE_DATA_H
-#define CATAPULT_RELEASE_DATA_H
+#ifndef EVAC_RELEASE_DATA_H
+#define EVAC_RELEASE_DATA_H
 
 #include <string>
 #include <vector>

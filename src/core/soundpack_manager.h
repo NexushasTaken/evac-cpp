@@ -1,5 +1,5 @@
-#ifndef CATAPULT_SOUNDPACK_MANAGER_H
-#define CATAPULT_SOUNDPACK_MANAGER_H
+#ifndef EVAC_SOUNDPACK_MANAGER_H
+#define EVAC_SOUNDPACK_MANAGER_H
 
 #include <string>
 #include <vector>

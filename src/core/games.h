@@ -1,5 +1,5 @@
-#ifndef CATAPULT_GAMES_H
-#define CATAPULT_GAMES_H
+#ifndef EVAC_GAMES_H
+#define EVAC_GAMES_H
 
 #include <string>
 #include <vector>

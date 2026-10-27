@@ -1,5 +1,5 @@
-#ifndef CATAPULT_GAME_LAUNCHER_H
-#define CATAPULT_GAME_LAUNCHER_H
+#ifndef EVAC_GAME_LAUNCHER_H
+#define EVAC_GAME_LAUNCHER_H
 
 #include <string>
 #include <vector>

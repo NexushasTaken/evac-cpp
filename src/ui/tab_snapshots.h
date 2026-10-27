@@ -1,5 +1,5 @@
-#ifndef CATAPULT_TAB_SNAPSHOTS_H
-#define CATAPULT_TAB_SNAPSHOTS_H
+#ifndef EVAC_TAB_SNAPSHOTS_H
+#define EVAC_TAB_SNAPSHOTS_H
 
 #include <gtkmm.h>
 

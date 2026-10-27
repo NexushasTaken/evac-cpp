@@ -1,5 +1,5 @@
-#ifndef CATAPULT_TASK_RUNNER_H
-#define CATAPULT_TASK_RUNNER_H
+#ifndef EVAC_TASK_RUNNER_H
+#define EVAC_TASK_RUNNER_H
 
 #include <glibmm/dispatcher.h>
 

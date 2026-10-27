@@ -1,5 +1,5 @@
-#ifndef CATAPULT_MOD_MANAGER_H
-#define CATAPULT_MOD_MANAGER_H
+#ifndef EVAC_MOD_MANAGER_H
+#define EVAC_MOD_MANAGER_H
 
 #include <map>
 #include <string>

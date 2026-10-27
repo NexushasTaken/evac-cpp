@@ -1,5 +1,5 @@
-#ifndef CATAPULT_PATHS_H
-#define CATAPULT_PATHS_H
+#ifndef EVAC_PATHS_H
+#define EVAC_PATHS_H
 
 #include <map>
 #include <string>

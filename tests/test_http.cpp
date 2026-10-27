@@ -24,7 +24,7 @@ TEST_CASE("size string")
 
 TEST_CASE("a cached archive is not downloaded, so there is no size to look up")
 {
-    std::filesystem::path dir = std::filesystem::temp_directory_path() / "catapult_test_describe";
+    std::filesystem::path dir = std::filesystem::temp_directory_path() / "evac_test_describe";
     std::filesystem::remove_all(dir);
     std::filesystem::create_directories(dir);
     {
@@ -44,13 +44,13 @@ TEST_CASE("a cached archive is not downloaded, so there is no size to look up")
     std::filesystem::remove_all(dir);
 }
 
-// Network tests only run when CATAPULT_TEST_URL points at a server that serves
+// Network tests only run when EVAC_TEST_URL points at a server that serves
 // a file called hello.txt containing "hello\n" (see the README).
 TEST_CASE("get and download against a local server", "[network]")
 {
-    const char* base = std::getenv("CATAPULT_TEST_URL");
+    const char* base = std::getenv("EVAC_TEST_URL");
     if (!base)
-        SKIP("CATAPULT_TEST_URL is not set");
+        SKIP("EVAC_TEST_URL is not set");
 
     Status status;
     Http http(status);
@@ -63,7 +63,7 @@ TEST_CASE("get and download against a local server", "[network]")
     REQUIRE(http.get(std::string(base) + "/missing", std::vector<std::string>(), response));
     REQUIRE(response.code == 404);
 
-    std::filesystem::path dir = std::filesystem::temp_directory_path() / "catapult_test_http";
+    std::filesystem::path dir = std::filesystem::temp_directory_path() / "evac_test_http";
     std::filesystem::remove_all(dir);
     REQUIRE(http.download_file(std::string(base) + "/hello.txt", dir.string(), "got.txt"));
     std::ifstream f(dir / "got.txt");
@@ -77,12 +77,12 @@ TEST_CASE("get and download against a local server", "[network]")
 }
 
 // Checks that HTTPS and the system certificates work, e.g.
-// CATAPULT_TEST_HTTPS_URL=https://api.github.com/zen
+// EVAC_TEST_HTTPS_URL=https://api.github.com/zen
 TEST_CASE("https request", "[network]")
 {
-    const char* url = std::getenv("CATAPULT_TEST_HTTPS_URL");
+    const char* url = std::getenv("EVAC_TEST_HTTPS_URL");
     if (!url)
-        SKIP("CATAPULT_TEST_HTTPS_URL is not set");
+        SKIP("EVAC_TEST_HTTPS_URL is not set");
 
     Status status;
     Http http(status);

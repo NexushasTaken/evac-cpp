@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.23)
-project(catapult CXX)
+project(evac CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -18,7 +18,7 @@ pkg_check_modules(GTKMM REQUIRED IMPORTED_TARGET gtkmm-4.0)
 pkg_check_modules(FONTCONFIG REQUIRED IMPORTED_TARGET fontconfig pangoft2)
 
 # Core library: no GTK in here.
-add_library(catapult_core STATIC
+add_library(evac_core STATIC
     src/core/version.cpp
     src/core/status.cpp
     src/core/helpers.cpp
@@ -43,12 +43,12 @@ add_library(catapult_core STATIC
     src/core/window_state.cpp
     src/core/licenses.cpp
     src/core/trash.cpp)
-target_compile_definitions(catapult_core PRIVATE CATAPULT_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
-target_include_directories(catapult_core PUBLIC src)
-target_link_libraries(catapult_core PUBLIC
+target_compile_definitions(evac_core PRIVATE EVAC_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
+target_include_directories(evac_core PUBLIC src)
+target_link_libraries(evac_core PUBLIC
     CURL::libcurl nlohmann_json::nlohmann_json LibArchive::LibArchive spdlog::spdlog)
 
-add_executable(catapult
+add_executable(evac
     src/main.cpp
     src/ui/main_window.cpp
     src/ui/tab_game.cpp
@@ -65,11 +65,11 @@ add_executable(catapult
     src/ui/licenses_dialog.cpp
     src/ui/log_view.cpp
     src/ui/task_runner.cpp)
-target_link_libraries(catapult PRIVATE catapult_core PkgConfig::GTKMM PkgConfig::FONTCONFIG)
+target_link_libraries(evac PRIVATE evac_core PkgConfig::GTKMM PkgConfig::FONTCONFIG)
 
 # The bundled data (fonts, ...) goes next to the executable.
-add_custom_command(TARGET catapult POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/data $<TARGET_FILE_DIR:catapult>/data)
+add_custom_command(TARGET evac POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/data $<TARGET_FILE_DIR:evac>/data)
 
 enable_testing()
 add_executable(core_tests
@@ -87,5 +87,5 @@ add_executable(core_tests
     tests/test_extras.cpp
     tests/test_trash.cpp
     tests/test_launcher.cpp)
-target_link_libraries(core_tests PRIVATE catapult_core Catch2::Catch2WithMain)
+target_link_libraries(core_tests PRIVATE evac_core Catch2::Catch2WithMain)
 add_test(NAME core_tests COMMAND core_tests)

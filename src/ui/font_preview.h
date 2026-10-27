@@ -1,5 +1,5 @@
-#ifndef CATAPULT_FONT_PREVIEW_H
-#define CATAPULT_FONT_PREVIEW_H
+#ifndef EVAC_FONT_PREVIEW_H
+#define EVAC_FONT_PREVIEW_H
 
 #include <gtkmm.h>
 

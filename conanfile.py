@@ -2,8 +2,8 @@ from conan import ConanFile
 from conan.tools.cmake import cmake_layout
 
 
-class CatapultConan(ConanFile):
-    name = "catapult"
+class EvacConan(ConanFile):
+    name = "evac"
     settings = "os", "compiler", "build_type", "arch"
     generators = "CMakeToolchain", "CMakeDeps"
 

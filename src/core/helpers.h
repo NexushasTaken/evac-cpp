@@ -1,5 +1,5 @@
-#ifndef CATAPULT_HELPERS_H
-#define CATAPULT_HELPERS_H
+#ifndef EVAC_HELPERS_H
+#define EVAC_HELPERS_H
 
 #include <string>
 

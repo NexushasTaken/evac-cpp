@@ -1,5 +1,5 @@
-#ifndef CATAPULT_ARCHIVE_H
-#define CATAPULT_ARCHIVE_H
+#ifndef EVAC_ARCHIVE_H
+#define EVAC_ARCHIVE_H
 
 #include <string>
 

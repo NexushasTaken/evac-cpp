@@ -1,5 +1,5 @@
-#ifndef CATAPULT_TIPS_H
-#define CATAPULT_TIPS_H
+#ifndef EVAC_TIPS_H
+#define EVAC_TIPS_H
 
 #include <string>
 #include <vector>

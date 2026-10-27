@@ -1,5 +1,5 @@
-#ifndef CATAPULT_RELEASE_INSTALLER_H
-#define CATAPULT_RELEASE_INSTALLER_H
+#ifndef EVAC_RELEASE_INSTALLER_H
+#define EVAC_RELEASE_INSTALLER_H
 
 #include <string>
 #include <vector>

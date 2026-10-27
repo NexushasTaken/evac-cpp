@@ -1,5 +1,5 @@
-#ifndef CATAPULT_TRASH_H
-#define CATAPULT_TRASH_H
+#ifndef EVAC_TRASH_H
+#define EVAC_TRASH_H
 
 #include <chrono>
 #include <cstdint>

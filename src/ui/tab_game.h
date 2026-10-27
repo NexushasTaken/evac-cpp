@@ -1,5 +1,5 @@
-#ifndef CATAPULT_TAB_GAME_H
-#define CATAPULT_TAB_GAME_H
+#ifndef EVAC_TAB_GAME_H
+#define EVAC_TAB_GAME_H
 
 #include <gtkmm.h>
 

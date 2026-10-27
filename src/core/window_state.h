@@ -1,5 +1,5 @@
-#ifndef CATAPULT_WINDOW_STATE_H
-#define CATAPULT_WINDOW_STATE_H
+#ifndef EVAC_WINDOW_STATE_H
+#define EVAC_WINDOW_STATE_H
 
 #include "core/settings.h"
 

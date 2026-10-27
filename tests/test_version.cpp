@@ -4,5 +4,5 @@
 
 TEST_CASE("version is not empty")
 {
-    REQUIRE(!catapult_version().empty());
+    REQUIRE(!evac_version().empty());
 }

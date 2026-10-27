@@ -1,5 +1,5 @@
-#ifndef CATAPULT_BACKUP_MANAGER_H
-#define CATAPULT_BACKUP_MANAGER_H
+#ifndef EVAC_BACKUP_MANAGER_H
+#define EVAC_BACKUP_MANAGER_H
 
 #include <ctime>
 #include <string>

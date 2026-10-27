@@ -1,5 +1,5 @@
-#ifndef CATAPULT_TAB_FONTS_H
-#define CATAPULT_TAB_FONTS_H
+#ifndef EVAC_TAB_FONTS_H
+#define EVAC_TAB_FONTS_H
 
 #include <gtkmm.h>
 

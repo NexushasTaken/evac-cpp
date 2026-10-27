@@ -1,5 +1,5 @@
-#ifndef CATAPULT_GIT_H
-#define CATAPULT_GIT_H
+#ifndef EVAC_GIT_H
+#define EVAC_GIT_H
 
 #include <string>
 #include <vector>

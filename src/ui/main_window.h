@@ -1,5 +1,5 @@
-#ifndef CATAPULT_MAIN_WINDOW_H
-#define CATAPULT_MAIN_WINDOW_H
+#ifndef EVAC_MAIN_WINDOW_H
+#define EVAC_MAIN_WINDOW_H
 
 #include <gtkmm.h>
 

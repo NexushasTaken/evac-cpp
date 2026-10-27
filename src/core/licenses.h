@@ -1,5 +1,5 @@
-#ifndef CATAPULT_LICENSES_H
-#define CATAPULT_LICENSES_H
+#ifndef EVAC_LICENSES_H
+#define EVAC_LICENSES_H
 
 #include <string>
 #include <vector>

@@ -1,5 +1,5 @@
-#ifndef CATAPULT_TAB_MODS_H
-#define CATAPULT_TAB_MODS_H
+#ifndef EVAC_TAB_MODS_H
+#define EVAC_TAB_MODS_H
 
 #include <gtkmm.h>
 

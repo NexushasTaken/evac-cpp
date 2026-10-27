@@ -1,5 +1,5 @@
-#ifndef CATAPULT_TAB_TRASH_H
-#define CATAPULT_TAB_TRASH_H
+#ifndef EVAC_TAB_TRASH_H
+#define EVAC_TAB_TRASH_H
 
 #include <gtkmm.h>
 

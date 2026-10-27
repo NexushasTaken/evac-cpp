@@ -1,5 +1,5 @@
-#ifndef CATAPULT_DOWNLOAD_PROMPT_H
-#define CATAPULT_DOWNLOAD_PROMPT_H
+#ifndef EVAC_DOWNLOAD_PROMPT_H
+#define EVAC_DOWNLOAD_PROMPT_H
 
 #include <gtkmm.h>
 

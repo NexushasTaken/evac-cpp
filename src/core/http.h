@@ -1,5 +1,5 @@
-#ifndef CATAPULT_HTTP_H
-#define CATAPULT_HTTP_H
+#ifndef EVAC_HTTP_H
+#define EVAC_HTTP_H
 
 #include <atomic>
 #include <string>

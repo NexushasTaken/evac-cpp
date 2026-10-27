@@ -9,8 +9,8 @@
 
 namespace fs = std::filesystem;
 
-#ifndef CATAPULT_DATA_DIR
-#define CATAPULT_DATA_DIR ""
+#ifndef EVAC_DATA_DIR
+#define EVAC_DATA_DIR ""
 #endif
 
 static const char* const GAMES[] = {"dda", "bn", "eod", "tish", "tlg"};
@@ -147,7 +147,7 @@ std::string Paths::data_dir() const
     std::string local = executable_dir() + "/data";
     if (fs::is_directory(local))
         return local;
-    return CATAPULT_DATA_DIR;
+    return EVAC_DATA_DIR;
 }
 
 std::string Paths::game_dir()

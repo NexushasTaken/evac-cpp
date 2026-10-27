@@ -1,5 +1,5 @@
-#ifndef CATAPULT_RELEASE_MANAGER_H
-#define CATAPULT_RELEASE_MANAGER_H
+#ifndef EVAC_RELEASE_MANAGER_H
+#define EVAC_RELEASE_MANAGER_H
 
 #include <map>
 #include <mutex>

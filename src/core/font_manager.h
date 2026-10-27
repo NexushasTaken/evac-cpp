@@ -1,5 +1,5 @@
-#ifndef CATAPULT_FONT_MANAGER_H
-#define CATAPULT_FONT_MANAGER_H
+#ifndef EVAC_FONT_MANAGER_H
+#define EVAC_FONT_MANAGER_H
 
 #include <string>
 #include <vector>

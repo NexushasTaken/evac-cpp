@@ -1,5 +1,5 @@
-#ifndef CATAPULT_SETTINGS_H
-#define CATAPULT_SETTINGS_H
+#ifndef EVAC_SETTINGS_H
+#define EVAC_SETTINGS_H
 
 #include <mutex>
 #include <string>

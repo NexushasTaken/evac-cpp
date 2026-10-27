@@ -1,5 +1,5 @@
-#ifndef CATAPULT_TAB_BACKUPS_H
-#define CATAPULT_TAB_BACKUPS_H
+#ifndef EVAC_TAB_BACKUPS_H
+#define EVAC_TAB_BACKUPS_H
 
 #include <gtkmm.h>
 

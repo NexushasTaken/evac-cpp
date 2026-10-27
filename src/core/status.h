@@ -1,5 +1,5 @@
-#ifndef CATAPULT_STATUS_H
-#define CATAPULT_STATUS_H
+#ifndef EVAC_STATUS_H
+#define EVAC_STATUS_H
 
 #include <functional>
 #include <mutex>

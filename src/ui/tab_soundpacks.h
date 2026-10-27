@@ -1,5 +1,5 @@
-#ifndef CATAPULT_TAB_SOUNDPACKS_H
-#define CATAPULT_TAB_SOUNDPACKS_H
+#ifndef EVAC_TAB_SOUNDPACKS_H
+#define EVAC_TAB_SOUNDPACKS_H
 
 #include <gtkmm.h>
 

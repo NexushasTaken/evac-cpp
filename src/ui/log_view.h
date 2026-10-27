@@ -1,5 +1,5 @@
-#ifndef CATAPULT_LOG_VIEW_H
-#define CATAPULT_LOG_VIEW_H
+#ifndef EVAC_LOG_VIEW_H
+#define EVAC_LOG_VIEW_H
 
 #include <glibmm/dispatcher.h>
 #include <gtkmm.h>

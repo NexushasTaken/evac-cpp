@@ -1,5 +1,5 @@
-#ifndef CATAPULT_LICENSES_DIALOG_H
-#define CATAPULT_LICENSES_DIALOG_H
+#ifndef EVAC_LICENSES_DIALOG_H
+#define EVAC_LICENSES_DIALOG_H
 
 #include <gtkmm.h>
 

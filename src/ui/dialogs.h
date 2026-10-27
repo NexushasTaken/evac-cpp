@@ -1,5 +1,5 @@
-#ifndef CATAPULT_DIALOGS_H
-#define CATAPULT_DIALOGS_H
+#ifndef EVAC_DIALOGS_H
+#define EVAC_DIALOGS_H
 
 #include <gtkmm.h>
 

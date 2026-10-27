@@ -16,7 +16,7 @@ namespace fs = std::filesystem;
 
 static std::string make_temp_dir(const std::string& name)
 {
-    fs::path p = fs::temp_directory_path() / ("catapult_test_" + name);
+    fs::path p = fs::temp_directory_path() / ("evac_test_" + name);
     fs::remove_all(p);
     fs::create_directories(p);
     return p.string();
