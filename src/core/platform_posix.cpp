@@ -26,7 +26,7 @@ std::string os_name()
 #endif
 }
 
-std::string executable_path()
+fs::path executable_path()
 {
     std::error_code ec;
 #ifdef __APPLE__
@@ -37,10 +37,10 @@ std::string executable_path()
         return "";
     buf.resize(buf.find('\0'));
     fs::path exe = fs::weakly_canonical(buf, ec);  // It can contain symlinks and "..".
-    return ec ? buf : exe.string();
+    return ec ? fs::path(buf) : exe;
 #else
     fs::path exe = fs::read_symlink("/proc/self/exe", ec);
-    return ec ? "" : exe.string();
+    return ec ? fs::path() : exe;
 #endif
 }
 
@@ -50,7 +50,7 @@ std::string get_env(const char* name)
     return value ? value : "";
 }
 
-bool is_executable_file(const std::string& path)
+bool is_executable_file(const fs::path& path)
 {
     struct stat st;
     return stat(path.c_str(), &st) == 0 && S_ISREG(st.st_mode) && access(path.c_str(), X_OK) == 0;
@@ -63,7 +63,7 @@ std::tm local_time(std::time_t t)
     return result;
 }
 
-bool dir_writable(const std::string& dir, bool& read_only_fs)
+bool dir_writable(const fs::path& dir, bool& read_only_fs)
 {
     read_only_fs = false;
     if (access(dir.c_str(), W_OK) == 0)

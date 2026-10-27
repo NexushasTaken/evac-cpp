@@ -14,14 +14,14 @@ ReleaseInstaller::ReleaseInstaller(Settings& settings, Paths& paths, Status& sta
 }
 
 // The release name in the install's info file, or the directory name if there is none.
-static std::string install_name(const std::string& dir, Status& status)
+static std::string install_name(const fs::path& dir, Status& status)
 {
     nlohmann::json info;
-    std::string info_file = dir + "/" + INFO_FILENAME;
+    fs::path info_file = dir / INFO_FILENAME;
     if (fs::exists(info_file) && load_json_file(info_file, info, status) && info.is_object() && info.contains("name")
         && info["name"].is_string())
         return info["name"].get<std::string>();
-    return fs::path(dir).filename().string();
+    return to_utf8(dir.filename());
 }
 
 void ReleaseInstaller::cancel()
@@ -29,15 +29,15 @@ void ReleaseInstaller::cancel()
     http_.cancel();
 }
 
-bool ReleaseInstaller::install_release(const Release& release, const std::string& update_in)
+bool ReleaseInstaller::install_release(const Release& release, const fs::path& update_in)
 {
     if (!update_in.empty())
         status_.post("Updating to " + release.name + "...");
     else
         status_.post("Installing " + release.name + "...");
 
-    std::string cache_dir = paths_.cache_dir();
-    std::string archive_path = cache_dir + "/" + release.filename;
+    fs::path cache_dir = paths_.cache_dir();
+    fs::path archive_path = cache_dir / to_path(release.filename);
     std::error_code ec;
 
     if (settings_.get_bool("ignore_cache") || !fs::exists(archive_path))
@@ -48,7 +48,7 @@ bool ReleaseInstaller::install_release(const Release& release, const std::string
     }
 
     // Always extract into an empty directory, so that the one directory inside it is ours.
-    std::string tmp_dir = paths_.tmp_dir();
+    fs::path tmp_dir = paths_.tmp_dir();
     fs::remove_all(tmp_dir, ec);
 
     bool extracted = archive_helper::extract(archive_path, tmp_dir, status_);
@@ -66,12 +66,12 @@ bool ReleaseInstaller::install_release(const Release& release, const std::string
         status_.post("The archive did not contain a game directory.", MSG_ERROR);
         return false;
     }
-    std::string extracted_root = tmp_dir + "/" + extracted_items[0];
+    fs::path extracted_root = tmp_dir / to_path(extracted_items[0]);
 
     if (!create_info_file(extracted_root, release.name, status_))
         return false;
 
-    std::string target_dir;
+    fs::path target_dir;
     if (!update_in.empty())
     {
         target_dir = update_in;
@@ -118,20 +118,20 @@ bool ReleaseInstaller::remove_release_by_name(const std::string& release_name)
     return true;
 }
 
-std::vector<std::string> ReleaseInstaller::check_game_dir_for_userdata(const std::string& release_name)
+std::vector<fs::path> ReleaseInstaller::check_game_dir_for_userdata(const std::string& release_name)
 {
-    std::vector<std::string> result;
+    std::vector<fs::path> result;
 
     Paths::InstallsSummary installs = paths_.installs_summary();
     Paths::InstallsSummary::const_iterator g = installs.find(settings_.get_string("game"));
     if (g == installs.end() || g->second.find(release_name) == g->second.end())
         return result;
 
-    std::string game_path = g->second.find(release_name)->second;
+    fs::path game_path = g->second.find(release_name)->second;
     const char* const subdirs[] = {"config", "font", "graveyard", "memorial", "mods", "save", "sound", "templates"};
     for (size_t i = 0; i < sizeof(subdirs) / sizeof(subdirs[0]); ++i)
     {
-        std::string full = game_path + "/" + subdirs[i];
+        fs::path full = game_path / subdirs[i];
         if (fs::is_directory(full) && !fs::is_empty(full))
             result.push_back(full);
     }

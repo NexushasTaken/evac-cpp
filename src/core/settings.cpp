@@ -2,9 +2,10 @@
 
 #include <filesystem>
 
+#include "core/fs.h"
 #include "core/helpers.h"
 
-Settings::Settings(const std::string& settings_file, Status& status)
+Settings::Settings(const std::filesystem::path& settings_file, Status& status)
     : file_(settings_file), status_(status), current_(nlohmann::json::object())
 {
 }
@@ -81,7 +82,7 @@ void Settings::load()
     }
     if (created)
     {
-        status_.post("Creating settings file: " + file_);
+        status_.post("Creating settings file: " + to_utf8(file_));
         save();
     }
     status_.set_debug_enabled(get_bool("debug_mode"));

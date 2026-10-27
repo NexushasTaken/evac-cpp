@@ -2,6 +2,7 @@
 
 #include <filesystem>
 
+#include "core/fs.h"
 #include "ui/dialogs.h"
 
 static const char* const NO_INFO_TEXT = "Select an item to see where it came from and what restoring it does.";
@@ -149,7 +150,7 @@ void TabTrash::refresh()
         row->append(*game);
         row->append(*when);
         row->append(*size);
-        row->set_tooltip_text(item.original_path);
+        row->set_tooltip_text(to_utf8(item.original_path));
         list_.append(*row);
     }
     updating_ = false;
@@ -214,13 +215,13 @@ void TabTrash::on_selection_changed()
     switch (plan.kind)
     {
     case RestorePlan::ORIGINAL:
-        restore = "Goes back to " + plan.dest;
+        restore = "Goes back to " + to_utf8(plan.dest);
         break;
     case RestorePlan::RENAMED:
         if (item.kind == "saves")
-            restore = "The worlds go back into " + plan.dest + ". Worlds whose names are taken get \" (restored)\" added.";
+            restore = "The worlds go back into " + to_utf8(plan.dest) + ". Worlds whose names are taken get \" (restored)\" added.";
         else
-            restore = "Goes back as " + plan.dest + ", as the old place is taken."
+            restore = "Goes back as " + to_utf8(plan.dest) + ", as the old place is taken."
                       + (Trash::can_choose_name(item.kind) ? " Restoring asks for the name." : "");
         break;
     case RestorePlan::CONFLICT:
@@ -230,7 +231,7 @@ void TabTrash::on_selection_changed()
         restore = "Can't be restored: " + plan.reason;
         break;
     }
-    info_label_.set_text("Deleted: " + item.deleted_at.substr(0, 19) + "\nFrom: " + item.original_path
+    info_label_.set_text("Deleted: " + item.deleted_at.substr(0, 19) + "\nFrom: " + to_utf8(item.original_path)
                          + "\nRestore: " + restore);
 }
 
@@ -280,7 +281,7 @@ void TabTrash::on_restore_clicked()
             (item.kind == "saves")
                 ? "The worlds go back into your current saves. Worlds whose names are taken get \" (restored)\" "
                   "added, so nothing is overwritten."
-                : "Its old place is taken, so it goes back as\n" + plan.dest;
+                : "Its old place is taken, so it goes back as\n" + to_utf8(plan.dest);
         dialogs::confirm(parent_, "Restore " + item.name + "?", detail, "Restore",
                          [this, id]() { run_task([this, id]() { ctx_.trash.restore(id, false); }); });
         break;

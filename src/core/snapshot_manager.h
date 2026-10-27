@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <ctime>
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -75,7 +76,7 @@ public:
     std::uint64_t history_size(const std::string& world);
     // The git command for using the repository from a terminal.
     std::string git_command(const std::string& world);
-    std::string repo_path(const std::string& world);
+    std::filesystem::path repo_path(const std::string& world);
 
     // False when the save folder can't be written to (e.g. NTFS mounted read-only),
     // with a message for the user in reason.
@@ -103,19 +104,19 @@ public:
 
     // Writes every snapshot of the world to one git bundle file at path, to keep
     // elsewhere or share. Replaces the file if it exists.
-    bool export_snapshots(const std::string& world, const std::string& path);
+    bool export_snapshots(const std::string& world, const std::filesystem::path& path);
 
     // The world name an imported bundle gets by default: its file name without ".bundle".
-    static std::string bundle_world_name(const std::string& path);
+    static std::string bundle_world_name(const std::filesystem::path& path);
     // Why world can't be the name of an imported world, or "" if it can. The
     // game's rules for world names, and no world or snapshots by that name yet.
     std::string check_import_name(const std::string& world);
     // Makes a new world from a bundle made by export_snapshots: its snapshots,
     // and the world folder as in the latest one. Never replaces an existing world.
-    Result import_snapshots(const std::string& bundle, const std::string& world);
+    Result import_snapshots(const std::filesystem::path& bundle, const std::string& world);
 
 private:
-    std::string world_dir(const std::string& world);
+    std::filesystem::path world_dir(const std::string& world);
     std::vector<std::string> repo_args(const std::string& world);
     git::Result run(const std::string& world, const std::vector<std::string>& args);
     bool run_or_report(const std::string& world, const std::vector<std::string>& args, const std::string& what);

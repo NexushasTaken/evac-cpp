@@ -7,6 +7,7 @@
 #include <sstream>
 #include <thread>
 
+#include "core/fs.h"
 #include "core/game_launcher.h"
 #include "core/helpers.h"
 #include "core/paths.h"
@@ -16,17 +17,17 @@
 
 namespace fs = std::filesystem;
 
-static std::string make_temp_dir(const std::string& name)
+static fs::path make_temp_dir(const std::string& name)
 {
     fs::path p = fs::temp_directory_path() / ("evac_test_" + name);
     fs::remove_all(p);
     fs::create_directories(p);
-    return p.string();
+    return p;
 }
 
-static void write_file(const std::string& path, const std::string& content)
+static void write_file(const fs::path& path, const std::string& content)
 {
-    fs::create_directories(fs::path(path).parent_path());
+    fs::create_directories(path.parent_path());
     std::ofstream(path) << content;
 }
 
@@ -79,9 +80,9 @@ TEST_CASE("parse rate limit answer")
 
 TEST_CASE("fetch stable list")
 {
-    std::string dir = make_temp_dir("relmgr");
+    fs::path dir = make_temp_dir("relmgr");
     Status status;
-    Settings settings(dir + "/s.json", status);
+    Settings settings(dir / "s.json", status);
     settings.load();
     ReleaseManager mgr(settings, status);
 
@@ -93,44 +94,44 @@ TEST_CASE("fetch stable list")
 
 TEST_CASE("install, update and remove a release from a local archive")
 {
-    std::string dir = make_temp_dir("install");
+    fs::path dir = make_temp_dir("install");
     Status status;
-    Settings settings(dir + "/s.json", status);
+    Settings settings(dir / "s.json", status);
     settings.load();
     Paths paths(dir, settings, status);
     Trash trash(settings, paths, status);
     ReleaseInstaller installer(settings, paths, status, trash);
 
     // A fake game archive with one top directory, like the real ones.
-    write_file(dir + "/pack/cdda-1/cataclysm-launcher", "#!/bin/sh\n");
-    write_file(dir + "/pack/cdda-1/data/mods/readme.txt", "mods");
-    std::string tar = "tar -czf '" + dir + "/fake.tar.gz' -C '" + dir + "/pack' cdda-1";
+    write_file(dir / "pack/cdda-1/cataclysm-launcher", "#!/bin/sh\n");
+    write_file(dir / "pack/cdda-1/data/mods/readme.txt", "mods");
+    std::string tar = "tar -czf '" + to_utf8(dir / "fake.tar.gz") + "' -C '" + to_utf8(dir / "pack") + "' cdda-1";
     if (std::system(tar.c_str()) != 0)
         SKIP("tar is not available");
 
     Release release;
     release.name = "Test Build 1";
-    release.url = "file://" + dir + "/fake.tar.gz";
+    release.url = "file://" + to_utf8(dir / "fake.tar.gz");
     release.filename = "fake-1.tar.gz";
 
     REQUIRE(installer.install_release(release, ""));
-    REQUIRE(fs::exists(dir + "/dda/game0/cataclysm-launcher"));
-    REQUIRE(fs::exists(dir + "/dda/game0/" + INFO_FILENAME));
-    REQUIRE(!fs::exists(dir + "/cache/fake-1.tar.gz"));  // keep_cache is off.
+    REQUIRE(fs::exists(dir / "dda/game0/cataclysm-launcher"));
+    REQUIRE(fs::exists(dir / "dda/game0" / INFO_FILENAME));
+    REQUIRE(!fs::exists(dir / "cache/fake-1.tar.gz"));  // keep_cache is off.
 
     Paths::InstallsSummary installs = paths.installs_summary();
-    REQUIRE(installs["dda"]["Test Build 1"] == dir + "/dda/game0");
+    REQUIRE(installs["dda"]["Test Build 1"] == dir / "dda/game0");
     REQUIRE(settings.get_string("active_install_dda") == "Test Build 1");
 
     // Userdata inside the game directory is reported before deleting.
     REQUIRE(installer.check_game_dir_for_userdata("Test Build 1").empty());
-    write_file(dir + "/dda/game0/save/World/x", "x");
+    write_file(dir / "dda/game0/save/World/x", "x");
     REQUIRE(installer.check_game_dir_for_userdata("Test Build 1").size() == 1);
 
     // Update in place with a new name.
     release.name = "Test Build 2";
     release.filename = "fake-2.tar.gz";
-    REQUIRE(installer.install_release(release, dir + "/dda/game0"));
+    REQUIRE(installer.install_release(release, dir / "dda/game0"));
     REQUIRE(settings.get_string("active_install_dda") == "Test Build 2");
     installs = paths.installs_summary();
     REQUIRE(installs["dda"].size() == 1);
@@ -139,12 +140,12 @@ TEST_CASE("install, update and remove a release from a local archive")
     REQUIRE(trashed.size() == 1);  // The old install, with the user data that was in it.
     REQUIRE(trashed[0].kind == "install");
     REQUIRE(trashed[0].name == "Test Build 1");
-    REQUIRE(fs::exists(paths.trash_dir() + "/" + trashed[0].id + "/item/save/World/x"));
+    REQUIRE(fs::exists(paths.trash_dir() / trashed[0].id / "item/save/World/x"));
 
     // Removing.
     REQUIRE(!installer.remove_release_by_name("No Such Build"));
     REQUIRE(installer.remove_release_by_name("Test Build 2"));
-    REQUIRE(!fs::exists(dir + "/dda/game0"));
+    REQUIRE(!fs::exists(dir / "dda/game0"));
     REQUIRE(trash.list().size() == 2);
     REQUIRE(trash.list()[0].name == "Test Build 2");  // Newest first.
     REQUIRE(paths.installs_summary()["dda"].empty());  // Trashed installs are not listed.
@@ -152,9 +153,9 @@ TEST_CASE("install, update and remove a release from a local archive")
 
 TEST_CASE("install fails cleanly when the download fails")
 {
-    std::string dir = make_temp_dir("install_fail");
+    fs::path dir = make_temp_dir("install_fail");
     Status status;
-    Settings settings(dir + "/s.json", status);
+    Settings settings(dir / "s.json", status);
     settings.load();
     Paths paths(dir, settings, status);
     Trash trash(settings, paths, status);
@@ -162,48 +163,48 @@ TEST_CASE("install fails cleanly when the download fails")
 
     Release release;
     release.name = "Nope";
-    release.url = "file://" + dir + "/does-not-exist.tar.gz";
+    release.url = "file://" + to_utf8(dir / "does-not-exist.tar.gz");
     release.filename = "nope.tar.gz";
     REQUIRE(!installer.install_release(release, ""));
-    REQUIRE(!fs::exists(dir + "/dda/game0"));
+    REQUIRE(!fs::exists(dir / "dda/game0"));
 }
 
 TEST_CASE("game launcher starts the active install with the right arguments")
 {
-    std::string dir = make_temp_dir("launch");
+    fs::path dir = make_temp_dir("launch");
     Status status;
-    Settings settings(dir + "/s.json", status);
+    Settings settings(dir / "s.json", status);
     settings.load();
     Paths paths(dir, settings, status);
     GameLauncher launcher(settings, paths, status);
 
-    write_file(dir + "/dda/game0/" + INFO_FILENAME, "{\"name\": \"B\"}");
-    std::string script = dir + "/dda/game0/cataclysm-launcher";
-    write_file(script, "#!/bin/sh\necho \"$@\" > '" + dir + "/args.txt'\n");
+    write_file(dir / "dda/game0" / INFO_FILENAME, "{\"name\": \"B\"}");
+    fs::path script = dir / "dda/game0/cataclysm-launcher";
+    write_file(script, "#!/bin/sh\necho \"$@\" > '" + to_utf8(dir / "args.txt") + "'\n");
     fs::permissions(script, fs::perms::owner_exec | fs::perms::owner_read | fs::perms::owner_write);
     paths.installs_summary();  // Sets the active install.
 
     REQUIRE(!launcher.has_last_world());
-    write_file(paths.config() + "/lastworld.json", "{\"world_name\": \"My World\"}");
+    write_file(paths.config() / "lastworld.json", "{\"world_name\": \"My World\"}");
     REQUIRE(launcher.has_last_world());
     REQUIRE(launcher.last_world() == "My World");
 
     REQUIRE(launcher.start("My World"));
-    for (int i = 0; i < 50 && !fs::exists(dir + "/args.txt"); ++i)
+    for (int i = 0; i < 50 && !fs::exists(dir / "args.txt"); ++i)
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    REQUIRE(fs::exists(dir + "/args.txt"));
+    REQUIRE(fs::exists(dir / "args.txt"));
 
-    std::ifstream f(dir + "/args.txt");
+    std::ifstream f(dir / "args.txt");
     std::stringstream ss;
     ss << f.rdbuf();
-    REQUIRE(ss.str() == "--userdir " + dir + "/dda/userdata/ --world My World\n");
+    REQUIRE(ss.str() == "--userdir " + to_utf8(dir / "dda/userdata/") + " --world My World\n");
 }
 
 TEST_CASE("game launcher reports a missing executable")
 {
-    std::string dir = make_temp_dir("launch_missing");
+    fs::path dir = make_temp_dir("launch_missing");
     Status status;
-    Settings settings(dir + "/s.json", status);
+    Settings settings(dir / "s.json", status);
     settings.load();
     Paths paths(dir, settings, status);
     GameLauncher launcher(settings, paths, status);

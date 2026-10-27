@@ -10,12 +10,12 @@
 
 namespace fs = std::filesystem;
 
-static std::string make_temp_dir(const std::string& name)
+static fs::path make_temp_dir(const std::string& name)
 {
     fs::path p = fs::temp_directory_path() / ("evac_test_" + name);
     fs::remove_all(p);
     fs::create_directories(p);
-    return p.string();
+    return p;
 }
 
 TEST_CASE("tips")
@@ -30,9 +30,9 @@ TEST_CASE("tips")
 
 TEST_CASE("window state round trip keeps other keys")
 {
-    std::string dir = make_temp_dir("window_state");
+    fs::path dir = make_temp_dir("window_state");
     Status status;
-    Settings settings(dir + "/s.json", status);
+    Settings settings(dir / "s.json", status);
     settings.load();
 
     REQUIRE(!load_window_state(settings).valid);  // Nothing saved yet.
@@ -65,9 +65,9 @@ TEST_CASE("window state round trip keeps other keys")
 
 TEST_CASE("nonsensical window sizes are ignored")
 {
-    std::string dir = make_temp_dir("window_state_bad");
+    fs::path dir = make_temp_dir("window_state_bad");
     Status status;
-    Settings settings(dir + "/s.json", status);
+    Settings settings(dir / "s.json", status);
     settings.load();
 
     nlohmann::json bad = nlohmann::json::object();
@@ -84,7 +84,7 @@ TEST_CASE("nonsensical window sizes are ignored")
 TEST_CASE("license sections can all be read")
 {
     Status status;
-    Settings settings(make_temp_dir("licenses") + "/s.json", status);
+    Settings settings(make_temp_dir("licenses") / "s.json", status);
     Paths paths(make_temp_dir("licenses_paths"), settings, status);
 
     std::vector<LicenseSection> sections = load_license_sections(paths.data_dir());

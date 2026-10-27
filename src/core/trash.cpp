@@ -71,43 +71,48 @@ static bool is_valid_id(const std::string& id)
 }
 
 // path if it is free, else path + " (restored)", " (restored 2)", ...
-static std::string free_path(const std::string& path)
+static fs::path free_path(const fs::path& path)
 {
     if (!exists_no_follow(path))
         return path;
-    std::string candidate = path + " (restored)";
+    fs::path candidate = path;
+    candidate += " (restored)";
     for (int n = 2; exists_no_follow(candidate); ++n)
-        candidate = path + " (restored " + std::to_string(n) + ")";
+    {
+        candidate = path;
+        candidate += " (restored " + std::to_string(n) + ")";
+    }
     return candidate;
 }
 
 // The first free gameN in a game's directory, like Paths::next_install_dir.
-static std::string free_install_dir(const std::string& base_dir)
+static fs::path free_install_dir(const fs::path& base_dir)
 {
     int n = 0;
-    while (exists_no_follow(base_dir + "/game" + std::to_string(n)))
+    while (exists_no_follow(base_dir / ("game" + std::to_string(n))))
         ++n;
-    return base_dir + "/game" + std::to_string(n);
+    return base_dir / ("game" + std::to_string(n));
 }
 
-// The install of that release in a game's directory, or "". Like
+// The install of that release in a game's directory, or empty. Like
 // Paths::installs_summary, but without its side effect on the settings.
-static std::string find_install(const std::string& base_dir, const std::string& release_name, Status& status)
+static fs::path find_install(const fs::path& base_dir, const std::string& release_name, Status& status)
 {
     std::vector<std::string> subdirs = Paths::list_dir(base_dir);
     for (size_t i = 0; i < subdirs.size(); ++i)
     {
-        std::string info_file = base_dir + "/" + subdirs[i] + "/" + INFO_FILENAME;
+        fs::path dir = base_dir / to_path(subdirs[i]);
+        fs::path info_file = dir / INFO_FILENAME;
         nlohmann::json info;
         if (fs::exists(info_file) && load_json_file(info_file, info, status) && info.is_object()
             && info.contains("name") && info["name"] == release_name)
-            return base_dir + "/" + subdirs[i];
+            return dir;
     }
-    return "";
+    return fs::path();
 }
 
 // A directory with move_dir, anything else (a file, a symlink) with a rename.
-static bool move_any(const std::string& src, const std::string& dest, Status& status)
+static bool move_any(const fs::path& src, const fs::path& dest, Status& status)
 {
     std::error_code ec;
     fs::file_status st = fs::symlink_status(src, ec);
@@ -116,7 +121,7 @@ static bool move_any(const std::string& src, const std::string& dest, Status& st
     fs::rename(src, dest, ec);
     if (ec)
     {
-        status.post("Failed to move " + src + " to " + dest + ": " + ec.message(), MSG_ERROR);
+        status.post("Failed to move " + to_utf8(src) + " to " + to_utf8(dest) + ": " + ec.message(), MSG_ERROR);
         return false;
     }
     return true;
@@ -145,23 +150,23 @@ std::string Trash::make_id(const std::string& kind, const std::string& name, Clo
     return std::string(stamp) + "_" + kind + "_" + safe_name;
 }
 
-bool Trash::remove(const std::string& path, const std::string& kind, const std::string& name)
+bool Trash::remove(const fs::path& path, const std::string& kind, const std::string& name)
 {
     return remove(path, kind, name, Clock::now());
 }
 
-bool Trash::remove(const std::string& path, const std::string& kind, const std::string& name, Clock::time_point when)
+bool Trash::remove(const fs::path& path, const std::string& kind, const std::string& name, Clock::time_point when)
 {
     std::error_code ec;
     if (!exists_no_follow(path))
     {
-        status_.post("Nothing to delete at " + path, MSG_ERROR);
+        status_.post("Nothing to delete at " + to_utf8(path), MSG_ERROR);
         return false;
     }
 
     if (!settings_.get_bool("use_trash"))
     {
-        status_.post("Deleting " + path);
+        status_.post("Deleting " + to_utf8(path));
         return fs_helper::rm_dir(path, status_);
     }
 
@@ -170,15 +175,15 @@ bool Trash::remove(const std::string& path, const std::string& kind, const std::
     fs::path target = fs::weakly_canonical(path, ec);
     if (is_within(target, trash_dir) || is_within(trash_dir, target))
     {
-        status_.post("Refusing to move " + path + " to the trash: it is or contains the trash.", MSG_ERROR);
+        status_.post("Refusing to move " + to_utf8(path) + " to the trash: it is or contains the trash.", MSG_ERROR);
         return false;
     }
 
     std::string base_id = make_id(kind, name, when);
     std::string id = base_id;
-    for (int n = 2; exists_no_follow(paths_.trash_dir() + "/" + id); ++n)
+    for (int n = 2; exists_no_follow(paths_.trash_dir() / to_path(id)); ++n)
         id = base_id + "-" + std::to_string(n);
-    std::string entry = paths_.trash_dir() + "/" + id;
+    fs::path entry = paths_.trash_dir() / to_path(id);
 
     std::tm tm = local_time(when);
     char deleted_at[40];
@@ -189,7 +194,7 @@ bool Trash::remove(const std::string& path, const std::string& kind, const std::
     info["kind"] = kind;
     info["name"] = name;
     info["game"] = settings_.get_string("game");
-    info["original_path"] = fs::absolute(path, ec).string();
+    info["original_path"] = to_utf8(fs::absolute(path, ec));
     info["deleted_at"] = deleted_at;
     info["size"] = measure(path);
 
@@ -197,23 +202,23 @@ bool Trash::remove(const std::string& path, const std::string& kind, const std::
     fs::create_directories(entry, ec);
     if (ec)
     {
-        status_.post("Failed to create " + entry + ": " + ec.message(), MSG_ERROR);
+        status_.post("Failed to create " + to_utf8(entry) + ": " + ec.message(), MSG_ERROR);
         return false;
     }
-    if (!save_json_file(info, entry + "/" + INFO_FILE, status_))
+    if (!save_json_file(info, entry / INFO_FILE, status_))
     {
         fs::remove_all(entry, ec);
         return false;
     }
 
-    if (!fs_helper::move_dir(path, entry + "/" + ITEM_DIR, status_))
+    if (!fs_helper::move_dir(path, entry / ITEM_DIR, status_))
     {
         // Across filesystems move_dir goes file by file, so part of it may be in
         // the trash already. Only throw the entry away if nothing got there.
-        if (!exists_no_follow(entry + "/" + ITEM_DIR))
+        if (!exists_no_follow(entry / ITEM_DIR))
             fs::remove_all(entry, ec);
         else
-            status_.post("Part of " + name + " was moved to the trash. It is kept there, in " + entry, MSG_WARN);
+            status_.post("Part of " + name + " was moved to the trash. It is kept there, in " + to_utf8(entry), MSG_WARN);
         return false;
     }
     return true;
@@ -223,11 +228,11 @@ bool Trash::load_item(const std::string& id, TrashItem& out)
 {
     if (!is_valid_id(id))
         return false;
-    std::string entry = paths_.trash_dir() + "/" + id;
-    if (!exists_no_follow(entry + "/" + INFO_FILE) || !exists_no_follow(entry + "/" + ITEM_DIR))
+    fs::path entry = paths_.trash_dir() / to_path(id);
+    if (!exists_no_follow(entry / INFO_FILE) || !exists_no_follow(entry / ITEM_DIR))
         return false;
     nlohmann::json info;
-    if (!load_json_file(entry + "/" + INFO_FILE, info, status_) || !info.is_object())
+    if (!load_json_file(entry / INFO_FILE, info, status_) || !info.is_object())
         return false;
 
     out = TrashItem();
@@ -235,7 +240,7 @@ bool Trash::load_item(const std::string& id, TrashItem& out)
     out.kind = info.value("kind", "");
     out.name = info.value("name", id);
     out.game = info.value("game", "");
-    out.original_path = info.value("original_path", "");
+    out.original_path = to_path(info.value("original_path", ""));
     out.deleted_at = info.value("deleted_at", "");
     out.size = info.value("size", (std::uint64_t)0);
     return true;
@@ -277,14 +282,13 @@ bool Trash::delete_items(const std::vector<std::string>& ids)
     {
         // Ids come from list(), but never let one point outside the trash.
         const std::string& id = ids[i];
-        std::string entry = paths_.trash_dir() + "/" + id;
-        if (!is_valid_id(id) || !fs::is_directory(entry))
+        if (!is_valid_id(id) || !fs::is_directory(paths_.trash_dir() / to_path(id)))
         {
             status_.post("Not in the trash: \"" + id + "\"", MSG_ERROR);
             ok = false;
             continue;
         }
-        if (!fs_helper::rm_dir(entry, status_))
+        if (!fs_helper::rm_dir(paths_.trash_dir() / to_path(id), status_))
             ok = false;
     }
     return ok;
@@ -293,13 +297,13 @@ bool Trash::delete_items(const std::vector<std::string>& ids)
 bool Trash::empty()
 {
     status_.post("Emptying the trash...");
-    std::vector<std::string> entries;
+    std::vector<fs::path> entries;
     std::error_code ec;
     fs::directory_iterator it(paths_.trash_dir(), ec);
     if (ec)
         return true;  // No trash directory: nothing to do.
     for (; !ec && it != fs::directory_iterator(); it.increment(ec))
-        entries.push_back(it->path().string());
+        entries.push_back(it->path());
 
     bool ok = true;
     for (size_t i = 0; i < entries.size(); ++i)
@@ -336,11 +340,11 @@ RestorePlan Trash::plan_restore(const std::string& id)
         plan.reason = "It is not in the trash.";
         return plan;
     }
-    std::string entry = paths_.trash_dir() + "/" + id;
-    std::string item_dir = entry + "/" + ITEM_DIR;
+    fs::path entry = paths_.trash_dir() / to_path(id);
+    fs::path item_dir = entry / ITEM_DIR;
 
     std::error_code ec;
-    fs::path original(item.original_path);
+    const fs::path& original = item.original_path;
     if (!original.is_absolute())
     {
         plan.reason = "Where it came from is not known.";
@@ -351,10 +355,10 @@ RestorePlan Trash::plan_restore(const std::string& id)
         plan.reason = "It would be restored into the trash.";
         return plan;
     }
-    std::string parent = original.parent_path().string();
+    fs::path parent = original.parent_path();
     if (!fs::is_directory(parent))
     {
-        plan.reason = "The folder it was in (" + parent + ") no longer exists.";
+        plan.reason = "The folder it was in (" + to_utf8(parent) + ") no longer exists.";
         return plan;
     }
 
@@ -378,7 +382,7 @@ RestorePlan Trash::plan_restore(const std::string& id)
     }
     else if (item.kind == "install")
     {
-        std::string same = find_install(parent, item.name, status_);
+        fs::path same = find_install(parent, item.name, status_);
         if (!same.empty())
         {
             plan.kind = RestorePlan::CONFLICT;
@@ -387,21 +391,21 @@ RestorePlan Trash::plan_restore(const std::string& id)
             plan.reason = "\"" + item.name + "\" is already installed.";
             return plan;
         }
-        plan.dest = exists_no_follow(original) ? free_install_dir(parent) : original.string();
-        plan.kind = (plan.dest == original.string()) ? RestorePlan::ORIGINAL : RestorePlan::RENAMED;
+        plan.dest = exists_no_follow(original) ? free_install_dir(parent) : original;
+        plan.kind = (plan.dest == original) ? RestorePlan::ORIGINAL : RestorePlan::RENAMED;
         return plan;
     }
     else if (item.kind == "saves")
     {
         // The game only looks in one save directory, so the worlds go back into it.
-        plan.dest = original.string();
+        plan.dest = original;
         plan.kind = RestorePlan::ORIGINAL;
         if (exists_no_follow(original))
         {
             std::vector<std::string> worlds = Paths::list_dir(item_dir);
             for (size_t i = 0; i < worlds.size(); ++i)
             {
-                if (exists_no_follow(plan.dest + "/" + worlds[i]))
+                if (exists_no_follow(plan.dest / to_path(worlds[i])))
                     plan.kind = RestorePlan::RENAMED;
             }
         }
@@ -412,14 +416,14 @@ RestorePlan Trash::plan_restore(const std::string& id)
         // Renamed, it would no longer be <World>.git and the Snapshots tab
         // would not see it. Replacing keeps the newer history in the trash.
         plan.kind = RestorePlan::CONFLICT;
-        plan.conflict_path = original.string();
+        plan.conflict_path = original;
         plan.conflict_name = item.name;
         plan.reason = "There are newer snapshots of " + item.name + " (for example after Start fresh).";
         return plan;
     }
 
-    plan.dest = free_path(original.string());
-    plan.kind = (plan.dest == original.string()) ? RestorePlan::ORIGINAL : RestorePlan::RENAMED;
+    plan.dest = free_path(original);
+    plan.kind = (plan.dest == original) ? RestorePlan::ORIGINAL : RestorePlan::RENAMED;
     return plan;
 }
 
@@ -437,11 +441,12 @@ std::string Trash::check_restore_name(const std::string& id, const std::string& 
         return "Its name can't be chosen.";
     if (name.empty())
         return "The name cannot be empty.";
-    if (name == "." || name == ".." || name.find('/') != std::string::npos || name.find('\0') != std::string::npos)
-        return "The name cannot be " + name + " or contain /.";
+    // Backslash is a separator on Windows.
+    if (name == "." || name == ".." || name.find_first_of(std::string("/\\\0", 3)) != std::string::npos)
+        return "The name cannot be " + name + " or contain / or \\.";
     if (item.kind == "backup" && !BackupManager::is_valid_backup_name(name))
         return "A backup name cannot contain :/\\?*\"|%<> or start or end with a space.";
-    if (exists_no_follow(fs::path(item.original_path).parent_path() / name))
+    if (exists_no_follow(item.original_path.parent_path() / to_path(name)))
         return "Something named " + name + " is already there.";
     return "";
 }
@@ -464,7 +469,7 @@ bool Trash::restore(const std::string& id, bool replace, const std::string& name
             status_.post("Not restored as \"" + name + "\": " + problem, MSG_ERROR);
             return false;
         }
-        plan.dest = (fs::path(item.original_path).parent_path() / name).string();
+        plan.dest = item.original_path.parent_path() / to_path(name);
     }
     if (plan.kind == RestorePlan::CONFLICT)
     {
@@ -483,8 +488,8 @@ bool Trash::restore(const std::string& id, bool replace, const std::string& name
         }
     }
 
-    std::string entry = paths_.trash_dir() + "/" + id;
-    std::string item_dir = entry + "/" + ITEM_DIR;
+    fs::path entry = paths_.trash_dir() / to_path(id);
+    fs::path item_dir = entry / ITEM_DIR;
     status_.post("Restoring " + item.name + "...");
 
     bool ok = true;
@@ -494,13 +499,14 @@ bool Trash::restore(const std::string& id, bool replace, const std::string& name
         std::vector<std::string> names;
         std::error_code ec;
         for (fs::directory_iterator it(item_dir, ec); !ec && it != fs::directory_iterator(); it.increment(ec))
-            names.push_back(it->path().filename().string());
+            names.push_back(to_utf8(it->path().filename()));
         for (size_t i = 0; i < names.size(); ++i)
         {
-            std::string target = free_path(plan.dest + "/" + names[i]);
-            if (target != plan.dest + "/" + names[i])
-                status_.post(names[i] + " is restored as " + fs::path(target).filename().string());
-            if (!move_any(item_dir + "/" + names[i], target, status_))
+            fs::path wanted = plan.dest / to_path(names[i]);
+            fs::path target = free_path(wanted);
+            if (target != wanted)
+                status_.post(names[i] + " is restored as " + to_utf8(target.filename()));
+            if (!move_any(item_dir / to_path(names[i]), target, status_))
                 ok = false;
         }
     }
@@ -515,6 +521,6 @@ bool Trash::restore(const std::string& id, bool replace, const std::string& name
         return false;
     }
     fs_helper::rm_dir(entry, status_);
-    status_.post("Restored " + item.name + " to " + plan.dest);
+    status_.post("Restored " + item.name + " to " + to_utf8(plan.dest));
     return true;
 }

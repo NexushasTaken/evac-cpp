@@ -8,6 +8,7 @@
 #include <unistd.h>
 #endif
 
+#include "core/fs.h"
 #include "core/archive.h"
 #include "core/helpers.h"
 #include "core/paths.h"
@@ -16,21 +17,21 @@
 
 namespace fs = std::filesystem;
 
-static std::string make_temp_dir(const std::string& name)
+static fs::path make_temp_dir(const std::string& name)
 {
     fs::path p = fs::temp_directory_path() / ("evac_test_" + name);
     fs::remove_all(p);
     fs::create_directories(p);
-    return p.string();
+    return p;
 }
 
-static void write_file(const std::string& path, const std::string& content)
+static void write_file(const fs::path& path, const std::string& content)
 {
-    fs::create_directories(fs::path(path).parent_path());
+    fs::create_directories(path.parent_path());
     std::ofstream(path) << content;
 }
 
-static std::string read_file(const std::string& path)
+static std::string read_file(const fs::path& path)
 {
     std::ifstream f(path);
     std::stringstream ss;
@@ -42,7 +43,7 @@ struct SoundFixture
 {
     SoundFixture(const std::string& name)
         : dir(make_temp_dir(name)),
-          settings(dir + "/s.json", status),
+          settings(dir / "s.json", status),
           paths(dir, settings, status),
           trash(settings, paths, status),
           sounds(settings, paths, status, trash)
@@ -51,17 +52,17 @@ struct SoundFixture
     }
 
     // Makes a zip like the real soundpack archives: a directory with a soundpack.txt in it.
-    std::string make_pack_zip(const std::string& dir_in_zip, const std::string& marker)
+    fs::path make_pack_zip(const std::string& dir_in_zip, const std::string& marker)
     {
-        write_file(dir + "/zipsrc/" + dir_in_zip + "/soundpack.txt", "VIEW: Test Pack\nDESCRIPTION: " + marker + "\n");
-        write_file(dir + "/zipsrc/" + dir_in_zip + "/sfx/boom.ogg", marker);
-        std::string zip = dir + "/" + marker + ".zip";
-        REQUIRE(archive_helper::zip(dir + "/zipsrc", dir_in_zip, zip, status));
-        fs::remove_all(dir + "/zipsrc");
+        write_file(dir / "zipsrc" / dir_in_zip / "soundpack.txt", "VIEW: Test Pack\nDESCRIPTION: " + marker + "\n");
+        write_file(dir / "zipsrc" / dir_in_zip / "sfx/boom.ogg", marker);
+        fs::path zip = dir / (marker + ".zip");
+        REQUIRE(archive_helper::zip(dir / "zipsrc", dir_in_zip, zip, status));
+        fs::remove_all(dir / "zipsrc");
         return zip;
     }
 
-    std::string dir;
+    fs::path dir;
     Status status;
     Settings settings;
     Paths paths;
@@ -84,31 +85,31 @@ TEST_CASE("soundpack table")
 
 TEST_CASE("parse_sound_dir reads soundpack.txt")
 {
-    std::string dir = make_temp_dir("sound_parse");
-    write_file(dir + "/a/soundpack.txt", "VIEW: Pack A\r\nDESCRIPTION: Loud and clear\r\nMODS: x\r\n");
-    write_file(dir + "/b/soundpack.txt", "DESCRIPTION: No name here\n");
-    write_file(dir + "/c/readme.txt", "not a soundpack");
-    write_file(dir + "/d/soundpack.txt.disabled", "VIEW: Pack D\n");
+    fs::path dir = make_temp_dir("sound_parse");
+    write_file(dir / "a/soundpack.txt", "VIEW: Pack A\r\nDESCRIPTION: Loud and clear\r\nMODS: x\r\n");
+    write_file(dir / "b/soundpack.txt", "DESCRIPTION: No name here\n");
+    write_file(dir / "c/readme.txt", "not a soundpack");
+    write_file(dir / "d/soundpack.txt.disabled", "VIEW: Pack D\n");
 
     std::vector<InstalledSoundpack> packs = SoundpackManager::parse_sound_dir(dir);
     REQUIRE(packs.size() == 3);
     REQUIRE(packs[0].name == "Pack A");
     REQUIRE(packs[0].description == "Loud and clear");
-    REQUIRE(packs[0].location == dir + "/a");
+    REQUIRE(packs[0].location == dir / "a");
     REQUIRE(packs[0].enabled);
     REQUIRE(packs[1].name == "b");  // Falls back to the directory name.
     REQUIRE(packs[2].name == "Pack D");
     REQUIRE(!packs[2].enabled);
 
-    REQUIRE(SoundpackManager::parse_sound_dir(dir + "/missing").empty());
+    REQUIRE(SoundpackManager::parse_sound_dir(dir / "missing").empty());
 
 #ifndef _WIN32  // Windows has no permission bits for directories.
     // A directory that can't be searched is skipped, not an exception.
-    write_file(dir + "/e/soundpack.txt", "VIEW: Locked\n");
-    fs::permissions(dir + "/e", fs::perms::owner_read);
+    write_file(dir / "e/soundpack.txt", "VIEW: Locked\n");
+    fs::permissions(dir / "e", fs::perms::owner_read);
     std::vector<InstalledSoundpack> with_locked;
     CHECK_NOTHROW(with_locked = SoundpackManager::parse_sound_dir(dir));  // CHECK, so the cleanup below still runs.
-    fs::permissions(dir + "/e", fs::perms::owner_all);
+    fs::permissions(dir / "e", fs::perms::owner_all);
     if (geteuid() != 0)  // root can read it anyway.
         REQUIRE(with_locked.size() == 3);
 #endif
@@ -118,10 +119,10 @@ TEST_CASE("get_installed marks stock packs")
 {
     SoundFixture f("sound_installed");
     // A registered install, so that the stock directory is inside it.
-    write_file(f.dir + "/dda/game0/" + INFO_FILENAME, "{\"name\": \"Test Build\"}");
+    write_file(f.dir / "dda/game0" / INFO_FILENAME, "{\"name\": \"Test Build\"}");
     f.paths.installs_summary();
-    write_file(f.paths.sound_user() + "/mine/soundpack.txt", "VIEW: Mine\n");
-    write_file(f.paths.sound_stock() + "/stock/soundpack.txt", "VIEW: Stock\n");
+    write_file(f.paths.sound_user() / "mine/soundpack.txt", "VIEW: Mine\n");
+    write_file(f.paths.sound_stock() / "stock/soundpack.txt", "VIEW: Stock\n");
 
     std::vector<InstalledSoundpack> user_only = f.sounds.get_installed(false);
     REQUIRE(user_only.size() == 1);
@@ -136,45 +137,45 @@ TEST_CASE("get_installed marks stock packs")
 TEST_CASE("disable and enable a soundpack")
 {
     SoundFixture f("sound_toggle");
-    write_file(f.dir + "/dda/game0/" + INFO_FILENAME, "{\"name\": \"Test Build\"}");
+    write_file(f.dir / "dda/game0" / INFO_FILENAME, "{\"name\": \"Test Build\"}");
     f.paths.installs_summary();
-    std::string mine = f.paths.sound_user() + "/mine";
-    write_file(mine + "/soundpack.txt", "VIEW: Mine\n");
-    write_file(f.paths.sound_stock() + "/stock/soundpack.txt", "VIEW: Stock\n");
+    fs::path mine = f.paths.sound_user() / "mine";
+    write_file(mine / "soundpack.txt", "VIEW: Mine\n");
+    write_file(f.paths.sound_stock() / "stock/soundpack.txt", "VIEW: Stock\n");
 
     REQUIRE(f.sounds.set_enabled(mine, false));
-    REQUIRE(!fs::exists(mine + "/soundpack.txt"));
-    REQUIRE(fs::exists(mine + "/soundpack.txt.disabled"));
+    REQUIRE(!fs::exists(mine / "soundpack.txt"));
+    REQUIRE(fs::exists(mine / "soundpack.txt.disabled"));
     std::vector<InstalledSoundpack> installed = f.sounds.get_installed(false);
     REQUIRE(installed.size() == 1);
     REQUIRE(!installed[0].enabled);
 
     REQUIRE(f.sounds.set_enabled(mine, false));  // Already disabled: nothing to do.
-    REQUIRE(fs::exists(mine + "/soundpack.txt.disabled"));
+    REQUIRE(fs::exists(mine / "soundpack.txt.disabled"));
 
     REQUIRE(f.sounds.set_enabled(mine, true));
-    REQUIRE(fs::exists(mine + "/soundpack.txt"));
-    REQUIRE(!fs::exists(mine + "/soundpack.txt.disabled"));
+    REQUIRE(fs::exists(mine / "soundpack.txt"));
+    REQUIRE(!fs::exists(mine / "soundpack.txt.disabled"));
     REQUIRE(f.sounds.get_installed(false)[0].enabled);
 
-    REQUIRE(!f.sounds.set_enabled(f.paths.sound_user() + "/missing", false));
-    REQUIRE(!f.sounds.set_enabled(f.paths.sound_stock() + "/stock", false));  // Stock packs are left alone.
-    REQUIRE(fs::exists(f.paths.sound_stock() + "/stock/soundpack.txt"));
+    REQUIRE(!f.sounds.set_enabled(f.paths.sound_user() / "missing", false));
+    REQUIRE(!f.sounds.set_enabled(f.paths.sound_stock() / "stock", false));  // Stock packs are left alone.
+    REQUIRE(fs::exists(f.paths.sound_stock() / "stock/soundpack.txt"));
 
     // Never overwrite a file that is already there.
-    write_file(mine + "/soundpack.txt.disabled", "VIEW: Old copy\n");
+    write_file(mine / "soundpack.txt.disabled", "VIEW: Old copy\n");
     REQUIRE(!f.sounds.set_enabled(mine, false));
-    REQUIRE(fs::exists(mine + "/soundpack.txt"));
-    REQUIRE(read_file(mine + "/soundpack.txt.disabled") == "VIEW: Old copy\n");
-    fs::remove(mine + "/soundpack.txt.disabled");
+    REQUIRE(fs::exists(mine / "soundpack.txt"));
+    REQUIRE(read_file(mine / "soundpack.txt.disabled") == "VIEW: Old copy\n");
+    fs::remove(mine / "soundpack.txt.disabled");
 
     // A dangling soundpack.txt symlink is not replaced on enable either.
     REQUIRE(f.sounds.set_enabled(mine, false));
-    fs::create_symlink(f.dir + "/nowhere", mine + "/soundpack.txt");
+    fs::create_symlink(f.dir / "nowhere", mine / "soundpack.txt");
     REQUIRE(!f.sounds.set_enabled(mine, true));
-    REQUIRE(fs::is_symlink(mine + "/soundpack.txt"));
-    REQUIRE(fs::exists(mine + "/soundpack.txt.disabled"));
-    fs::remove(mine + "/soundpack.txt");
+    REQUIRE(fs::is_symlink(mine / "soundpack.txt"));
+    REQUIRE(fs::exists(mine / "soundpack.txt.disabled"));
+    fs::remove(mine / "soundpack.txt");
     REQUIRE(f.sounds.set_enabled(mine, true));
 
     // A disabled pack can still be deleted.
@@ -186,13 +187,13 @@ TEST_CASE("disable and enable a soundpack")
 TEST_CASE("delete picks the pack by location, not by name")
 {
     SoundFixture f("sound_same_name");
-    write_file(f.dir + "/dda/game0/" + INFO_FILENAME, "{\"name\": \"Test Build\"}");
+    write_file(f.dir / "dda/game0" / INFO_FILENAME, "{\"name\": \"Test Build\"}");
     f.paths.installs_summary();
-    std::string pack = f.paths.sound_user() + "/CC-Sounds";
-    std::string copy = f.paths.sound_user() + "/CC-Sounds-old";
-    write_file(pack + "/soundpack.txt", "VIEW: CC-Sounds\n");
-    write_file(copy + "/soundpack.txt", "VIEW: CC-Sounds\n");
-    write_file(f.paths.sound_stock() + "/stock/soundpack.txt", "VIEW: Stock\n");
+    fs::path pack = f.paths.sound_user() / "CC-Sounds";
+    fs::path copy = f.paths.sound_user() / "CC-Sounds-old";
+    write_file(pack / "soundpack.txt", "VIEW: CC-Sounds\n");
+    write_file(copy / "soundpack.txt", "VIEW: CC-Sounds\n");
+    write_file(f.paths.sound_stock() / "stock/soundpack.txt", "VIEW: Stock\n");
 
     // The second one in the list, which used to delete the first.
     REQUIRE(f.sounds.delete_pack(copy));
@@ -204,10 +205,10 @@ TEST_CASE("delete picks the pack by location, not by name")
     REQUIRE(trashed[0].original_path == copy);
 
     // Only paths of the user's packs are accepted.
-    REQUIRE(!f.sounds.delete_pack(f.paths.sound_stock() + "/stock"));
+    REQUIRE(!f.sounds.delete_pack(f.paths.sound_stock() / "stock"));
     REQUIRE(!f.sounds.delete_pack(f.paths.sound_user()));
-    REQUIRE(!f.sounds.delete_pack(pack + "/"));  // Must match exactly.
-    REQUIRE(fs::exists(f.paths.sound_stock() + "/stock"));
+    REQUIRE(!f.sounds.delete_pack(pack / ""));  // Must match exactly (no trailing separator).
+    REQUIRE(fs::exists(f.paths.sound_stock() / "stock"));
     REQUIRE(fs::exists(pack));
 }
 
@@ -218,80 +219,80 @@ TEST_CASE("install from a local file, reinstall and delete")
     pack.name = "Test Pack";
     pack.internal_path = "Inner-1";
 
-    std::string zip1 = f.make_pack_zip("Inner-1", "first");
+    fs::path zip1 = f.make_pack_zip("Inner-1", "first");
     REQUIRE(f.sounds.install_pack(pack, zip1, false, true));
-    REQUIRE(read_file(f.paths.sound_user() + "/Test Pack/sfx/boom.ogg") == "first");
+    REQUIRE(read_file(f.paths.sound_user() / "Test Pack/sfx/boom.ogg") == "first");
     REQUIRE(fs::exists(zip1));  // keep_archive: the user's file stays.
-    REQUIRE(!fs::exists(f.paths.tmp_dir() + "/Test Pack"));
+    REQUIRE(!fs::exists(f.paths.tmp_dir() / "Test Pack"));
 
     // Reinstall replaces the old contents.
-    std::string zip2 = f.make_pack_zip("Inner-1", "second");
+    fs::path zip2 = f.make_pack_zip("Inner-1", "second");
     REQUIRE(f.sounds.install_pack(pack, zip2, true, false));
-    REQUIRE(read_file(f.paths.sound_user() + "/Test Pack/sfx/boom.ogg") == "second");
+    REQUIRE(read_file(f.paths.sound_user() / "Test Pack/sfx/boom.ogg") == "second");
     REQUIRE(!fs::exists(zip2));  // Not kept.
     REQUIRE(f.trash.list().size() == 1);  // The first copy.
-    REQUIRE(read_file(f.paths.trash_dir() + "/" + f.trash.list()[0].id + "/item/sfx/boom.ogg") == "first");
+    REQUIRE(read_file(f.paths.trash_dir() / f.trash.list()[0].id / "item/sfx/boom.ogg") == "first");
 
     std::vector<InstalledSoundpack> installed = f.sounds.get_installed(false);
     REQUIRE(installed.size() == 1);
     REQUIRE(installed[0].name == "Test Pack");
 
-    REQUIRE(!f.sounds.delete_pack(f.paths.sound_user() + "/No Such Pack"));
+    REQUIRE(!f.sounds.delete_pack(f.paths.sound_user() / "No Such Pack"));
     REQUIRE(f.sounds.delete_pack(installed[0].location));
-    REQUIRE(!fs::exists(f.paths.sound_user() + "/Test Pack"));
+    REQUIRE(!fs::exists(f.paths.sound_user() / "Test Pack"));
     REQUIRE(f.trash.list().size() == 2);
 }
 
 TEST_CASE("a stock pack with the same name is not a user copy")
 {
     SoundFixture f("sound_stock_same_name");
-    write_file(f.dir + "/dda/game0/" + INFO_FILENAME, "{\"name\": \"Test Build\"}");
+    write_file(f.dir / "dda/game0" / INFO_FILENAME, "{\"name\": \"Test Build\"}");
     f.paths.installs_summary();
-    write_file(f.paths.sound_stock() + "/CC-Sounds/soundpack.txt", "VIEW: CC-Sounds\n");
+    write_file(f.paths.sound_stock() / "CC-Sounds/soundpack.txt", "VIEW: CC-Sounds\n");
     SoundpackSource pack;
     pack.name = "CC-Sounds";
     pack.internal_path = "Inner-1";
 
     // Only the stock one: installing is not a reinstall, and nothing goes to the trash.
     REQUIRE(!f.sounds.has_user_copy(pack));
-    std::string zip1 = f.make_pack_zip("Inner-1", "first");
+    fs::path zip1 = f.make_pack_zip("Inner-1", "first");
     REQUIRE(f.sounds.install_pack(pack, zip1, false, true));
     REQUIRE(f.sounds.has_user_copy(pack));
     REQUIRE(f.trash.list().empty());
-    REQUIRE(fs::exists(f.paths.sound_stock() + "/CC-Sounds/soundpack.txt"));
+    REQUIRE(fs::exists(f.paths.sound_stock() / "CC-Sounds/soundpack.txt"));
 
     // Installing over the user's copy without reinstall is refused, not merged.
-    write_file(f.paths.sound_user() + "/CC-Sounds/mine.txt", "keep");
-    std::string zip2 = f.make_pack_zip("Inner-1", "second");
+    write_file(f.paths.sound_user() / "CC-Sounds/mine.txt", "keep");
+    fs::path zip2 = f.make_pack_zip("Inner-1", "second");
     REQUIRE(!f.sounds.install_pack(pack, zip2, false, true));
-    REQUIRE(read_file(f.paths.sound_user() + "/CC-Sounds/sfx/boom.ogg") == "first");
-    REQUIRE(read_file(f.paths.sound_user() + "/CC-Sounds/mine.txt") == "keep");
+    REQUIRE(read_file(f.paths.sound_user() / "CC-Sounds/sfx/boom.ogg") == "first");
+    REQUIRE(read_file(f.paths.sound_user() / "CC-Sounds/mine.txt") == "keep");
 
     // A reinstall replaces it, and the old copy is in the trash.
     REQUIRE(f.sounds.install_pack(pack, zip2, true, true));
-    REQUIRE(read_file(f.paths.sound_user() + "/CC-Sounds/sfx/boom.ogg") == "second");
+    REQUIRE(read_file(f.paths.sound_user() / "CC-Sounds/sfx/boom.ogg") == "second");
     REQUIRE(f.trash.list().size() == 1);
-    REQUIRE(read_file(f.paths.trash_dir() + "/" + f.trash.list()[0].id + "/item/mine.txt") == "keep");
+    REQUIRE(read_file(f.paths.trash_dir() / f.trash.list()[0].id / "item/mine.txt") == "keep");
 }
 
 TEST_CASE("install downloads the archive and uses the cache")
 {
     SoundFixture f("sound_download");
-    std::string zip = f.make_pack_zip("Inner-2", "downloaded");
+    fs::path zip = f.make_pack_zip("Inner-2", "downloaded");
 
     SoundpackSource pack;
     pack.name = "Test Pack";
-    pack.url = "file://" + zip;
+    pack.url = "file://" + to_utf8(zip);
     pack.filename = "test-pack.zip";
     pack.internal_path = "Inner-2";
 
     REQUIRE(f.sounds.install_pack(pack, "", false, false));
-    REQUIRE(read_file(f.paths.sound_user() + "/Test Pack/sfx/boom.ogg") == "downloaded");
-    REQUIRE(!fs::exists(f.paths.cache_dir() + "/test-pack.zip"));  // keep_cache is off.
+    REQUIRE(read_file(f.paths.sound_user() / "Test Pack/sfx/boom.ogg") == "downloaded");
+    REQUIRE(!fs::exists(f.paths.cache_dir() / "test-pack.zip"));  // keep_cache is off.
 
     f.settings.set_bool("keep_cache", true);
     REQUIRE(f.sounds.install_pack(pack, "", true, false));
-    REQUIRE(fs::exists(f.paths.cache_dir() + "/test-pack.zip"));
+    REQUIRE(fs::exists(f.paths.cache_dir() / "test-pack.zip"));
 }
 
 TEST_CASE("failed installs leave the old copy alone")
@@ -299,22 +300,22 @@ TEST_CASE("failed installs leave the old copy alone")
     SoundFixture f("sound_fail");
     SoundpackSource pack;
     pack.name = "Test Pack";
-    pack.url = "file://" + f.dir + "/nope.zip";
+    pack.url = "file://" + to_utf8(f.dir / "nope.zip");
     pack.filename = "nope.zip";
     pack.internal_path = "Inner-1";
 
-    std::string zip = f.make_pack_zip("Inner-1", "good");
+    fs::path zip = f.make_pack_zip("Inner-1", "good");
     REQUIRE(f.sounds.install_pack(pack, zip, false, true));
 
     // Download fails.
     REQUIRE(!f.sounds.install_pack(pack, "", true, false));
     // The archive is not a zip.
-    write_file(f.dir + "/bad.zip", "garbage");
-    REQUIRE(!f.sounds.install_pack(pack, f.dir + "/bad.zip", true, true));
+    write_file(f.dir / "bad.zip", "garbage");
+    REQUIRE(!f.sounds.install_pack(pack, f.dir / "bad.zip", true, true));
     // The archive does not have the expected directory.
-    std::string wrong = f.make_pack_zip("Other-Dir", "wrong");
+    fs::path wrong = f.make_pack_zip("Other-Dir", "wrong");
     REQUIRE(!f.sounds.install_pack(pack, wrong, true, true));
 
-    REQUIRE(read_file(f.paths.sound_user() + "/Test Pack/sfx/boom.ogg") == "good");
+    REQUIRE(read_file(f.paths.sound_user() / "Test Pack/sfx/boom.ogg") == "good");
     REQUIRE(f.trash.list().empty());  // Nothing was replaced.
 }

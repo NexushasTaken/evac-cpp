@@ -3,11 +3,13 @@
 #include <fstream>
 #include <sstream>
 
-static std::string read_text(const std::string& path)
+#include "core/fs.h"
+
+static std::string read_text(const std::filesystem::path& path)
 {
     std::ifstream f(path);
     if (!f)
-        return "(Could not read " + path + ")";
+        return "(Could not read " + to_utf8(path) + ")";
     std::stringstream ss;
     ss << f.rdbuf();
     return ss.str();
@@ -24,18 +26,18 @@ static const char LIBRARIES_TEXT[] =
     "nlohmann/json - MIT license - https://github.com/nlohmann/json\n"
     "spdlog and fmt - MIT license - https://github.com/gabime/spdlog, https://github.com/fmtlib/fmt";
 
-std::vector<LicenseSection> load_license_sections(const std::string& data_dir)
+std::vector<LicenseSection> load_license_sections(const std::filesystem::path& data_dir)
 {
     std::vector<LicenseSection> sections;
     LicenseSection s;
 
     s.heading = "Evac";
-    s.text = read_text(data_dir + "/licenses/Evac.txt");
+    s.text = read_text(data_dir / "licenses" / "Evac.txt");
     sections.push_back(s);
 
     // Evac started as a port of Catapult; its license asks to keep this notice.
     s.heading = "Catapult (the original launcher)";
-    s.text = read_text(data_dir + "/licenses/Catapult.txt");
+    s.text = read_text(data_dir / "licenses" / "Catapult.txt");
     sections.push_back(s);
 
     s.heading = "Libraries";
@@ -52,7 +54,7 @@ std::vector<LicenseSection> load_license_sections(const std::string& data_dir)
     for (size_t i = 0; i < sizeof(fonts) / sizeof(fonts[0]); ++i)
     {
         s.heading = std::string("Font: ") + fonts[i][0];
-        s.text = read_text(data_dir + "/fonts/licenses/" + fonts[i][1] + ".txt");
+        s.text = read_text(data_dir / "fonts" / "licenses" / to_path(std::string(fonts[i][1]) + ".txt"));
         sections.push_back(s);
     }
     return sections;

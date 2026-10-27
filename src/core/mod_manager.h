@@ -1,6 +1,7 @@
 #ifndef EVAC_MOD_MANAGER_H
 #define EVAC_MOD_MANAGER_H
 
+#include <filesystem>
 #include <map>
 #include <string>
 #include <vector>
@@ -17,7 +18,7 @@ struct ModEntry
 {
     std::string id;
     std::string name;
-    std::string location;  // The directory of the mod.
+    std::filesystem::path location;  // The directory of the mod.
     nlohmann::json modinfo;
     bool is_stock = false;     // Comes with the game.
     bool is_obsolete = false;  // A stock mod that the game marks as obsolete.
@@ -52,7 +53,7 @@ public:
     ModManager(Settings& settings, Paths& paths, Status& status, Trash& trash);
 
     // Finds mods in a directory (id -> mod). Exposed for tests.
-    static std::map<std::string, ModEntry> parse_mods_dir(const std::string& mods_dir, Status& status);
+    static std::map<std::string, ModEntry> parse_mods_dir(const std::filesystem::path& mods_dir, Status& status);
     static std::string strip_html_tags(const std::string& text);
 
     // The modpack for a game ("dda" or "bn"), or null if there is none.

@@ -6,10 +6,20 @@
 
 namespace fs = std::filesystem;
 
+fs::path to_path(const std::string& utf8)
+{
+    return fs::u8path(utf8);
+}
+
+std::string to_utf8(const fs::path& path)
+{
+    return path.u8string();
+}
+
 namespace fs_helper
 {
 
-std::vector<std::string> list_dir(const std::string& path, bool recursive, const std::string& filter_regex,
+std::vector<std::string> list_dir(const fs::path& path, bool recursive, const std::string& filter_regex,
                                   Status& status)
 {
     std::vector<std::string> result;
@@ -24,16 +34,16 @@ std::vector<std::string> list_dir(const std::string& path, bool recursive, const
         }
         catch (const std::regex_error&)
         {
-            status.post("Failed to list directory " + path + ": invalid filter", MSG_ERROR);
+            status.post("Failed to list directory " + to_utf8(path) + ": invalid filter", MSG_ERROR);
             return result;
         }
     }
 
     std::error_code ec;
-    fs::path base(path);
+    const fs::path& base = path;
     if (!fs::is_directory(base, ec))
     {
-        status.post("Failed to list directory: " + path, MSG_ERROR);
+        status.post("Failed to list directory: " + to_utf8(path), MSG_ERROR);
         return result;
     }
 
@@ -41,14 +51,14 @@ std::vector<std::string> list_dir(const std::string& path, bool recursive, const
     fs::recursive_directory_iterator it(base, ec);
     if (ec)
     {
-        status.post("Failed to list directory " + path + ": " + ec.message(), MSG_ERROR);
+        status.post("Failed to list directory " + to_utf8(path) + ": " + ec.message(), MSG_ERROR);
         return result;
     }
     for (; it != fs::recursive_directory_iterator(); it.increment(ec))
     {
         if (ec)
             break;
-        std::string rel = fs::relative(it->path(), base).generic_string();
+        std::string rel = fs::relative(it->path(), base).generic_u8string();
         if (!use_filter || std::regex_search(rel, filter))
             result.push_back(rel);
         if (!recursive)
@@ -66,14 +76,14 @@ static bool copy_dir_internal(const fs::path& src, const fs::path& dest, Status&
     fs::create_directories(dest, ec);
     if (ec)
     {
-        status.post("Cannot create target directory " + dest.string() + ": " + ec.message(), MSG_ERROR);
+        status.post("Cannot create target directory " + to_utf8(dest) + ": " + ec.message(), MSG_ERROR);
         return false;
     }
 
     fs::directory_iterator it(src, ec);
     if (ec)
     {
-        status.post("Failed to list directory " + src.string() + ": " + ec.message(), MSG_ERROR);
+        status.post("Failed to list directory " + to_utf8(src) + ": " + ec.message(), MSG_ERROR);
         return false;
     }
     for (; it != fs::directory_iterator(); it.increment(ec))
@@ -95,7 +105,7 @@ static bool copy_dir_internal(const fs::path& src, const fs::path& dest, Status&
         }
         if (ec)
         {
-            status.post("Failed to copy " + it->path().filename().string() + ": " + ec.message(), MSG_ERROR);
+            status.post("Failed to copy " + to_utf8(it->path().filename()) + ": " + ec.message(), MSG_ERROR);
             ok = false;
             ec.clear();
         }
@@ -103,21 +113,21 @@ static bool copy_dir_internal(const fs::path& src, const fs::path& dest, Status&
     return ok;
 }
 
-bool copy_dir(const std::string& path, const std::string& dest_dir, Status& status)
+bool copy_dir(const fs::path& path, const fs::path& dest_dir, Status& status)
 {
-    fs::path src(path);
+    fs::path src = path;
     if (src.filename().empty())
         src = src.parent_path();  // Handle a trailing slash.
-    return copy_dir_internal(src, fs::path(dest_dir) / src.filename(), status);
+    return copy_dir_internal(src, dest_dir / src.filename(), status);
 }
 
-bool rm_dir(const std::string& path, Status& status)
+bool rm_dir(const fs::path& path, Status& status)
 {
     std::error_code ec;
     fs::remove_all(path, ec);
     if (ec)
     {
-        status.post("Failed to remove directory " + path + ": " + ec.message(), MSG_ERROR);
+        status.post("Failed to remove directory " + to_utf8(path) + ": " + ec.message(), MSG_ERROR);
         return false;
     }
     return true;
@@ -142,7 +152,7 @@ static bool move_dir_internal(const fs::path& src, const fs::path& dest, Status&
     fs::create_directories(dest, ec);
     if (ec)
     {
-        status.post("Failed to create directory " + dest.string() + ": " + ec.message(), MSG_ERROR);
+        status.post("Failed to create directory " + to_utf8(dest) + ": " + ec.message(), MSG_ERROR);
         return false;
     }
 
@@ -171,7 +181,7 @@ static bool move_dir_internal(const fs::path& src, const fs::path& dest, Status&
         }
         if (move_ec)
         {
-            status.post("Failed to move " + it->path().filename().string() + ": " + move_ec.message(), MSG_ERROR);
+            status.post("Failed to move " + to_utf8(it->path().filename()) + ": " + move_ec.message(), MSG_ERROR);
             ok = false;
         }
     }
@@ -181,16 +191,16 @@ static bool move_dir_internal(const fs::path& src, const fs::path& dest, Status&
         fs::remove(src, ec);
         if (ec)
         {
-            status.post("Failed to remove directory after move: " + src.string() + ": " + ec.message(), MSG_ERROR);
+            status.post("Failed to remove directory after move: " + to_utf8(src) + ": " + ec.message(), MSG_ERROR);
             ok = false;
         }
     }
     return ok;
 }
 
-bool move_dir(const std::string& path, const std::string& dest, Status& status)
+bool move_dir(const fs::path& path, const fs::path& dest, Status& status)
 {
-    return move_dir_internal(fs::path(path), fs::path(dest), status);
+    return move_dir_internal(path, dest, status);
 }
 
 }  // namespace fs_helper

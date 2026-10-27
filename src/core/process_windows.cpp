@@ -180,12 +180,12 @@ Result run(const std::string& program, const std::vector<std::string>& args, con
     return result;
 }
 
-bool spawn_detached(const std::string& executable, const std::vector<std::string>& args,
-                    const std::string& working_dir, std::string& error)
+bool spawn_detached(const std::filesystem::path& executable, const std::vector<std::string>& args,
+                    const std::filesystem::path& working_dir, std::string& error)
 {
-    std::wstring app = widen(executable);
-    std::wstring command = widen(windows_command_line(executable, args));
-    std::wstring dir = widen(working_dir);
+    std::wstring app = executable.wstring();
+    std::wstring command = widen(windows_command_line(executable.u8string(), args));
+    std::wstring dir = working_dir.wstring();
     STARTUPINFOW si;
     ZeroMemory(&si, sizeof(si));
     si.cb = sizeof(si);

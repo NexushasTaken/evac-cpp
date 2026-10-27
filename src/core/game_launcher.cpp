@@ -2,6 +2,7 @@
 
 #include <filesystem>
 
+#include "core/fs.h"
 #include "core/helpers.h"
 #include "core/platform.h"
 #include "core/process.h"
@@ -99,13 +100,13 @@ GameLauncher::GameLauncher(Settings& settings, Paths& paths, Status& status)
 
 bool GameLauncher::has_last_world()
 {
-    return fs::exists(paths_.config() + "/lastworld.json");
+    return fs::exists(paths_.config() / "lastworld.json");
 }
 
 std::string GameLauncher::last_world()
 {
     nlohmann::json info;
-    if (!load_json_file(paths_.config() + "/lastworld.json", info, status_))
+    if (!load_json_file(paths_.config() / "lastworld.json", info, status_))
         return "";
     if (!info.is_object() || !info.contains("world_name") || !info["world_name"].is_string())
         return "";
@@ -114,8 +115,9 @@ std::string GameLauncher::last_world()
 
 bool GameLauncher::start(const std::string& world)
 {
-    std::string game_dir = paths_.game_dir();
-    std::string userdata = paths_.userdata() + "/";
+    fs::path game_dir = paths_.game_dir();
+    // The game wants a trailing separator.
+    std::string userdata = to_utf8(paths_.userdata() / "");
 
     std::vector<std::string> names = executable_names();
     if (names.empty())
@@ -123,15 +125,15 @@ bool GameLauncher::start(const std::string& world)
         status_.post("Cannot start the game: starting games is not supported on this platform yet.", MSG_ERROR);
         return false;
     }
-    std::string executable;
+    fs::path executable;
     for (size_t i = 0; i < names.size() && executable.empty(); ++i)
     {
-        if (platform::is_executable_file(game_dir + "/" + names[i]))
-            executable = game_dir + "/" + names[i];
+        if (platform::is_executable_file(game_dir / names[i]))
+            executable = game_dir / names[i];
     }
     if (executable.empty())
     {
-        status_.post("Cannot start the game, no executable found: " + game_dir + "/" + names[0], MSG_ERROR);
+        status_.post("Cannot start the game, no executable found: " + to_utf8(game_dir / names[0]), MSG_ERROR);
         return false;
     }
 

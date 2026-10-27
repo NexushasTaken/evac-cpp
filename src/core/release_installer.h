@@ -1,6 +1,7 @@
 #ifndef EVAC_RELEASE_INSTALLER_H
 #define EVAC_RELEASE_INSTALLER_H
 
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -21,13 +22,13 @@ public:
     // Downloads (unless the archive is cached) and installs the release. If
     // update_in is not empty, that existing install is replaced instead of
     // creating a new one.
-    bool install_release(const Release& release, const std::string& update_in);
+    bool install_release(const Release& release, const std::filesystem::path& update_in);
 
     bool remove_release_by_name(const std::string& release_name);
 
     // Returns the user data directories found inside the game directory of
     // the install, which would be lost when it gets deleted.
-    std::vector<std::string> check_game_dir_for_userdata(const std::string& release_name);
+    std::vector<std::filesystem::path> check_game_dir_for_userdata(const std::string& release_name);
 
     void cancel();
 

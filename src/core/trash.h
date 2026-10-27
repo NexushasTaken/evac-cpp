@@ -3,6 +3,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -18,7 +19,7 @@ struct TrashItem
     std::string kind;           // "soundpack", "mod", "backup", "install", "saves"
     std::string name;           // What to show on the list.
     std::string game;           // The game that was selected when it was deleted.
-    std::string original_path;
+    std::filesystem::path original_path;
     std::string deleted_at;     // Local time, "2026-10-18 14:03:22.123". Sorts by time.
     std::uint64_t size = 0;     // In bytes, measured when it was moved here.
 };
@@ -35,8 +36,8 @@ struct RestorePlan
         IMPOSSIBLE,  // Can't be restored, see reason.
     };
     Kind kind = IMPOSSIBLE;
-    std::string dest;           // ORIGINAL, RENAMED: where it goes.
-    std::string conflict_path;  // CONFLICT: what replacing would move to the trash...
+    std::filesystem::path dest;           // ORIGINAL, RENAMED: where it goes.
+    std::filesystem::path conflict_path;  // CONFLICT: what replacing would move to the trash...
     std::string conflict_name;  // ...and its name there.
     std::string reason;         // CONFLICT, IMPOSSIBLE: for the user.
 };
@@ -51,9 +52,10 @@ public:
     Trash(Settings& settings, Paths& paths, Status& status);
 
     // Moves path to the trash, or removes it for good when "use_trash" is off.
-    bool remove(const std::string& path, const std::string& kind, const std::string& name);
+    bool remove(const std::filesystem::path& path, const std::string& kind, const std::string& name);
     // The same, with the time to record (for tests).
-    bool remove(const std::string& path, const std::string& kind, const std::string& name, Clock::time_point when);
+    bool remove(const std::filesystem::path& path, const std::string& kind, const std::string& name,
+                Clock::time_point when);
 
     // Newest first. Entries without info.json and item/ (half written) are left out.
     std::vector<TrashItem> list();

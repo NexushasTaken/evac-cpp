@@ -1,6 +1,7 @@
 #ifndef EVAC_PROCESS_H
 #define EVAC_PROCESS_H
 
+#include <filesystem>
 #include <string>
 #include <utility>
 #include <vector>
@@ -34,11 +35,11 @@ struct Environment
 // worker thread for anything slow.
 Result run(const std::string& program, const std::vector<std::string>& args, const Environment& env);
 
-// Starts an executable (a full path) in working_dir and does not wait for it.
-// It keeps running if the launcher exits. Returns false and sets error if it
-// could not be started.
-bool spawn_detached(const std::string& executable, const std::vector<std::string>& args,
-                    const std::string& working_dir, std::string& error);
+// Starts an executable in working_dir and does not wait for it. It keeps
+// running if the launcher exits. Returns false and sets error if it could not
+// be started.
+bool spawn_detached(const std::filesystem::path& executable, const std::vector<std::string>& args,
+                    const std::filesystem::path& working_dir, std::string& error);
 
 // --- Helpers, public for the tests ---
 

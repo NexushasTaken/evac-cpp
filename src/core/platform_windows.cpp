@@ -44,7 +44,7 @@ std::string os_name()
     return "win";
 }
 
-std::string executable_path()
+fs::path executable_path()
 {
     // The path can be longer than MAX_PATH, so grow until it fits.
     std::vector<wchar_t> buf(MAX_PATH);
@@ -52,9 +52,9 @@ std::string executable_path()
     {
         DWORD n = GetModuleFileNameW(nullptr, buf.data(), (DWORD)buf.size());
         if (n == 0)
-            return "";
+            return fs::path();
         if (n < buf.size())
-            return narrow(std::wstring(buf.data(), n));
+            return fs::path(std::wstring(buf.data(), n));
         buf.resize(buf.size() * 2);
     }
 }
@@ -71,11 +71,11 @@ std::string get_env(const char* name)
     return narrow(value);
 }
 
-bool is_executable_file(const std::string& path)
+bool is_executable_file(const fs::path& path)
 {
     // Windows has no execute bit; any regular file can be tried.
     std::error_code ec;
-    return fs::is_regular_file(fs::path(widen(path)), ec);
+    return fs::is_regular_file(path, ec);
 }
 
 std::tm local_time(std::time_t t)
@@ -85,11 +85,11 @@ std::tm local_time(std::time_t t)
     return result;
 }
 
-bool dir_writable(const std::string& dir, bool& read_only_fs)
+bool dir_writable(const fs::path& dir, bool& read_only_fs)
 {
     // Attributes say nothing about directories, so try to make a file.
     read_only_fs = false;
-    std::wstring probe = widen(dir) + L"\\.evac-write-test-" + std::to_wstring(GetCurrentProcessId());
+    std::wstring probe = (dir / (L".evac-write-test-" + std::to_wstring(GetCurrentProcessId()))).wstring();
     HANDLE h = CreateFileW(probe.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW,
                            FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE, nullptr);
     if (h == INVALID_HANDLE_VALUE)

@@ -1,6 +1,7 @@
 #ifndef EVAC_PATHS_H
 #define EVAC_PATHS_H
 
+#include <filesystem>
 #include <map>
 #include <string>
 #include <vector>
@@ -14,14 +15,15 @@
 //   cache_dir:  downloaded archives
 struct Locations
 {
-    std::string config_dir;
-    std::string games_dir;
-    std::string cache_dir;
+    std::filesystem::path config_dir;
+    std::filesystem::path games_dir;
+    std::filesystem::path cache_dir;
 };
 
 // Everything in one directory (the layout of the original launcher).
-Locations portable_locations(const std::string& dir);
-// XDG base directories. An empty or relative *_home is replaced by the default under home.
+Locations portable_locations(const std::filesystem::path& dir);
+// XDG base directories, from the values of HOME and XDG_*_HOME (UTF-8). An empty
+// or relative *_home is replaced by the default under home.
 Locations xdg_locations(const std::string& home, const std::string& config_home,
                         const std::string& data_home, const std::string& cache_home);
 // %APPDATA%\evac for the settings, %LOCALAPPDATA%\evac for games and cache.
@@ -36,7 +38,7 @@ Locations default_locations();
 // name for the list: renaming never touches the folder.
 struct UserdataFolder
 {
-    std::string path;
+    std::filesystem::path path;
     std::string label;
 };
 
@@ -45,69 +47,70 @@ class Paths
 {
 public:
     // game name -> (install name -> install directory)
-    typedef std::map<std::string, std::map<std::string, std::string> > InstallsSummary;
+    typedef std::map<std::string, std::map<std::string, std::filesystem::path> > InstallsSummary;
 
     Paths(const Locations& locations, Settings& settings, Status& status);
     // Portable layout in root (handy for tests).
-    Paths(const std::string& root, Settings& settings, Status& status);
+    Paths(const std::filesystem::path& root, Settings& settings, Status& status);
 
-    static std::string executable_dir();
-    static std::vector<std::string> list_dir(const std::string& dir);  // Subdirectories, sorted.
+    static std::filesystem::path executable_dir();
+    // Names of the subdirectories (UTF-8), sorted.
+    static std::vector<std::string> list_dir(const std::filesystem::path& dir);
 
     InstallsSummary installs_summary();
 
-    std::string cache_dir() const;
-    std::string game_dir();
-    std::string next_install_dir();
+    std::filesystem::path cache_dir() const;
+    std::filesystem::path game_dir();
+    std::filesystem::path next_install_dir();
     // The active userdata folder of the current game: a custom one if chosen, the
     // default otherwise. The launcher never creates it, the game fills it in.
-    std::string userdata();
-    std::string default_userdata();  // <game base>/userdata, always there and never removed.
+    std::filesystem::path userdata();
+    std::filesystem::path default_userdata();  // <game base>/userdata, always there and never removed.
     std::vector<UserdataFolder> custom_userdata();
     // Each says why it can't be done, or "" once done. Paths are made absolute.
-    std::string add_userdata(const std::string& path, const std::string& label);
-    std::string rename_userdata(const std::string& path, const std::string& label);
-    std::string check_userdata_label(const std::string& label, const std::string& own_path = "");
+    std::string add_userdata(const std::filesystem::path& path, const std::string& label);
+    std::string rename_userdata(const std::filesystem::path& path, const std::string& label);
+    std::string check_userdata_label(const std::string& label, const std::filesystem::path& own_path = {});
     // Forgets a custom folder; its files stay. The default becomes active if it was.
-    void remove_userdata(const std::string& path);
-    void set_active_userdata(const std::string& path);  // "" (or the default's path) for the default.
+    void remove_userdata(const std::filesystem::path& path);
+    void set_active_userdata(const std::filesystem::path& path);  // Empty (or the default's path) for the default.
     bool is_default_userdata_active();
-    std::string config();
-    std::string savegames();
-    std::string mods_stock();
-    std::string mods_user();
-    std::string sound_stock();
-    std::string sound_user();
-    std::string gfx_default();
-    std::string gfx_user();
-    std::string font_user();
-    std::string templates();
-    std::string memorial();
-    std::string graveyard();
-    std::string mod_repo();
-    std::string tmp_dir();
+    std::filesystem::path config();
+    std::filesystem::path savegames();
+    std::filesystem::path mods_stock();
+    std::filesystem::path mods_user();
+    std::filesystem::path sound_stock();
+    std::filesystem::path sound_user();
+    std::filesystem::path gfx_default();
+    std::filesystem::path gfx_user();
+    std::filesystem::path font_user();
+    std::filesystem::path templates();
+    std::filesystem::path memorial();
+    std::filesystem::path graveyard();
+    std::filesystem::path mod_repo();
+    std::filesystem::path tmp_dir();
     // Files that ship with the launcher (bundled fonts, ...): <executable dir>/data if
     // it exists, otherwise the data directory the build was made from.
-    std::string data_dir() const;
+    std::filesystem::path data_dir() const;
     // Everything the launcher adds to a userdata folder goes in launcher_dir, so it moves
     // with its worlds. The game never looks there.
-    std::string launcher_dir();
-    std::string save_backups();  // Zip backups (the Backups tab).
-    std::string snapshots();     // One bare git repository per world (the Snapshots tab).
+    std::filesystem::path launcher_dir();
+    std::filesystem::path save_backups();  // Zip backups (the Backups tab).
+    std::filesystem::path snapshots();     // One bare git repository per world (the Snapshots tab).
     // Zip backups used to be in <game base>/save_backups, from the time there was only
     // the default userdata. Moves them into the default's backups folder, whatever
     // userdata is active, if that does not exist yet. Returns false only if the move failed.
     bool move_old_backups();
     // Shared by all games, so it is next to the game directories, not in one.
-    std::string trash_dir() const;
+    std::filesystem::path trash_dir() const;
 
 private:
-    std::string game_base_dir();  // games_dir/<current game>
-    std::string find_active_game_dir();
+    std::filesystem::path game_base_dir();  // games_dir/<current game>
+    std::filesystem::path find_active_game_dir();
     void store_custom_userdata(const std::vector<UserdataFolder>& folders);
 
-    std::string games_dir_;
-    std::string cache_dir_;
+    std::filesystem::path games_dir_;
+    std::filesystem::path cache_dir_;
     Settings& settings_;
     Status& status_;
 };

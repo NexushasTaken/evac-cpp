@@ -7,6 +7,8 @@
 #include <filesystem>
 #include <fstream>
 
+#include "core/fs.h"
+
 namespace fs = std::filesystem;
 
 // Give progress updates after this time or this amount downloaded, whichever comes first.
@@ -179,12 +181,12 @@ std::string Http::format_size(long long bytes)
     return buf;
 }
 
-std::string Http::describe_download(Settings& settings, const std::string& cache_dir, const std::string& url,
+std::string Http::describe_download(Settings& settings, const fs::path& cache_dir, const std::string& url,
                                     const std::string& filename)
 {
     // The same check as before the downloads: a cached archive is used instead.
     std::error_code ec;
-    std::string cached = cache_dir + "/" + filename;
+    fs::path cached = cache_dir / to_path(filename);
     if (!settings.get_bool("ignore_cache") && fs::exists(cached, ec))
     {
         uintmax_t size = fs::file_size(cached, ec);
@@ -263,7 +265,7 @@ std::string Http::format_progress(double downloaded, double total, long delta_ms
     return result;
 }
 
-bool Http::download_file(const std::string& url, const std::string& target_dir, const std::string& target_filename)
+bool Http::download_file(const std::string& url, const fs::path& target_dir, const std::string& target_filename)
 {
     cancel_ = false;
 
@@ -271,11 +273,11 @@ bool Http::download_file(const std::string& url, const std::string& target_dir, 
     fs::create_directories(target_dir, ec);
     if (ec)
     {
-        status_.post("Download of " + target_filename + " failed: cannot create " + target_dir, MSG_ERROR);
+        status_.post("Download of " + target_filename + " failed: cannot create " + to_utf8(target_dir), MSG_ERROR);
         return false;
     }
 
-    fs::path final_path = fs::path(target_dir) / target_filename;
+    fs::path final_path = target_dir / to_path(target_filename);
     fs::path part_path = final_path;
     part_path += ".part";
 
@@ -289,7 +291,7 @@ bool Http::download_file(const std::string& url, const std::string& target_dir, 
     state.last_bytes = 0;
     if (!state.file)
     {
-        status_.post("Download of " + target_filename + " failed: cannot write " + part_path.string(), MSG_ERROR);
+        status_.post("Download of " + target_filename + " failed: cannot write " + to_utf8(part_path), MSG_ERROR);
         return false;
     }
 

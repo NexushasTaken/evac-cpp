@@ -1,6 +1,7 @@
 #ifndef EVAC_SOUNDPACK_MANAGER_H
 #define EVAC_SOUNDPACK_MANAGER_H
 
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -27,7 +28,7 @@ struct InstalledSoundpack
 {
     std::string name;
     std::string description;
-    std::string location;
+    std::filesystem::path location;
     bool is_stock = false;  // Comes with the game, so it can't be deleted.
     bool enabled = true;    // False when soundpack.txt is renamed to soundpack.txt.disabled.
 };
@@ -40,17 +41,17 @@ public:
 
     // Finds the soundpacks in a directory: every subdirectory that has a
     // soundpack.txt (or a soundpack.txt.disabled). Static, so it can be tested without a game install.
-    static std::vector<InstalledSoundpack> parse_sound_dir(const std::string& sound_dir);
+    static std::vector<InstalledSoundpack> parse_sound_dir(const std::filesystem::path& sound_dir);
 
     // The packs in the user's sound directory, plus the ones that come with the game.
     std::vector<InstalledSoundpack> get_installed(bool include_stock);
 
     // Packs are picked by location, not name: two folders can have the same VIEW name.
-    bool delete_pack(const std::string& location);
+    bool delete_pack(const std::filesystem::path& location);
 
     // Renames soundpack.txt to soundpack.txt.disabled, or back, so the game
     // skips the pack. Only for the user's packs, not the stock ones.
-    bool set_enabled(const std::string& location, bool enabled);
+    bool set_enabled(const std::filesystem::path& location, bool enabled);
 
     // True if the pack's directory is in the user's sound directory, so that
     // installing it again replaces that copy. Stock packs don't count: they
@@ -60,13 +61,14 @@ public:
     // Downloads the pack (or uses from_file, if not empty) and installs it.
     // With reinstall, an existing copy is removed first. Without it, an
     // existing copy is an error, so nothing gets merged into it.
-    bool install_pack(const SoundpackSource& pack, const std::string& from_file, bool reinstall, bool keep_archive);
+    bool install_pack(const SoundpackSource& pack, const std::filesystem::path& from_file, bool reinstall,
+                      bool keep_archive);
 
     void cancel();
 
 private:
     // Looks up one of the user's packs by its directory. Posts an error if there is none.
-    bool find_user_pack(const std::string& location, InstalledSoundpack& out);
+    bool find_user_pack(const std::filesystem::path& location, InstalledSoundpack& out);
 
     Settings& settings_;
     Paths& paths_;

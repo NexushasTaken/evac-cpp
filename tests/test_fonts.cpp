@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <fstream>
 
+#include "core/fs.h"
 #include "core/font_manager.h"
 #include "core/helpers.h"
 #include "core/paths.h"
@@ -10,17 +11,17 @@
 
 namespace fs = std::filesystem;
 
-static std::string make_temp_dir(const std::string& name)
+static fs::path make_temp_dir(const std::string& name)
 {
     fs::path p = fs::temp_directory_path() / ("evac_test_" + name);
     fs::remove_all(p);
     fs::create_directories(p);
-    return p.string();
+    return p;
 }
 
-static void write_file(const std::string& path, const std::string& content)
+static void write_file(const fs::path& path, const std::string& content)
 {
-    fs::create_directories(fs::path(path).parent_path());
+    fs::create_directories(path.parent_path());
     std::ofstream(path) << content;
 }
 
@@ -33,10 +34,10 @@ static const char GAME_FONTS[] =
     " \"overmap_typeface\": [{\"path\": \"data/font/Terminus.ttf\", \"hinting\": \"Bitmap\"}, \"data/font/unifont.ttf\"]}";
 
 // Same shape as what the game creates.
-static void write_game_config(const std::string& config_dir)
+static void write_game_config(const fs::path& config_dir)
 {
-    write_file(config_dir + "/fonts.json", GAME_FONTS);
-    write_file(config_dir + "/options.json",
+    write_file(config_dir / "fonts.json", GAME_FONTS);
+    write_file(config_dir / "options.json",
                "[{\"name\": \"FONT_SIZE\", \"value\": \"16\"}, {\"name\": \"FONT_HEIGHT\", \"value\": \"16\"},"
                " {\"name\": \"FONT_WIDTH\", \"value\": \"8\"}, {\"name\": \"MAP_FONT_SIZE\", \"value\": \"16\"},"
                " {\"name\": \"MAP_FONT_HEIGHT\", \"value\": \"16\"}, {\"name\": \"MAP_FONT_WIDTH\", \"value\": \"16\"},"
@@ -47,12 +48,12 @@ static void write_game_config(const std::string& config_dir)
 struct FontFixture
 {
     FontFixture(const std::string& name)
-        : dir(make_temp_dir(name)), settings(dir + "/s.json", status), paths(dir, settings, status), fonts(paths, status)
+        : dir(make_temp_dir(name)), settings(dir / "s.json", status), paths(dir, settings, status), fonts(paths, status)
     {
         settings.load();
     }
 
-    std::string dir;
+    fs::path dir;
     Status status;
     Settings settings;
     Paths paths;
@@ -68,7 +69,7 @@ TEST_CASE("bundled font info is valid and the files exist")
     for (size_t i = 0; i < f.fonts.available_fonts().size(); ++i)
     {
         const FontInfo& font = f.fonts.available_fonts()[i];
-        REQUIRE(fs::exists(f.paths.data_dir() + "/fonts/" + font.file));
+        REQUIRE(fs::exists(f.paths.data_dir() / "fonts" / font.file));
         REQUIRE(!font.description.empty());
     }
     REQUIRE(f.fonts.available_fonts()[2].name == "Hack");
@@ -94,28 +95,28 @@ TEST_CASE("set_font installs the font and edits fonts.json")
     REQUIRE(f.fonts.load_font_config());
 
     // Index 2 is Hack; set it for the UI and the map only.
-    std::string hack = f.paths.font_user() + "/Hack-Regular.ttf";
+    fs::path hack = f.paths.font_user() / "Hack-Regular.ttf";
     REQUIRE(f.fonts.set_font(2, {"typeface", "map_typeface"}));
     REQUIRE(fs::exists(hack));
 
     nlohmann::json saved;
-    REQUIRE(load_json_file(f.paths.config() + "/fonts.json", saved, f.status));
+    REQUIRE(load_json_file(f.paths.config() / "fonts.json", saved, f.status));
     REQUIRE(saved["typeface"].size() == 3);
     // The full path, which the menus need.
-    REQUIRE(saved["typeface"][0]["path"] == hack);
+    REQUIRE(saved["typeface"][0]["path"] == to_utf8(hack));
     REQUIRE(saved["typeface"][0]["hinting"] == "Default");
     // The game's entries are kept as they were.
     REQUIRE(saved["typeface"][1]["path"] == "data/font/Terminus.ttf");
     REQUIRE(saved["typeface"][1]["hinting"] == "Bitmap");
     REQUIRE(saved["typeface"][2] == "data/font/unifont.ttf");
-    REQUIRE(saved["map_typeface"][0]["path"] == hack);
+    REQUIRE(saved["map_typeface"][0]["path"] == to_utf8(hack));
     REQUIRE(saved["overmap_typeface"].size() == 2);
     REQUIRE(saved["gui_typeface"].size() == 2);
 
     // Setting another font replaces ours instead of piling up.
     REQUIRE(f.fonts.set_font(0, {"typeface"}));
     REQUIRE(f.fonts.font_files("typeface").size() == 3);
-    REQUIRE(f.fonts.font_files("typeface")[0] == f.paths.font_user() + "/FantasqueSansMono-Regular.ttf");
+    REQUIRE(f.fonts.font_files("typeface")[0] == f.paths.font_user() / "FantasqueSansMono-Regular.ttf");
 
     // The menus too.
     REQUIRE(f.fonts.set_font(2, ALL_FIELDS));
@@ -128,21 +129,21 @@ TEST_CASE("a font set by an older launcher by its file name is replaced too")
 {
     FontFixture f("fonts_old_name");
     write_game_config(f.paths.config());
-    write_file(f.paths.font_user() + "/Hack-Regular.ttf", "font");
-    write_file(f.paths.config() + "/fonts.json",
+    write_file(f.paths.font_user() / "Hack-Regular.ttf", "font");
+    write_file(f.paths.config() / "fonts.json",
                "{\"typeface\": [\"Hack-Regular.ttf\", \"data/font/unifont.ttf\"]}");
     REQUIRE(f.fonts.load_available_fonts());
     REQUIRE(f.fonts.set_font(0, {"typeface"}));
     std::vector<std::string> files = f.fonts.font_files("typeface");
     REQUIRE(files.size() == 2);
-    REQUIRE(files[0] == f.paths.font_user() + "/FantasqueSansMono-Regular.ttf");
+    REQUIRE(files[0] == f.paths.font_user() / "FantasqueSansMono-Regular.ttf");
 }
 
 TEST_CASE("font_files reads every entry shape of the game's format")
 {
     FontFixture f("fonts_shapes");
     write_game_config(f.paths.config());
-    write_file(f.paths.config() + "/fonts.json",
+    write_file(f.paths.config() / "fonts.json",
                "{\"typeface\": [{\"path\": \"Hack-Regular.ttf\", \"hinting\": \"Light\", \"antialiasing\": false},"
                " \"data/font/unifont.ttf\"],"
                " \"map_typeface\": {\"path\": \"data/font/Terminus.ttf\", \"hinting\": \"Bitmap\"},"
@@ -169,7 +170,7 @@ TEST_CASE("font_files reads every entry shape of the game's format")
     REQUIRE(f.fonts.set_font(0, {"map_typeface"}));
     files = f.fonts.font_files("map_typeface");
     REQUIRE(files.size() == 2);
-    REQUIRE(files[0] == f.paths.font_user() + "/FantasqueSansMono-Regular.ttf");
+    REQUIRE(files[0] == f.paths.font_user() / "FantasqueSansMono-Regular.ttf");
     REQUIRE(files[1] == "data/font/Terminus.ttf");
 }
 
@@ -187,7 +188,7 @@ TEST_CASE("fallback entries can be reordered, removed and styled")
     // A plain path becomes an object when it gets settings.
     REQUIRE(f.fonts.set_entry_style("typeface", 0, "data/font/unifont.ttf", "None", false));
     nlohmann::json saved;
-    REQUIRE(load_json_file(f.paths.config() + "/fonts.json", saved, f.status));
+    REQUIRE(load_json_file(f.paths.config() / "fonts.json", saved, f.status));
     REQUIRE(saved["typeface"][0]["path"] == "data/font/unifont.ttf");
     REQUIRE(saved["typeface"][0]["hinting"] == "None");
     REQUIRE(saved["typeface"][0]["antialiasing"] == false);
@@ -198,7 +199,7 @@ TEST_CASE("fallback entries can be reordered, removed and styled")
     REQUIRE(f.fonts.remove_entry("typeface", 1, "data/font/Terminus.ttf"));
     REQUIRE(f.fonts.font_files("typeface") == std::vector<std::string>{"data/font/unifont.ttf"});
     // The other lists are as the game wrote them.
-    REQUIRE(load_json_file(f.paths.config() + "/fonts.json", saved, f.status));
+    REQUIRE(load_json_file(f.paths.config() / "fonts.json", saved, f.status));
     REQUIRE(saved["map_typeface"] == nlohmann::json::parse(GAME_FONTS)["map_typeface"]);
 }
 
@@ -209,14 +210,14 @@ TEST_CASE("fonts added from a file are kept in the user font directory")
     REQUIRE(f.fonts.load_available_fonts());
     size_t bundled = f.fonts.available_fonts().size();
 
-    write_file(f.dir + "/elsewhere/MyFont.otf", "font");
-    write_file(f.dir + "/elsewhere/notes.txt", "text");
-    REQUIRE(f.fonts.add_font_file(f.dir + "/elsewhere/notes.txt") == -1);
-    REQUIRE(!f.fonts.add_would_replace(f.dir + "/elsewhere/MyFont.otf"));
-    int index = f.fonts.add_font_file(f.dir + "/elsewhere/MyFont.otf");
+    write_file(f.dir / "elsewhere/MyFont.otf", "font");
+    write_file(f.dir / "elsewhere/notes.txt", "text");
+    REQUIRE(f.fonts.add_font_file(f.dir / "elsewhere/notes.txt") == -1);
+    REQUIRE(!f.fonts.add_would_replace(f.dir / "elsewhere/MyFont.otf"));
+    int index = f.fonts.add_font_file(f.dir / "elsewhere/MyFont.otf");
     REQUIRE(index == (int)bundled);
-    REQUIRE(fs::exists(f.paths.font_user() + "/MyFont.otf"));
-    REQUIRE(f.fonts.add_would_replace(f.dir + "/elsewhere/MyFont.otf"));
+    REQUIRE(fs::exists(f.paths.font_user() / "MyFont.otf"));
+    REQUIRE(f.fonts.add_would_replace(f.dir / "elsewhere/MyFont.otf"));
 
     // Found again later, but bundled fonts installed there are not listed twice.
     REQUIRE(f.fonts.load_font_config());
@@ -227,11 +228,11 @@ TEST_CASE("fonts added from a file are kept in the user font directory")
     REQUIRE(!f.fonts.available_fonts()[bundled].bundled);
 
     REQUIRE(f.fonts.set_font(bundled, {"typeface"}));
-    REQUIRE(f.fonts.font_files("typeface")[0] == f.paths.font_user() + "/MyFont.otf");
+    REQUIRE(f.fonts.font_files("typeface")[0] == f.paths.font_user() / "MyFont.otf");
 
     // The bundled fonts' names are taken.
-    write_file(f.dir + "/elsewhere/Hack-Regular.ttf", "font");
-    REQUIRE(f.fonts.add_font_file(f.dir + "/elsewhere/Hack-Regular.ttf") == -1);
+    write_file(f.dir / "elsewhere/Hack-Regular.ttf", "font");
+    REQUIRE(f.fonts.add_font_file(f.dir / "elsewhere/Hack-Regular.ttf") == -1);
 }
 
 TEST_CASE("reset_font brings back the defaults")
@@ -244,14 +245,14 @@ TEST_CASE("reset_font brings back the defaults")
 
     // No data/fontdata.json in the game: nothing to reset to.
     REQUIRE(!f.fonts.reset_font());
-    REQUIRE(f.fonts.font_files("typeface")[0] == f.paths.font_user() + "/Hack-Regular.ttf");
+    REQUIRE(f.fonts.font_files("typeface")[0] == f.paths.font_user() / "Hack-Regular.ttf");
 
-    write_file(f.dir + "/dda/game0/" + INFO_FILENAME, "{\"name\": \"Test Build\"}");
+    write_file(f.dir / "dda/game0" / INFO_FILENAME, "{\"name\": \"Test Build\"}");
     f.paths.installs_summary();
-    write_file(f.dir + "/dda/game0/data/fontdata.json", GAME_FONTS);
+    write_file(f.dir / "dda/game0/data/fontdata.json", GAME_FONTS);
     REQUIRE(f.fonts.reset_font());
     nlohmann::json saved;
-    REQUIRE(load_json_file(f.paths.config() + "/fonts.json", saved, f.status));
+    REQUIRE(load_json_file(f.paths.config() / "fonts.json", saved, f.status));
     REQUIRE(saved == nlohmann::json::parse(GAME_FONTS));
 }
 
@@ -297,7 +298,7 @@ TEST_CASE("font sizes use the proportions of the selected fonts")
     REQUIRE(overmap.height == 13);
 
     nlohmann::json saved;
-    REQUIRE(load_json_file(f.paths.config() + "/options.json", saved, f.status));
+    REQUIRE(load_json_file(f.paths.config() / "options.json", saved, f.status));
     REQUIRE(saved[0]["value"] == "20");
 }
 
@@ -306,9 +307,9 @@ TEST_CASE("the ASCII lines option is saved when the game has it")
     FontFixture f("fonts_ascii");
     write_game_config(f.paths.config());
     nlohmann::json options;
-    REQUIRE(load_json_file(f.paths.config() + "/options.json", options, f.status));
+    REQUIRE(load_json_file(f.paths.config() / "options.json", options, f.status));
     options.push_back({{"name", "USE_DRAW_ASCII_LINES_ROUTINE"}, {"value", "true"}});
-    REQUIRE(save_json_file(options, f.paths.config() + "/options.json", f.status));
+    REQUIRE(save_json_file(options, f.paths.config() / "options.json", f.status));
 
     FontOptions o;
     o.ascii_lines = false;
@@ -336,14 +337,14 @@ TEST_CASE("font edits keep what the game saved after we read its files")
     REQUIRE(f.fonts.load_game_options());
 
     // The game runs and saves its files meanwhile.
-    write_file(f.paths.config() + "/options.json",
+    write_file(f.paths.config() / "options.json",
                "[{\"name\": \"USE_LANG\", \"value\": \"en\"}, {\"name\": \"FONT_SIZE\", \"value\": \"16\"},"
                " {\"name\": \"FONT_HEIGHT\", \"value\": \"16\"}, {\"name\": \"FONT_WIDTH\", \"value\": \"8\"},"
                " {\"name\": \"MAP_FONT_SIZE\", \"value\": \"16\"}, {\"name\": \"MAP_FONT_HEIGHT\", \"value\": \"16\"},"
                " {\"name\": \"MAP_FONT_WIDTH\", \"value\": \"16\"}, {\"name\": \"OVERMAP_FONT_SIZE\", \"value\": \"16\"},"
                " {\"name\": \"OVERMAP_FONT_HEIGHT\", \"value\": \"16\"}, {\"name\": \"OVERMAP_FONT_WIDTH\", \"value\": \"16\"},"
                " {\"name\": \"FONT_BLENDING\", \"value\": \"false\"}]");
-    write_file(f.paths.config() + "/fonts.json",
+    write_file(f.paths.config() / "fonts.json",
                "{\"typeface\": [\"data/font/unifont.ttf\"], \"map_typeface\": [\"data/font/unifont.ttf\"],"
                " \"overmap_typeface\": [\"data/font/unifont.ttf\"], \"gui_typeface\": [\"data/font/Roboto.ttf\"]}");
 
@@ -354,7 +355,7 @@ TEST_CASE("font edits keep what the game saved after we read its files")
     REQUIRE(f.fonts.save_font_options(options));
 
     nlohmann::json fonts;
-    REQUIRE(load_json_file(f.paths.config() + "/fonts.json", fonts, f.status));
+    REQUIRE(load_json_file(f.paths.config() / "fonts.json", fonts, f.status));
     REQUIRE(fonts["gui_typeface"][0] == "data/font/Roboto.ttf");
     REQUIRE(fonts["typeface"].size() == 2);
     REQUIRE(fonts["typeface"][1] == "data/font/unifont.ttf");
@@ -364,6 +365,6 @@ TEST_CASE("font edits keep what the game saved after we read its files")
     REQUIRE(f.fonts.get_game_option("FONT_HEIGHT") == "24");
     REQUIRE(f.fonts.get_game_option("FONT_BLENDING") == "true");
     nlohmann::json options_file;
-    REQUIRE(load_json_file(f.paths.config() + "/options.json", options_file, f.status));
+    REQUIRE(load_json_file(f.paths.config() / "options.json", options_file, f.status));
     REQUIRE(options_file[0]["value"] == "en");
 }

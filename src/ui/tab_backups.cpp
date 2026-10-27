@@ -3,6 +3,7 @@
 #include <ctime>
 #include <memory>
 
+#include "core/fs.h"
 #include "core/git.h"
 #include "ui/dialogs.h"
 
@@ -163,8 +164,8 @@ void TabBackups::on_selection_changed()
     for (size_t i = 0; i < backup.worlds.size(); ++i)
         worlds += (i > 0 ? ", " : "") + backup.worlds[i];
 
-    Glib::ustring text = "<u>Location:</u>\n<a href=\"" + Glib::Markup::escape_text(Glib::filename_to_uri(backup.path)) + "\">"
-                         + Glib::Markup::escape_text(backup.path) + "</a>\n\n<u>Worlds:</u>\n"
+    Glib::ustring text = "<u>Location:</u>\n<a href=\"" + Glib::Markup::escape_text(Glib::filename_to_uri(to_utf8(backup.path))) + "\">"
+                         + Glib::Markup::escape_text(to_utf8(backup.path)) + "</a>\n\n<u>Worlds:</u>\n"
                          + Glib::Markup::escape_text(worlds);
     info_label_.set_markup(text);
 }

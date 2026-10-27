@@ -5,6 +5,7 @@
 #include <fstream>
 #include <sstream>
 
+#include "core/fs.h"
 #include "core/git.h"
 #include "core/paths.h"
 #include "core/settings.h"
@@ -12,21 +13,21 @@
 
 namespace fs = std::filesystem;
 
-static std::string make_temp_dir(const std::string& name)
+static fs::path make_temp_dir(const std::string& name)
 {
     fs::path p = fs::temp_directory_path() / ("evac_test_" + name);
     fs::remove_all(p);
     fs::create_directories(p);
-    return p.string();
+    return p;
 }
 
-static void write_file(const std::string& path, const std::string& content)
+static void write_file(const fs::path& path, const std::string& content)
 {
-    fs::create_directories(fs::path(path).parent_path());
+    fs::create_directories(path.parent_path());
     std::ofstream(path) << content;
 }
 
-static std::string read_file(const std::string& path)
+static std::string read_file(const fs::path& path)
 {
     std::ifstream f(path);
     std::stringstream ss;
@@ -37,13 +38,13 @@ static std::string read_file(const std::string& path)
 struct SnapshotFixture
 {
     SnapshotFixture(const std::string& name)
-        : dir(make_temp_dir(name)), settings(dir + "/s.json", status), paths(dir, settings, status),
+        : dir(make_temp_dir(name)), settings(dir / "s.json", status), paths(dir, settings, status),
           trash(settings, paths, status), snapshots(paths, status, trash)
     {
         settings.load();
     }
 
-    std::string world(const std::string& name) { return paths.savegames() + "/" + name; }
+    fs::path world(const std::string& name) { return paths.savegames() / to_path(name); }
 
     WorldInfo find(const std::string& name)
     {
@@ -57,7 +58,7 @@ struct SnapshotFixture
         return WorldInfo();
     }
 
-    std::string dir;
+    fs::path dir;
     Status status;
     Settings settings;
     Paths paths;
@@ -110,23 +111,23 @@ TEST_CASE("git runs without the user's git environment")
 TEST_CASE("take snapshots")
 {
     SnapshotFixture f("snap_take");
-    write_file(f.world("Alpha") + "/master.gsav", "v1");
-    write_file(f.world("Alpha") + "/maps/0.0.0/1.map", "map v1");
-    write_file(f.world("Beta") + "/master.gsav", "beta");
+    write_file(f.world("Alpha") / "master.gsav", "v1");
+    write_file(f.world("Alpha") / "maps/0.0.0/1.map", "map v1");
+    write_file(f.world("Beta") / "master.gsav", "beta");
 
     REQUIRE(f.find("Alpha").state == WorldInfo::NO_SNAPSHOTS);
     REQUIRE(f.snapshots.list_snapshots("Alpha").empty());
 
     REQUIRE(f.snapshots.take_snapshot("Alpha", "first night", "a long\ndescription") == SnapshotManager::DONE);
-    REQUIRE(fs::is_directory(f.paths.snapshots() + "/Alpha.git"));
-    REQUIRE(!fs::exists(f.world("Alpha") + "/.git"));  // Nothing in the game's folders.
+    REQUIRE(fs::is_directory(f.paths.snapshots() / "Alpha.git"));
+    REQUIRE(!fs::exists(f.world("Alpha") / ".git"));  // Nothing in the game's folders.
     REQUIRE(f.find("Alpha").state == WorldInfo::UNCHANGED);
     REQUIRE(f.find("Beta").state == WorldInfo::NO_SNAPSHOTS);
 
     // Nothing changed: no empty commit.
     REQUIRE(f.snapshots.take_snapshot("Alpha", "again", "") == SnapshotManager::NOTHING_TO_DO);
 
-    write_file(f.world("Alpha") + "/master.gsav", "v2");
+    write_file(f.world("Alpha") / "master.gsav", "v2");
     REQUIRE(f.find("Alpha").state == WorldInfo::CHANGED);
     REQUIRE(f.snapshots.worlds_with_changes() == std::vector<std::string>{"Alpha"});  // Not Beta: no snapshots.
     REQUIRE(f.snapshots.take_snapshot("Alpha", "#2 second", "") == SnapshotManager::DONE);
@@ -151,9 +152,9 @@ TEST_CASE("take snapshots")
 TEST_CASE("take a snapshot of all worlds")
 {
     SnapshotFixture f("snap_all");
-    write_file(f.world("Alpha") + "/master.gsav", "a");
-    write_file(f.world("Beta") + "/master.gsav", "b");
-    write_file(f.world("Gamma") + "/master.gsav", "c");
+    write_file(f.world("Alpha") / "master.gsav", "a");
+    write_file(f.world("Beta") / "master.gsav", "b");
+    write_file(f.world("Gamma") / "master.gsav", "c");
     REQUIRE(f.snapshots.take_snapshot("Gamma", "earlier", "") == SnapshotManager::DONE);
 
     SnapshotManager::AllResult r = f.snapshots.take_snapshot_all("together", "all of them");
@@ -168,23 +169,23 @@ TEST_CASE("take a snapshot of all worlds")
 TEST_CASE("restore a snapshot")
 {
     SnapshotFixture f("snap_restore");
-    std::string w = f.world("Alpha");
-    write_file(w + "/master.gsav", "v1");
-    write_file(w + "/doomed.sav", "still here");
+    fs::path w = f.world("Alpha");
+    write_file(w / "master.gsav", "v1");
+    write_file(w / "doomed.sav", "still here");
     REQUIRE(f.snapshots.take_snapshot("Alpha", "first night", "") == SnapshotManager::DONE);
     std::string first = f.snapshots.list_snapshots("Alpha")[0].hash;
 
     // Play on: change a file, the game deletes one, adds another.
-    write_file(w + "/master.gsav", "v2");
-    fs::remove(w + "/doomed.sav");
-    write_file(w + "/maps/new.map", "new");
+    write_file(w / "master.gsav", "v2");
+    fs::remove(w / "doomed.sav");
+    write_file(w / "maps/new.map", "new");
     REQUIRE(f.snapshots.take_snapshot("Alpha", "second", "") == SnapshotManager::DONE);
-    write_file(w + "/master.gsav", "v3 unsaved");
+    write_file(w / "master.gsav", "v3 unsaved");
 
     REQUIRE(f.snapshots.restore("Alpha", first) == SnapshotManager::DONE);
-    REQUIRE(read_file(w + "/master.gsav") == "v1");
-    REQUIRE(read_file(w + "/doomed.sav") == "still here");  // Deleted after X: back.
-    REQUIRE(!fs::exists(w + "/maps/new.map"));               // Added after X: gone.
+    REQUIRE(read_file(w / "master.gsav") == "v1");
+    REQUIRE(read_file(w / "doomed.sav") == "still here");  // Deleted after X: back.
+    REQUIRE(!fs::exists(w / "maps/new.map"));               // Added after X: gone.
     REQUIRE(f.find("Alpha").state == WorldInfo::UNCHANGED);
 
     // History is never rewritten: the unsaved state is in "Before restoring".
@@ -194,7 +195,7 @@ TEST_CASE("restore a snapshot")
     REQUIRE(list[1].name == "Before restoring \"first night\"");
     REQUIRE(list[2].name == "second");
     REQUIRE(f.snapshots.restore("Alpha", list[1].hash) == SnapshotManager::DONE);
-    REQUIRE(read_file(w + "/master.gsav") == "v3 unsaved");
+    REQUIRE(read_file(w / "master.gsav") == "v3 unsaved");
 
     // The world already matches: no commits.
     std::size_t count = f.snapshots.list_snapshots("Alpha").size();
@@ -208,20 +209,20 @@ TEST_CASE("restore a snapshot")
 TEST_CASE("discard changes")
 {
     SnapshotFixture f("snap_discard");
-    std::string w = f.world("Alpha");
-    write_file(w + "/master.gsav", "v1");
-    write_file(w + "/keep.sav", "keep");
+    fs::path w = f.world("Alpha");
+    write_file(w / "master.gsav", "v1");
+    write_file(w / "keep.sav", "keep");
     REQUIRE(f.snapshots.discard_changes("Alpha") == SnapshotManager::FAILED);  // No snapshot yet.
     REQUIRE(f.snapshots.take_snapshot("Alpha", "first", "") == SnapshotManager::DONE);
     REQUIRE(f.snapshots.discard_changes("Alpha") == SnapshotManager::NOTHING_TO_DO);
 
-    write_file(w + "/master.gsav", "v2");
-    fs::remove(w + "/keep.sav");
-    write_file(w + "/extra/new.sav", "new");
+    write_file(w / "master.gsav", "v2");
+    fs::remove(w / "keep.sav");
+    write_file(w / "extra/new.sav", "new");
     REQUIRE(f.snapshots.discard_changes("Alpha") == SnapshotManager::DONE);
-    REQUIRE(read_file(w + "/master.gsav") == "v1");
-    REQUIRE(read_file(w + "/keep.sav") == "keep");
-    REQUIRE(!fs::exists(w + "/extra/new.sav"));
+    REQUIRE(read_file(w / "master.gsav") == "v1");
+    REQUIRE(read_file(w / "keep.sav") == "keep");
+    REQUIRE(!fs::exists(w / "extra/new.sav"));
     REQUIRE(f.snapshots.list_snapshots("Alpha").size() == 1);  // No commits.
     REQUIRE(f.find("Alpha").state == WorldInfo::UNCHANGED);
 }
@@ -230,20 +231,20 @@ TEST_CASE("world names with spaces and quotes")
 {
     SnapshotFixture f("snap_names");
     std::string name = "My \"Big\" World's End";
-    write_file(f.world(name) + "/master.gsav", "v1");
+    write_file(f.world(name) / "master.gsav", "v1");
     REQUIRE(f.snapshots.take_snapshot(name, "start", "") == SnapshotManager::DONE);
     std::string first = f.snapshots.list_snapshots(name)[0].hash;
-    write_file(f.world(name) + "/master.gsav", "v2");
+    write_file(f.world(name) / "master.gsav", "v2");
     REQUIRE(f.snapshots.restore(name, first) == SnapshotManager::DONE);
-    REQUIRE(read_file(f.world(name) + "/master.gsav") == "v1");
+    REQUIRE(read_file(f.world(name) / "master.gsav") == "v1");
     REQUIRE(f.snapshots.git_command(name).find("'--work-tree=") != std::string::npos);
 }
 
 TEST_CASE("worlds that no longer exist")
 {
     SnapshotFixture f("snap_missing");
-    write_file(f.world("Gone") + "/master.gsav", "v1");
-    write_file(f.world("Gone") + "/maps/a.map", "map");
+    write_file(f.world("Gone") / "master.gsav", "v1");
+    write_file(f.world("Gone") / "maps/a.map", "map");
     REQUIRE(f.snapshots.take_snapshot("Gone", "only", "") == SnapshotManager::DONE);
     std::string only = f.snapshots.list_snapshots("Gone")[0].hash;
     fs::remove_all(f.world("Gone"));
@@ -259,7 +260,7 @@ TEST_CASE("worlds that no longer exist")
 
     // Restore brings the folder back, without a "Before restoring" commit.
     REQUIRE(f.snapshots.restore("Gone", only) == SnapshotManager::DONE);
-    REQUIRE(read_file(f.world("Gone") + "/maps/a.map") == "map");
+    REQUIRE(read_file(f.world("Gone") / "maps/a.map") == "map");
     REQUIRE(f.find("Gone").state == WorldInfo::UNCHANGED);
     REQUIRE(f.snapshots.list_snapshots("Gone").size() == 1);
 
@@ -277,49 +278,49 @@ TEST_CASE("worlds that no longer exist")
 TEST_CASE("export snapshots to a bundle")
 {
     SnapshotFixture f("snap_export");
-    std::string bundle = f.dir + "/out/Alpha.bundle";
-    fs::create_directories(f.dir + "/out");
-    write_file(f.world("Alpha") + "/master.gsav", "v1");
+    fs::path bundle = f.dir / "out/Alpha.bundle";
+    fs::create_directories(f.dir / "out");
+    write_file(f.world("Alpha") / "master.gsav", "v1");
     REQUIRE(!f.snapshots.export_snapshots("Alpha", bundle));  // No snapshots yet.
     REQUIRE(!fs::exists(bundle));
 
     REQUIRE(f.snapshots.take_snapshot("Alpha", "one", "") == SnapshotManager::DONE);
-    write_file(f.world("Alpha") + "/master.gsav", "v2");
+    write_file(f.world("Alpha") / "master.gsav", "v2");
     REQUIRE(f.snapshots.take_snapshot("Alpha", "two", "") == SnapshotManager::DONE);
     REQUIRE(f.snapshots.export_snapshots("Alpha", bundle));
-    REQUIRE(git::run({"bundle", "verify", "-q", bundle}).ok());
+    REQUIRE(git::run({"bundle", "verify", "-q", to_utf8(bundle)}).ok());
 
     // The bundle holds the whole history.
-    std::string clone = f.dir + "/clone.git";
-    REQUIRE(git::run({"clone", "-q", "--bare", bundle, clone}).ok());
-    git::Result count = git::run({"--git-dir=" + clone, "rev-list", "--count", "HEAD"});
+    fs::path clone = f.dir / "clone.git";
+    REQUIRE(git::run({"clone", "-q", "--bare", to_utf8(bundle), to_utf8(clone)}).ok());
+    git::Result count = git::run({"--git-dir=" + to_utf8(clone), "rev-list", "--count", "HEAD"});
     REQUIRE(count.ok());
     REQUIRE(count.out == "2\n");
 
     // Exporting again replaces the file.
-    write_file(f.world("Alpha") + "/master.gsav", "v3");
+    write_file(f.world("Alpha") / "master.gsav", "v3");
     REQUIRE(f.snapshots.take_snapshot("Alpha", "three", "") == SnapshotManager::DONE);
     REQUIRE(f.snapshots.export_snapshots("Alpha", bundle));
     fs::remove_all(clone);
-    REQUIRE(git::run({"clone", "-q", "--bare", bundle, clone}).ok());
-    REQUIRE(git::run({"--git-dir=" + clone, "rev-list", "--count", "HEAD"}).out == "3\n");
+    REQUIRE(git::run({"clone", "-q", "--bare", to_utf8(bundle), to_utf8(clone)}).ok());
+    REQUIRE(git::run({"--git-dir=" + to_utf8(clone), "rev-list", "--count", "HEAD"}).out == "3\n");
 
     // A world that no longer exists can still be exported.
     fs::remove_all(f.world("Alpha"));
-    REQUIRE(f.snapshots.export_snapshots("Alpha", f.dir + "/out/gone.bundle"));
+    REQUIRE(f.snapshots.export_snapshots("Alpha", f.dir / "out/gone.bundle"));
 }
 
 TEST_CASE("import snapshots from a bundle")
 {
     SnapshotFixture f("snap_import");
-    std::string bundle = f.dir + "/Alpha.bundle";
-    write_file(f.world("Alpha") + "/master.gsav", "v1");
-    write_file(f.world("Alpha") + "/maps/a.map", "map");
+    fs::path bundle = f.dir / "Alpha.bundle";
+    write_file(f.world("Alpha") / "master.gsav", "v1");
+    write_file(f.world("Alpha") / "maps/a.map", "map");
     REQUIRE(f.snapshots.take_snapshot("Alpha", "one", "first") == SnapshotManager::DONE);
-    write_file(f.world("Alpha") + "/master.gsav", "v2");
-    fs::remove(f.world("Alpha") + "/maps/a.map");
+    write_file(f.world("Alpha") / "master.gsav", "v2");
+    fs::remove(f.world("Alpha") / "maps/a.map");
     REQUIRE(f.snapshots.take_snapshot("Alpha", "two", "") == SnapshotManager::DONE);
-    write_file(f.world("Alpha") + "/master.gsav", "not in a snapshot");
+    write_file(f.world("Alpha") / "master.gsav", "not in a snapshot");
     REQUIRE(f.snapshots.export_snapshots("Alpha", bundle));
 
     REQUIRE(SnapshotManager::bundle_world_name("/x/My World.bundle") == "My World");
@@ -328,7 +329,7 @@ TEST_CASE("import snapshots from a bundle")
     // The name is taken: never replaced.
     REQUIRE(f.snapshots.check_import_name("Alpha") != "");
     REQUIRE(f.snapshots.import_snapshots(bundle, "Alpha") == SnapshotManager::FAILED);
-    REQUIRE(read_file(f.world("Alpha") + "/master.gsav") == "not in a snapshot");
+    REQUIRE(read_file(f.world("Alpha") / "master.gsav") == "not in a snapshot");
     REQUIRE(f.snapshots.list_snapshots("Alpha").size() == 2);
 
     // The game's rules for world names.
@@ -342,25 +343,25 @@ TEST_CASE("import snapshots from a bundle")
 
     // Under a new name: the history, and the world as in the latest snapshot.
     REQUIRE(f.snapshots.import_snapshots(bundle, "Alpha 2") == SnapshotManager::DONE);
-    REQUIRE(read_file(f.world("Alpha 2") + "/master.gsav") == "v2");
-    REQUIRE(!fs::exists(f.world("Alpha 2") + "/maps/a.map"));
+    REQUIRE(read_file(f.world("Alpha 2") / "master.gsav") == "v2");
+    REQUIRE(!fs::exists(f.world("Alpha 2") / "maps/a.map"));
     std::vector<Snapshot> list = f.snapshots.list_snapshots("Alpha 2");
     REQUIRE(list.size() == 2);
     REQUIRE(list[0].name == "two");
     REQUIRE(list[1].description == "first");
     REQUIRE(f.find("Alpha 2").state == WorldInfo::UNCHANGED);
-    REQUIRE(git::run({"--git-dir=" + f.snapshots.repo_path("Alpha 2"), "remote"}).out.empty());
+    REQUIRE(git::run({"--git-dir=" + to_utf8(f.snapshots.repo_path("Alpha 2")), "remote"}).out.empty());
 
     // The imported world works like any other.
     REQUIRE(f.snapshots.restore("Alpha 2", list[1].hash) == SnapshotManager::DONE);
-    REQUIRE(read_file(f.world("Alpha 2") + "/maps/a.map") == "map");
+    REQUIRE(read_file(f.world("Alpha 2") / "maps/a.map") == "map");
 
     // A file that is not a bundle leaves nothing behind.
-    write_file(f.dir + "/junk.bundle", "junk");
-    REQUIRE(f.snapshots.import_snapshots(f.dir + "/junk.bundle", "Junk") == SnapshotManager::FAILED);
+    write_file(f.dir / "junk.bundle", "junk");
+    REQUIRE(f.snapshots.import_snapshots(f.dir / "junk.bundle", "Junk") == SnapshotManager::FAILED);
     REQUIRE(!fs::exists(f.world("Junk")));
     REQUIRE(!fs::exists(f.snapshots.repo_path("Junk")));
-    REQUIRE(f.snapshots.import_snapshots(f.dir + "/missing.bundle", "Junk") == SnapshotManager::FAILED);
+    REQUIRE(f.snapshots.import_snapshots(f.dir / "missing.bundle", "Junk") == SnapshotManager::FAILED);
     REQUIRE(!fs::exists(f.snapshots.repo_path("Junk")));
 }
 
@@ -368,18 +369,18 @@ TEST_CASE("start fresh")
 {
     SnapshotFixture f("snap_fresh");
     f.settings.set_bool("use_trash", true);
-    write_file(f.world("Alpha") + "/master.gsav", "v1");
+    write_file(f.world("Alpha") / "master.gsav", "v1");
     REQUIRE(f.snapshots.take_snapshot("Alpha", "one", "") == SnapshotManager::DONE);
-    write_file(f.world("Alpha") + "/master.gsav", "v2");
+    write_file(f.world("Alpha") / "master.gsav", "v2");
     REQUIRE(f.snapshots.take_snapshot("Alpha", "two", "") == SnapshotManager::DONE);
-    write_file(f.world("Alpha") + "/master.gsav", "v3");  // Not in a snapshot yet.
+    write_file(f.world("Alpha") / "master.gsav", "v3");  // Not in a snapshot yet.
 
     REQUIRE(f.snapshots.start_fresh("Alpha", "fresh", "after the lab") == SnapshotManager::DONE);
     std::vector<Snapshot> list = f.snapshots.list_snapshots("Alpha");
     REQUIRE(list.size() == 1);
     REQUIRE(list[0].name == "fresh");
     REQUIRE(list[0].description == "after the lab");
-    REQUIRE(read_file(f.world("Alpha") + "/master.gsav") == "v3");  // The world is not touched.
+    REQUIRE(read_file(f.world("Alpha") / "master.gsav") == "v3");  // The world is not touched.
     REQUIRE(f.find("Alpha").state == WorldInfo::UNCHANGED);
 
     // The old history is in the trash. Restoring it replaces the new one,
@@ -398,7 +399,7 @@ TEST_CASE("start fresh")
 
     // Nothing to start fresh from.
     REQUIRE(f.snapshots.start_fresh("Nope", "x", "") == SnapshotManager::FAILED);
-    write_file(f.world("Beta") + "/master.gsav", "b");
+    write_file(f.world("Beta") / "master.gsav", "b");
     REQUIRE(f.snapshots.start_fresh("Beta", "x", "") == SnapshotManager::FAILED);
     REQUIRE(f.snapshots.start_fresh("Alpha", " ", "") == SnapshotManager::FAILED);
     REQUIRE(f.snapshots.list_snapshots("Alpha").size() == 2);

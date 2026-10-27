@@ -8,23 +8,79 @@
 #include <fstream>
 #include <vector>
 
+#include "core/fs.h"
+
 namespace fs = std::filesystem;
 
 namespace archive_helper
 {
 
-static std::string file_name_of(const std::string& path)
+static std::string file_name_of(const fs::path& path)
 {
-    return fs::path(path).filename().string();
+    return to_utf8(path.filename());
 }
 
-bool extract(const std::string& archive_path, const std::string& dest_dir, Status& status)
+// libarchive's char* names are in the ANSI code page on Windows, so use its
+// wchar_t versions there. Elsewhere names are bytes, passed on as they are.
+#ifdef _WIN32
+static int open_for_reading(struct archive* a, const fs::path& file)
+{
+    return archive_read_open_filename_w(a, file.c_str(), 65536);
+}
+static int open_for_writing(struct archive* a, const fs::path& file)
+{
+    return archive_write_open_filename_w(a, file.c_str());
+}
+static fs::path entry_path(struct archive_entry* e)
+{
+    return archive_entry_pathname_w(e);
+}
+static const wchar_t* entry_hardlink(struct archive_entry* e)
+{
+    return archive_entry_hardlink_w(e);
+}
+static void set_entry_path(struct archive_entry* e, const fs::path& path)
+{
+    archive_entry_copy_pathname_w(e, path.c_str());
+}
+static void set_entry_hardlink(struct archive_entry* e, const fs::path& path)
+{
+    archive_entry_copy_hardlink_w(e, path.c_str());
+}
+#else
+static int open_for_reading(struct archive* a, const fs::path& file)
+{
+    return archive_read_open_filename(a, file.c_str(), 65536);
+}
+static int open_for_writing(struct archive* a, const fs::path& file)
+{
+    return archive_write_open_filename(a, file.c_str());
+}
+static fs::path entry_path(struct archive_entry* e)
+{
+    return archive_entry_pathname(e);
+}
+static const char* entry_hardlink(struct archive_entry* e)
+{
+    return archive_entry_hardlink(e);
+}
+static void set_entry_path(struct archive_entry* e, const fs::path& path)
+{
+    archive_entry_copy_pathname(e, path.c_str());
+}
+static void set_entry_hardlink(struct archive_entry* e, const fs::path& path)
+{
+    archive_entry_copy_hardlink(e, path.c_str());
+}
+#endif
+
+bool extract(const fs::path& archive_path, const fs::path& dest_dir, Status& status)
 {
     std::error_code ec;
     fs::create_directories(dest_dir, ec);
     if (ec)
     {
-        status.post("Cannot create directory " + dest_dir + ": " + ec.message(), MSG_ERROR);
+        status.post("Cannot create directory " + to_utf8(dest_dir) + ": " + ec.message(), MSG_ERROR);
         return false;
     }
 
@@ -43,7 +99,7 @@ bool extract(const std::string& archive_path, const std::string& dest_dir, Statu
     bool ok = true;
     std::string error;
 
-    if (archive_read_open_filename(in, archive_path.c_str(), 65536) != ARCHIVE_OK)
+    if (open_for_reading(in, archive_path) != ARCHIVE_OK)
     {
         ok = false;
         error = archive_error_string(in) ? archive_error_string(in) : "cannot open archive";
@@ -62,16 +118,11 @@ bool extract(const std::string& archive_path, const std::string& dest_dir, Statu
             break;
         }
 
-        std::string target = (fs::path(dest_dir) / archive_entry_pathname(entry)).string();
-        archive_entry_set_pathname(entry, target.c_str());
+        set_entry_path(entry, dest_dir / entry_path(entry));
 
         // Hard links point inside the archive, so they need the same prefix too.
-        const char* hardlink = archive_entry_hardlink(entry);
-        if (hardlink)
-        {
-            std::string link_target = (fs::path(dest_dir) / hardlink).string();
-            archive_entry_set_hardlink(entry, link_target.c_str());
-        }
+        if (entry_hardlink(entry))
+            set_entry_hardlink(entry, dest_dir / entry_hardlink(entry));
 
         if (archive_write_header(out, entry) < ARCHIVE_WARN)
         {
@@ -129,24 +180,28 @@ static bool add_file_data(struct archive* a, const fs::path& path)
     return true;
 }
 
-bool zip(const std::string& parent, const std::string& dir_to_zip, const std::string& dest_zip, Status& status)
+bool zip(const fs::path& parent, const std::string& dir_to_zip, const fs::path& dest_zip, Status& status)
 {
     status.post("Creating " + file_name_of(dest_zip));
 
-    fs::path base(parent);
-    fs::path root = base / dir_to_zip;
+    const fs::path& base = parent;
+    fs::path root = base / to_path(dir_to_zip);
     std::error_code ec;
     if (!fs::is_directory(root, ec))
     {
-        status.post("Cannot zip, no such directory: " + root.string(), MSG_ERROR);
+        status.post("Cannot zip, no such directory: " + to_utf8(root), MSG_ERROR);
         return false;
     }
 
     struct archive* a = archive_write_new();
     archive_write_set_format_zip(a);
-    if (archive_write_open_filename(a, dest_zip.c_str()) != ARCHIVE_OK)
+#ifdef _WIN32
+    // Store names as UTF-8 (with the zip flag for it), not in the ANSI code page.
+    archive_write_set_format_option(a, "zip", "hdrcharset", "UTF-8");
+#endif
+    if (open_for_writing(a, dest_zip) != ARCHIVE_OK)
     {
-        status.post("Cannot create " + dest_zip + ": " + archive_error_string(a), MSG_ERROR);
+        status.post("Cannot create " + to_utf8(dest_zip) + ": " + archive_error_string(a), MSG_ERROR);
         archive_write_free(a);
         return false;
     }
@@ -169,8 +224,11 @@ bool zip(const std::string& parent, const std::string& dir_to_zip, const std::st
         bool is_dir = fs::is_directory(st);
 
         struct archive_entry* e = archive_entry_new();
-        std::string rel = fs::relative(p, base).generic_string();
-        archive_entry_set_pathname(e, (is_dir ? rel + "/" : rel).c_str());
+        // Zip wants "/" separators, and a trailing one for a directory.
+        fs::path rel = to_path(fs::relative(p, base).generic_u8string());
+        if (is_dir)
+            rel += "/";
+        set_entry_path(e, rel);
         archive_entry_set_perm(e, (unsigned)st.permissions() & 07777);
         archive_entry_set_mtime(e, std::time(nullptr), 0);
         if (is_dir)

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <filesystem>
 
+#include "core/fs.h"
 #include "core/helpers.h"
 
 namespace fs = std::filesystem;
@@ -22,9 +23,9 @@ const std::vector<std::string>& FontManager::hinting_modes()
 
 // The game opens the map and overmap fonts with SDL_ttf, which also takes
 // .fon, but the menus use FreeType through ImGui: these work for both.
-bool FontManager::is_font_file(const std::string& path)
+bool FontManager::is_font_file(const std::string& name)
 {
-    std::string ext = fs::path(path).extension().string();
+    std::string ext = to_utf8(to_path(name).extension());
     std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return (char)std::tolower(c); });
     return ext == ".ttf" || ext == ".otf" || ext == ".ttc";
 }
@@ -62,12 +63,12 @@ FontManager::FontManager(Paths& paths, Status& status)
 
 bool FontManager::font_config_file_exists()
 {
-    return fs::exists(paths_.config() + "/fonts.json");
+    return fs::exists(paths_.config() / "fonts.json");
 }
 
 bool FontManager::options_file_exists()
 {
-    return fs::exists(paths_.config() + "/options.json");
+    return fs::exists(paths_.config() / "options.json");
 }
 
 bool FontManager::load_available_fonts()
@@ -75,7 +76,7 @@ bool FontManager::load_available_fonts()
     available_fonts_.clear();
 
     nlohmann::json data;
-    if (!load_json_file(paths_.data_dir() + "/fonts/font_info.json", data, status_) || !data.is_array())
+    if (!load_json_file(paths_.data_dir() / "fonts" / "font_info.json", data, status_) || !data.is_array())
     {
         status_.post("Could not read the bundled font info.", MSG_ERROR);
         return false;
@@ -101,7 +102,7 @@ bool FontManager::load_available_fonts()
     std::error_code ec;
     for (fs::directory_iterator it(paths_.font_user(), ec), end; !ec && it != end; it.increment(ec))
     {
-        std::string file = it->path().filename().string();
+        std::string file = to_utf8(it->path().filename());
         if (!it->is_regular_file(ec) || !is_font_file(file))
             continue;
         bool is_bundled = false;
@@ -114,7 +115,7 @@ bool FontManager::load_available_fonts()
     for (size_t i = 0; i < added.size(); ++i)
     {
         FontInfo font;
-        font.name = fs::path(added[i]).stem().string();
+        font.name = to_utf8(to_path(added[i]).stem());
         font.file = added[i];
         font.description = "Added from a file. The launcher does not know its proportions,\n"
                            "so check the width and height in the font sizes.";
@@ -124,21 +125,21 @@ bool FontManager::load_available_fonts()
     return true;
 }
 
-std::string FontManager::font_file_path(const FontInfo& font) const
+fs::path FontManager::font_file_path(const FontInfo& font) const
 {
     if (font.bundled)
-        return paths_.data_dir() + "/fonts/" + font.file;
-    return paths_.font_user() + "/" + font.file;
+        return paths_.data_dir() / "fonts" / to_path(font.file);
+    return paths_.font_user() / to_path(font.file);
 }
 
 bool FontManager::load_font_config()
 {
-    std::string file = paths_.config() + "/fonts.json";
+    fs::path file = paths_.config() / "fonts.json";
     font_config_ = nlohmann::json::object();
 
     if (!fs::exists(file))
     {
-        status_.post("Font config file " + file + " is not found!", MSG_ERROR);
+        status_.post("Font config file " + to_utf8(file) + " is not found!", MSG_ERROR);
         return false;
     }
 
@@ -151,17 +152,17 @@ bool FontManager::load_font_config()
 
 bool FontManager::write_font_config()
 {
-    return save_json_file(font_config_, paths_.config() + "/fonts.json", status_);
+    return save_json_file(font_config_, paths_.config() / "fonts.json", status_);
 }
 
 bool FontManager::load_game_options()
 {
-    std::string file = paths_.config() + "/options.json";
+    fs::path file = paths_.config() / "options.json";
     game_options_ = nlohmann::json::array();
 
     if (!fs::exists(file))
     {
-        status_.post("Game options file " + file + " is not found!", MSG_ERROR);
+        status_.post("Game options file " + to_utf8(file) + " is not found!", MSG_ERROR);
         return false;
     }
 
@@ -174,7 +175,7 @@ bool FontManager::load_game_options()
 
 bool FontManager::write_game_options()
 {
-    if (!save_json_file(game_options_, paths_.config() + "/options.json", status_))
+    if (!save_json_file(game_options_, paths_.config() / "options.json", status_))
         return false;
     status_.post("Saved game options to options.json.");
     return true;
@@ -270,8 +271,8 @@ bool FontManager::install_font(const FontInfo& font)
     if (!font.bundled)
         return true;  // Already in the user font directory.
 
-    fs::path source = fs::path(paths_.data_dir()) / "fonts" / font.file;
-    fs::path dest = fs::path(paths_.font_user()) / font.file;
+    fs::path source = paths_.data_dir() / "fonts" / to_path(font.file);
+    fs::path dest = paths_.font_user() / to_path(font.file);
 
     std::error_code ec;
     fs::create_directories(dest.parent_path(), ec);
@@ -279,7 +280,7 @@ bool FontManager::install_font(const FontInfo& font)
     if (ec)
     {
         status_.post("Could not install font file " + font.file + ": " + ec.message(), MSG_ERROR);
-        status_.post("Font source: " + source.string() + ". Destination: " + dest.string() + ".", MSG_DEBUG);
+        status_.post("Font source: " + to_utf8(source) + ". Destination: " + to_utf8(dest) + ".", MSG_DEBUG);
         return false;
     }
     return true;
@@ -290,10 +291,10 @@ bool FontManager::install_font(const FontInfo& font)
 // the game also looks for there.
 bool FontManager::is_user_font(const std::string& path)
 {
-    fs::path p(path);
+    fs::path p = to_path(path);
     std::error_code ec;
     if (!p.has_parent_path())
-        return fs::exists(fs::path(paths_.font_user()) / p, ec);
+        return fs::exists(paths_.font_user() / p, ec);
     return fs::equivalent(p.parent_path(), paths_.font_user(), ec);
 }
 
@@ -314,7 +315,7 @@ bool FontManager::set_font(size_t font_index, const std::vector<std::string>& fi
 
     // The full path: the game looks in the user font directory for the UI
     // and map fonts, but the menus open the path as it is.
-    std::string path = (fs::path(paths_.font_user()) / font.file).string();
+    std::string path = to_utf8(paths_.font_user() / to_path(font.file));
     nlohmann::json entry = {{"path", path}, {"hinting", "Default"}};
 
     for (size_t i = 0; i < fields.size(); ++i)
@@ -348,11 +349,11 @@ bool FontManager::reset_font()
         return false;
 
     // The game keeps its default fonts in data/fontdata.json.
-    std::string file = paths_.game_dir() + "/data/fontdata.json";
+    fs::path file = paths_.game_dir() / "data" / "fontdata.json";
     nlohmann::json defaults;
     if (!load_json_file(file, defaults, status_) || !defaults.is_object())
     {
-        status_.post("Could not read the default fonts from " + file + ".", MSG_ERROR);
+        status_.post("Could not read the default fonts from " + to_utf8(file) + ".", MSG_ERROR);
         return false;
     }
 
@@ -424,16 +425,16 @@ bool FontManager::set_entry_style(const std::string& field, size_t index, const 
     return write_font_config();
 }
 
-bool FontManager::add_would_replace(const std::string& source)
+bool FontManager::add_would_replace(const fs::path& source)
 {
-    fs::path target = fs::path(paths_.font_user()) / fs::path(source).filename();
+    fs::path target = paths_.font_user() / source.filename();
     std::error_code ec;
     return fs::exists(target, ec) && !fs::equivalent(source, target, ec);
 }
 
-int FontManager::add_font_file(const std::string& source)
+int FontManager::add_font_file(const fs::path& source)
 {
-    std::string file = fs::path(source).filename().string();
+    std::string file = to_utf8(source.filename());
     if (!is_font_file(file))
     {
         status_.post(file + " is not a font file the game can use (.ttf, .otf or .ttc).", MSG_ERROR);
@@ -449,7 +450,7 @@ int FontManager::add_font_file(const std::string& source)
         }
     }
 
-    fs::path target = fs::path(paths_.font_user()) / file;
+    fs::path target = paths_.font_user() / source.filename();
     std::error_code ec;
     if (!fs::equivalent(source, target, ec))
     {
@@ -457,7 +458,7 @@ int FontManager::add_font_file(const std::string& source)
         fs::copy_file(source, target, fs::copy_options::overwrite_existing, ec);
         if (ec)
         {
-            status_.post("Could not copy " + source + " to " + target.string() + ": " + ec.message(), MSG_ERROR);
+            status_.post("Could not copy " + to_utf8(source) + " to " + to_utf8(target) + ": " + ec.message(), MSG_ERROR);
             return -1;
         }
     }
@@ -480,7 +481,7 @@ int FontManager::current_font_index(const std::string& field) const
     std::vector<std::string> files = font_files(field);
     if (files.empty())
         return -1;
-    std::string file = fs::path(files[0]).filename().string();
+    std::string file = to_utf8(to_path(files[0]).filename());
     for (size_t i = 0; i < available_fonts_.size(); ++i)
     {
         if (available_fonts_[i].file == file)

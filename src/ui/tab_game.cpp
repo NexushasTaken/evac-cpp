@@ -1,5 +1,6 @@
 #include "ui/tab_game.h"
 
+#include "core/fs.h"
 #include "core/games.h"
 #include "ui/dialogs.h"
 #include "ui/download_prompt.h"
@@ -311,7 +312,7 @@ void TabGame::refresh_installed()
     install_names_.clear();
     if (have_install)
     {
-        std::map<std::string, std::string>::const_iterator it;
+        std::map<std::string, std::filesystem::path>::const_iterator it;
         for (it = g->second.begin(); it != g->second.end(); ++it)
         {
             Gtk::Box* row = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 8);
@@ -325,7 +326,7 @@ void TabGame::refresh_installed()
                 tag->add_css_class("dim-label");
                 row->append(*tag);
             }
-            row->set_tooltip_text("Location:\n" + it->second + "\n(double-click to open folder)");
+            row->set_tooltip_text("Location:\n" + to_utf8(it->second) + "\n(double-click to open folder)");
             installs_list_.append(*row);
             install_names_.push_back(it->first);
         }
@@ -472,7 +473,7 @@ void TabGame::on_userdata_add_clicked()
                 // Added to be used, so it becomes the active one.
                 std::vector<UserdataFolder> folders = ctx_.paths.custom_userdata();
                 ctx_.paths.set_active_userdata(folders.back().path);
-                ctx_.status.post("Using the user data folder \"" + label + "\": " + folders.back().path);
+                ctx_.status.post("Using the user data folder \"" + label + "\": " + to_utf8(folders.back().path));
                 refresh_installed();
             });
     });
@@ -601,9 +602,9 @@ void TabGame::on_installs_row_activated(Gtk::ListBoxRow* row)
     Paths::InstallsSummary::const_iterator g = installs_.find(ctx_.settings.get_string("game"));
     if (g == installs_.end())
         return;
-    std::map<std::string, std::string>::const_iterator it = g->second.find(install_names_[row->get_index()]);
+    std::map<std::string, std::filesystem::path>::const_iterator it = g->second.find(install_names_[row->get_index()]);
     if (it != g->second.end())
-        open_folder(it->second);
+        open_folder(to_utf8(it->second));
 }
 
 void TabGame::on_make_active_clicked()
@@ -690,12 +691,12 @@ std::string TabGame::removal_detail(const std::string& install_name, bool update
                                       + ", and the new version is installed in their place."
                                 : "The game files of \"" + install_name + "\" " + dialogs::removal_text(use_trash) + ".";
 
-    std::vector<std::string> misplaced = ctx_.installer.check_game_dir_for_userdata(install_name);
+    std::vector<std::filesystem::path> misplaced = ctx_.installer.check_game_dir_for_userdata(install_name);
     if (!misplaced.empty())
     {
         detail += "\n\nThe game directory also contains user data that is not in the user data directory:\n";
         for (size_t i = 0; i < misplaced.size(); ++i)
-            detail += "\n" + misplaced[i];
+            detail += "\n" + to_utf8(misplaced[i]);
         detail += use_trash ? "\n\nIt goes to the trash with the game files." : "\n\nIt will be lost.";
     }
     return detail;

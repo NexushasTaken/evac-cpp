@@ -1,6 +1,7 @@
 #ifndef EVAC_FONT_MANAGER_H
 #define EVAC_FONT_MANAGER_H
 
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -24,7 +25,7 @@ struct FontInfo
 // An entry of a font list in fonts.json (see the game's doc/user-guides/FONT_OPTIONS.md).
 struct FontEntry
 {
-    std::string path;
+    std::string path;     // As fonts.json has it (UTF-8).
     std::string hinting;  // "" when the entry does not say, and the game decides.
     bool antialiasing = true;
 };
@@ -61,7 +62,7 @@ public:
     // The hinting modes the game accepts.
     static const std::vector<std::string>& hinting_modes();
     // Font files the game can use for every font list.
-    static bool is_font_file(const std::string& path);
+    static bool is_font_file(const std::string& name);
 
     bool font_config_file_exists();
     bool options_file_exists();
@@ -73,7 +74,7 @@ public:
 
     const std::vector<FontInfo>& available_fonts() const { return available_fonts_; }
     // Where the file of an available font is: the bundled ones before they are installed.
-    std::string font_file_path(const FontInfo& font) const;
+    std::filesystem::path font_file_path(const FontInfo& font) const;
 
     // Whether fonts.json has a font list (older games have no "gui_typeface").
     bool has_font_field(const std::string& field) const;
@@ -101,9 +102,9 @@ public:
 
     // Adding a font file copies it to the user font directory. Returns its
     // index in available_fonts(), or -1.
-    int add_font_file(const std::string& source);
+    int add_font_file(const std::filesystem::path& source);
     // Whether adding source would replace another file of the same name.
-    bool add_would_replace(const std::string& source);
+    bool add_would_replace(const std::filesystem::path& source);
 
     // The size of a font list in options.json ("gui_typeface" uses the UI's),
     // and the width and height the launcher picks for a size, from the

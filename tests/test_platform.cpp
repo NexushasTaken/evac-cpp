@@ -76,7 +76,7 @@ TEST_CASE("the platform knows the executable")
 {
     std::string os = platform::os_name();
     REQUIRE((os == "linux" || os == "win" || os == "mac"));
-    std::string exe = platform::executable_path();
+    std::filesystem::path exe = platform::executable_path();
     REQUIRE(!exe.empty());
     REQUIRE(platform::is_executable_file(exe));
 }

@@ -2,6 +2,7 @@
 #define EVAC_BACKUP_MANAGER_H
 
 #include <ctime>
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -13,7 +14,7 @@
 struct BackupSummary
 {
     std::string name;
-    std::string path;
+    std::filesystem::path path;
     std::vector<std::string> worlds;
 };
 

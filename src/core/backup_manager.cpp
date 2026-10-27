@@ -52,13 +52,13 @@ std::vector<BackupSummary> BackupManager::list()
     {
         BackupSummary summary;
         summary.name = names[i];
-        summary.path = paths_.save_backups() + "/" + names[i];
+        summary.path = paths_.save_backups() / to_path(names[i]);
 
         // One .zip per world.
         std::error_code ec;
         for (fs::directory_iterator it(summary.path, ec); !ec && it != fs::directory_iterator(); it.increment(ec))
         {
-            std::string file = it->path().filename().string();
+            std::string file = to_utf8(it->path().filename());
             if (ends_with_zip(file))
                 summary.worlds.push_back(file.substr(0, file.size() - 4));
         }
@@ -77,14 +77,14 @@ bool BackupManager::backup_current(const std::string& backup_name)
     }
 
     paths_.move_old_backups();
-    std::string dest_dir = paths_.save_backups() + "/" + backup_name;
+    fs::path dest_dir = paths_.save_backups() / to_path(backup_name);
     if (fs::exists(dest_dir))
     {
         status_.post("A backup named \"" + backup_name + "\" already exists.", MSG_ERROR);
         return false;
     }
 
-    std::string saves = paths_.savegames();
+    fs::path saves = paths_.savegames();
     std::vector<std::string> worlds = Paths::list_dir(saves);
     if (worlds.empty())
     {
@@ -97,13 +97,13 @@ bool BackupManager::backup_current(const std::string& backup_name)
     fs::create_directories(dest_dir, ec);
     if (ec)
     {
-        status_.post("Cannot create " + dest_dir + ": " + ec.message(), MSG_ERROR);
+        status_.post("Cannot create " + to_utf8(dest_dir) + ": " + ec.message(), MSG_ERROR);
         return false;
     }
 
     for (size_t i = 0; i < worlds.size(); ++i)
     {
-        if (!archive_helper::zip(saves, worlds[i], dest_dir + "/" + worlds[i] + ".zip", status_))
+        if (!archive_helper::zip(saves, worlds[i], dest_dir / to_path(worlds[i] + ".zip"), status_))
         {
             // Don't leave a backup that is missing worlds.
             fs::remove_all(dest_dir, ec);
@@ -117,19 +117,19 @@ bool BackupManager::backup_current(const std::string& backup_name)
 
 bool BackupManager::restore(const std::string& backup_name)
 {
-    std::string source_dir = paths_.save_backups() + "/" + backup_name;
+    fs::path source_dir = paths_.save_backups() / to_path(backup_name);
     if (!is_valid_backup_name(backup_name) || !fs::is_directory(source_dir))
     {
         status_.post("Backup \"" + backup_name + "\" not found.", MSG_ERROR);
         return false;
     }
 
-    std::vector<std::string> zips;
+    std::vector<fs::path> zips;
     std::error_code ec;
     for (fs::directory_iterator it(source_dir, ec); !ec && it != fs::directory_iterator(); it.increment(ec))
     {
-        if (ends_with_zip(it->path().filename().string()))
-            zips.push_back(it->path().string());
+        if (ends_with_zip(to_utf8(it->path().filename())))
+            zips.push_back(it->path());
     }
     if (zips.empty())
     {
@@ -140,7 +140,7 @@ bool BackupManager::restore(const std::string& backup_name)
     status_.post("Restoring backup \"" + backup_name + "\"...");
 
     // Unpack next to the saves first, and only replace them when that worked.
-    std::string stage = paths_.tmp_dir() + "/restore";
+    fs::path stage = paths_.tmp_dir() / "restore";
     fs::remove_all(stage, ec);
     fs::create_directories(stage, ec);
     for (size_t i = 0; i < zips.size(); ++i)
@@ -153,13 +153,13 @@ bool BackupManager::restore(const std::string& backup_name)
         }
     }
 
-    std::string saves = paths_.savegames();
+    fs::path saves = paths_.savegames();
     if (fs::exists(saves) && !trash_.remove(saves, "saves", "Saves before restoring " + backup_name))
     {
         fs::remove_all(stage, ec);
         return false;
     }
-    fs::create_directories(fs::path(saves).parent_path(), ec);
+    fs::create_directories(saves.parent_path(), ec);
     bool moved = fs_helper::move_dir(stage, saves, status_);
     fs::remove_all(stage, ec);
     if (!moved)
@@ -171,7 +171,7 @@ bool BackupManager::restore(const std::string& backup_name)
 
 bool BackupManager::delete_backup(const std::string& backup_name)
 {
-    std::string target = paths_.save_backups() + "/" + backup_name;
+    fs::path target = paths_.save_backups() / to_path(backup_name);
     if (!is_valid_backup_name(backup_name) || !fs::is_directory(target))
     {
         status_.post("Backup \"" + backup_name + "\" not found.", MSG_ERROR);

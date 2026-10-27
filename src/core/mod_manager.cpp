@@ -63,15 +63,15 @@ std::string ModManager::strip_html_tags(const std::string& text)
     return std::regex_replace(text, tag, "");
 }
 
-std::map<std::string, ModEntry> ModManager::parse_mods_dir(const std::string& mods_dir, Status& status)
+std::map<std::string, ModEntry> ModManager::parse_mods_dir(const fs::path& mods_dir, Status& status)
 {
     std::map<std::string, ModEntry> result;
 
     std::vector<std::string> subdirs = Paths::list_dir(mods_dir);
     for (size_t i = 0; i < subdirs.size(); ++i)
     {
-        std::string location = mods_dir + "/" + subdirs[i];
-        std::string modinfo_file = location + "/modinfo.json";
+        fs::path location = mods_dir / to_path(subdirs[i]);
+        fs::path modinfo_file = location / "modinfo.json";
         std::ifstream f(modinfo_file);
         if (!f)
             continue;
@@ -82,7 +82,7 @@ std::map<std::string, ModEntry> ModManager::parse_mods_dir(const std::string& mo
         nlohmann::json json = nlohmann::json::parse(ss.str(), nullptr, false, true);
         if (json.is_discarded())
         {
-            status.post("Could not parse " + modinfo_file, MSG_ERROR);
+            status.post("Could not parse " + to_utf8(modinfo_file), MSG_ERROR);
             continue;
         }
 
@@ -169,7 +169,7 @@ ModStatus ModManager::mod_status(const std::string& id) const
 
 // Gives the MOD_INFO entry of a modinfo.json file a modified ID ("id__") and
 // name ("name*"). The rest of the file is written back as the mod has it.
-static bool rename_mod(const std::string& file, const std::string& id, Status& status)
+static bool rename_mod(const fs::path& file, const std::string& id, Status& status)
 {
     std::ifstream f(file);
     std::stringstream ss;
@@ -177,7 +177,7 @@ static bool rename_mod(const std::string& file, const std::string& id, Status& s
     nlohmann::json json = nlohmann::json::parse(ss.str(), nullptr, false, true);
     if (!f || json.is_discarded())
     {
-        status.post("Could not parse " + file, MSG_ERROR);
+        status.post("Could not parse " + to_utf8(file), MSG_ERROR);
         return false;
     }
 
@@ -195,7 +195,7 @@ static bool rename_mod(const std::string& file, const std::string& id, Status& s
     }
     if (!info)
     {
-        status.post("No MOD_INFO entry in " + file, MSG_ERROR);
+        status.post("No MOD_INFO entry in " + to_utf8(file), MSG_ERROR);
         return false;
     }
 
@@ -219,7 +219,7 @@ bool ModManager::install_mod(const std::string& id)
         return false;
     }
     const ModEntry& mod = found->second;
-    std::string mods_dir = paths_.mods_user();
+    fs::path mods_dir = paths_.mods_user();
 
     if (!fs_helper::copy_dir(mod.location, mods_dir, status_))
         return false;
@@ -231,7 +231,7 @@ bool ModManager::install_mod(const std::string& id)
     {
         status_.post("There is already an obsoleted mod with ID " + id + ". " + mod.name
                      + " will be installed with modified ID and name to avoid collisions.");
-        std::string target = mods_dir + "/" + fs::path(mod.location).filename().string() + "/modinfo.json";
+        fs::path target = mods_dir / mod.location.filename() / "modinfo.json";
         if (!rename_mod(target, id, status_))
             return false;
     }
@@ -301,7 +301,7 @@ bool ModManager::retrieve_modpack(const Modpack& pack)
 {
     status_.post("Retrieving " + pack.name + "...");
 
-    std::string archive_path = paths_.cache_dir() + "/" + pack.filename;
+    fs::path archive_path = paths_.cache_dir() / to_path(pack.filename);
     std::error_code ec;
 
     if (settings_.get_bool("ignore_cache") || !fs::exists(archive_path))
@@ -312,7 +312,7 @@ bool ModManager::retrieve_modpack(const Modpack& pack)
     }
 
     // Always extract into an empty directory.
-    std::string tmp_dir = paths_.tmp_dir();
+    fs::path tmp_dir = paths_.tmp_dir();
     fs::remove_all(tmp_dir, ec);
     bool extracted = archive_helper::extract(archive_path, tmp_dir, status_);
     if (!settings_.get_bool("keep_cache"))
@@ -326,7 +326,7 @@ bool ModManager::retrieve_modpack(const Modpack& pack)
     // Look before wiping the repository, so that a surprising archive does not leave it empty.
     for (size_t i = 0; i < pack.internal_paths.size(); ++i)
     {
-        if (!fs::is_directory(tmp_dir + "/" + pack.internal_paths[i]))
+        if (!fs::is_directory(tmp_dir / to_path(pack.internal_paths[i])))
         {
             status_.post("The archive does not contain \"" + pack.internal_paths[i] + "\".", MSG_ERROR);
             fs::remove_all(tmp_dir, ec);
@@ -335,7 +335,7 @@ bool ModManager::retrieve_modpack(const Modpack& pack)
     }
 
     bool ok = true;
-    std::string repo = paths_.mod_repo();
+    fs::path repo = paths_.mod_repo();
 
     status_.post("Wiping the repository...");
     if (fs::exists(repo) && !fs_helper::rm_dir(repo, status_))
@@ -344,14 +344,14 @@ bool ModManager::retrieve_modpack(const Modpack& pack)
     status_.post("Adding mods from the pack to repository...");
     for (size_t i = 0; i < pack.internal_paths.size(); ++i)
     {
-        if (!fs_helper::move_dir(tmp_dir + "/" + pack.internal_paths[i], repo, status_))
+        if (!fs_helper::move_dir(tmp_dir / to_path(pack.internal_paths[i]), repo, status_))
             ok = false;
     }
 
     if (settings_.get_bool("install_archived_mods"))
     {
         status_.post("Adding archived mods to repository...");
-        if (!fs_helper::move_dir(tmp_dir + "/" + pack.archived_path, repo, status_))
+        if (!fs_helper::move_dir(tmp_dir / to_path(pack.archived_path), repo, status_))
             ok = false;
     }
 

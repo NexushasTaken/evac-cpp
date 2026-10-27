@@ -1,6 +1,7 @@
 #ifndef EVAC_SETTINGS_H
 #define EVAC_SETTINGS_H
 
+#include <filesystem>
 #include <mutex>
 #include <string>
 
@@ -15,7 +16,7 @@
 class Settings
 {
 public:
-    Settings(const std::string& settings_file, Status& status);
+    Settings(const std::filesystem::path& settings_file, Status& status);
 
     // Loads the file, or creates it with the defaults if it doesn't exist.
     void load();
@@ -40,7 +41,7 @@ private:
     // a type that doesn't match the default's. Null if the key is unknown.
     nlohmann::json lookup(const std::string& name);
 
-    std::string file_;
+    std::filesystem::path file_;
     Status& status_;
     std::mutex mutex_;  // Guards current_.
     nlohmann::json current_;

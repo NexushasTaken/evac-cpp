@@ -2,6 +2,7 @@
 
 #include <map>
 
+#include "core/fs.h"
 #include "ui/dialogs.h"
 #include "ui/download_prompt.h"
 
@@ -128,7 +129,7 @@ void TabSoundpacks::refresh_installed()
     for (size_t i = 0; i < installed_.size(); ++i)
     {
         const InstalledSoundpack& pack = installed_[i];
-        std::string folder = Glib::path_get_basename(pack.location);
+        std::string folder = to_utf8(pack.location.filename());
         Glib::ustring markup = Glib::Markup::escape_text(pack.name);
         if (name_count[pack.name] > 1)
             markup += " <span alpha=\"60%\">(" + Glib::Markup::escape_text(pack.is_stock ? "stock" : folder) + ")</span>";

@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <set>
 
+#include "core/fs.h"
 #include "core/platform.h"
 
 namespace fs = std::filesystem;
@@ -66,11 +67,11 @@ std::string SnapshotManager::default_snapshot_name(const std::tm& time)
     return buf;
 }
 
-std::string SnapshotManager::world_dir(const std::string& world) { return paths_.savegames() + "/" + world; }
+fs::path SnapshotManager::world_dir(const std::string& world) { return paths_.savegames() / to_path(world); }
 
-std::string SnapshotManager::repo_path(const std::string& world)
+fs::path SnapshotManager::repo_path(const std::string& world)
 {
-    return paths_.snapshots() + "/" + world + REPO_SUFFIX;
+    return paths_.snapshots() / to_path(world + REPO_SUFFIX);
 }
 
 // The work tree only when the world folder exists: git refuses a missing one,
@@ -78,15 +79,15 @@ std::string SnapshotManager::repo_path(const std::string& world)
 std::vector<std::string> SnapshotManager::repo_args(const std::string& world)
 {
     std::vector<std::string> args;
-    std::string dir = world_dir(world);
+    fs::path dir = world_dir(world);
     std::error_code ec;
     if (fs::is_directory(dir, ec))
     {
         args.push_back("-C");
-        args.push_back(dir);
-        args.push_back("--work-tree=" + dir);
+        args.push_back(to_utf8(dir));
+        args.push_back("--work-tree=" + to_utf8(dir));
     }
-    args.push_back("--git-dir=" + repo_path(world));
+    args.push_back("--git-dir=" + to_utf8(repo_path(world)));
     return args;
 }
 
@@ -118,17 +119,17 @@ bool SnapshotManager::has_commits(const std::string& world)
 
 bool SnapshotManager::ensure_repo(const std::string& world)
 {
-    std::string repo = repo_path(world);
+    fs::path repo = repo_path(world);
     std::error_code ec;
     if (fs::is_directory(repo, ec))
         return true;
     fs::create_directories(paths_.snapshots(), ec);
     if (ec)
     {
-        status_.post("Cannot create " + paths_.snapshots() + ": " + ec.message(), MSG_ERROR);
+        status_.post("Cannot create " + to_utf8(paths_.snapshots()) + ": " + ec.message(), MSG_ERROR);
         return false;
     }
-    git::Result r = git::run(args_of({"init", "-q", "--bare", repo}));
+    git::Result r = git::run(args_of({"init", "-q", "--bare", to_utf8(repo)}));
     if (!r.ok())
     {
         status_.post("Cannot create the snapshot repository for " + world + ": " + trim(r.err), MSG_ERROR);
@@ -279,13 +280,13 @@ std::uint64_t SnapshotManager::history_size(const std::string& world)
 
 std::string SnapshotManager::git_command(const std::string& world)
 {
-    return "git " + git::shell_quote("--git-dir=" + repo_path(world)) + " "
-           + git::shell_quote("--work-tree=" + world_dir(world));
+    return "git " + git::shell_quote("--git-dir=" + to_utf8(repo_path(world))) + " "
+           + git::shell_quote("--work-tree=" + to_utf8(world_dir(world)));
 }
 
 bool SnapshotManager::can_write(std::string& reason)
 {
-    std::string dir = paths_.savegames();
+    fs::path dir = paths_.savegames();
     std::error_code ec;
     if (!fs::is_directory(dir, ec))
         dir = paths_.userdata();
@@ -293,10 +294,10 @@ bool SnapshotManager::can_write(std::string& reason)
     if (platform::dir_writable(dir, read_only_fs))
         return true;
     if (read_only_fs)
-        reason = "The userdata folder is read-only (" + paths_.userdata()
+        reason = "The userdata folder is read-only (" + to_utf8(paths_.userdata())
                  + "). On a Windows partition, this happens when Windows was hibernated or shut down with Fast Startup.";
     else
-        reason = "Cannot write to " + dir + ".";
+        reason = "Cannot write to " + to_utf8(dir) + ".";
     return false;
 }
 
@@ -402,7 +403,7 @@ SnapshotManager::Result SnapshotManager::restore(const std::string& world, const
         fs::create_directories(world_dir(world), ec);
         if (ec)
         {
-            status_.post("Cannot create " + world_dir(world) + ": " + ec.message(), MSG_ERROR);
+            status_.post("Cannot create " + to_utf8(world_dir(world)) + ": " + ec.message(), MSG_ERROR);
             return FAILED;
         }
     }
@@ -464,7 +465,7 @@ bool SnapshotManager::mark_kept(const std::string& world)
 
 bool SnapshotManager::delete_snapshots(const std::string& world)
 {
-    std::string repo = repo_path(world);
+    fs::path repo = repo_path(world);
     std::error_code ec;
     if (world.empty() || !fs::is_directory(repo, ec))
     {
@@ -477,7 +478,7 @@ bool SnapshotManager::delete_snapshots(const std::string& world)
     return true;
 }
 
-bool SnapshotManager::export_snapshots(const std::string& world, const std::string& path)
+bool SnapshotManager::export_snapshots(const std::string& world, const fs::path& path)
 {
     if (!has_commits(world))
     {
@@ -486,19 +487,19 @@ bool SnapshotManager::export_snapshots(const std::string& world, const std::stri
     }
     // git runs in the world folder, so a relative path would land there.
     std::error_code ec;
-    std::string target = fs::absolute(path, ec).string();
+    fs::path target = fs::absolute(path, ec);
     if (ec)
         target = path;
     status_.post("Exporting the snapshots of " + world + "...");
-    if (!run_or_report(world, args_of({"bundle", "create", "-q", target, "--all"}), "Export"))
+    if (!run_or_report(world, args_of({"bundle", "create", "-q", to_utf8(target), "--all"}), "Export"))
         return false;
-    status_.post("Snapshots of " + world + " exported to " + target + ".");
+    status_.post("Snapshots of " + world + " exported to " + to_utf8(target) + ".");
     return true;
 }
 
-std::string SnapshotManager::bundle_world_name(const std::string& path)
+std::string SnapshotManager::bundle_world_name(const fs::path& path)
 {
-    std::string name = fs::path(path).filename().string();
+    std::string name = to_utf8(path.filename());
     if (ends_with(name, ".bundle"))
         name.resize(name.size() - 7);
     return name;
@@ -555,7 +556,7 @@ static std::string bundle_head(const std::string& list_heads)
     return refs.size() == 1 ? refs[0] : "";
 }
 
-SnapshotManager::Result SnapshotManager::import_snapshots(const std::string& bundle, const std::string& world)
+SnapshotManager::Result SnapshotManager::import_snapshots(const fs::path& bundle_path, const std::string& world)
 {
     std::string problem = check_import_name(world);
     if (!problem.empty())
@@ -569,6 +570,7 @@ SnapshotManager::Result SnapshotManager::import_snapshots(const std::string& bun
         status_.post(reason, MSG_ERROR);
         return FAILED;
     }
+    std::string bundle = to_utf8(bundle_path);
     git::Result heads = git::run(args_of({"bundle", "list-heads", bundle}));
     std::string head = heads.ok() ? bundle_head(heads.out) : "";
     if (head.empty())
@@ -579,8 +581,8 @@ SnapshotManager::Result SnapshotManager::import_snapshots(const std::string& bun
     }
 
     // Both are new (check_import_name), so a failed import can remove them.
-    std::string repo = repo_path(world);
-    std::string dir = world_dir(world);
+    fs::path repo = repo_path(world);
+    fs::path dir = world_dir(world);
     std::error_code ec;
     if (!ensure_repo(world))
     {
@@ -594,7 +596,7 @@ SnapshotManager::Result SnapshotManager::import_snapshots(const std::string& bun
     {
         fs::create_directories(dir, ec);
         if (ec)
-            status_.post("Cannot create " + dir + ": " + ec.message(), MSG_ERROR);
+            status_.post("Cannot create " + to_utf8(dir) + ": " + ec.message(), MSG_ERROR);
         ok = !ec && reset_to(world, "HEAD");
     }
     if (!ok)

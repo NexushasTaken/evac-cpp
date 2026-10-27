@@ -159,11 +159,11 @@ Result run(const std::string& program, const std::vector<std::string>& args, con
     return result;
 }
 
-bool spawn_detached(const std::string& executable, const std::vector<std::string>& args,
-                    const std::string& working_dir, std::string& error)
+bool spawn_detached(const std::filesystem::path& executable, const std::vector<std::string>& args,
+                    const std::filesystem::path& working_dir, std::string& error)
 {
     std::vector<std::string> argv_strings;
-    argv_strings.push_back(executable);
+    argv_strings.push_back(executable.string());
     argv_strings.insert(argv_strings.end(), args.begin(), args.end());
     std::vector<char*> argv = c_strings(argv_strings);
 
