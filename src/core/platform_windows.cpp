@@ -78,6 +78,13 @@ bool is_executable_file(const std::string& path)
     return fs::is_regular_file(fs::path(widen(path)), ec);
 }
 
+std::tm local_time(std::time_t t)
+{
+    std::tm result = {};
+    localtime_s(&result, &t);
+    return result;
+}
+
 bool dir_writable(const std::string& dir, bool& read_only_fs)
 {
     // Attributes say nothing about directories, so try to make a file.

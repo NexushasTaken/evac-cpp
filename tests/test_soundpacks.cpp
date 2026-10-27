@@ -4,7 +4,9 @@
 #include <fstream>
 #include <sstream>
 
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 
 #include "core/archive.h"
 #include "core/helpers.h"
@@ -100,6 +102,7 @@ TEST_CASE("parse_sound_dir reads soundpack.txt")
 
     REQUIRE(SoundpackManager::parse_sound_dir(dir + "/missing").empty());
 
+#ifndef _WIN32  // Windows has no permission bits for directories.
     // A directory that can't be searched is skipped, not an exception.
     write_file(dir + "/e/soundpack.txt", "VIEW: Locked\n");
     fs::permissions(dir + "/e", fs::perms::owner_read);
@@ -108,6 +111,7 @@ TEST_CASE("parse_sound_dir reads soundpack.txt")
     fs::permissions(dir + "/e", fs::perms::owner_all);
     if (geteuid() != 0)  // root can read it anyway.
         REQUIRE(with_locked.size() == 3);
+#endif
 }
 
 TEST_CASE("get_installed marks stock packs")

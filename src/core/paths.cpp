@@ -266,10 +266,11 @@ static std::string clean_path(const std::string& path)
     fs::path p = fs::absolute(path, ec);
     if (ec)
         p = path;
-    std::string s = p.lexically_normal().string();
-    while (s.size() > 1 && s.back() == '/')
-        s.pop_back();
-    return s;
+    p = p.lexically_normal();
+    // "dir/" has an empty file name; drop that separator ("/" and "C:\" stay).
+    if (!p.has_filename() && p.has_relative_path())
+        p = p.parent_path();
+    return p.string();
 }
 
 std::string Paths::check_userdata_label(const std::string& label, const std::string& own_path)

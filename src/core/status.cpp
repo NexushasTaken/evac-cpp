@@ -4,6 +4,8 @@
 #include <cstdio>
 #include <ctime>
 
+#include "core/platform.h"
+
 static std::string current_timestamp()
 {
     using namespace std::chrono;
@@ -11,8 +13,7 @@ static std::string current_timestamp()
     std::time_t secs = system_clock::to_time_t(now);
     long msecs = (long)(duration_cast<milliseconds>(now.time_since_epoch()).count() % 1000);
 
-    std::tm local;
-    localtime_r(&secs, &local);
+    std::tm local = platform::local_time(secs);
 
     char buf[32];
     std::snprintf(buf, sizeof(buf), "[%02d:%02d:%02d.%03ld]", local.tm_hour, local.tm_min, local.tm_sec, msecs);

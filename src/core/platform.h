@@ -1,6 +1,7 @@
 #ifndef EVAC_PLATFORM_H
 #define EVAC_PLATFORM_H
 
+#include <ctime>
 #include <string>
 
 // The things the core needs to ask the operating system. Implemented in
@@ -23,6 +24,9 @@ std::string get_env(const char* name);
 
 // True if path is a regular file this user may run.
 bool is_executable_file(const std::string& path);
+
+// t in the local time zone (localtime_r is not on Windows, localtime is not thread-safe).
+std::tm local_time(std::time_t t);
 
 // True if new files can be made in dir. read_only_fs is set when the whole
 // file system is read-only (as opposed to a permission problem).

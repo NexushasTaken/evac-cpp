@@ -9,6 +9,7 @@
 #include "core/fs.h"
 #include "core/helpers.h"
 #include "core/mod_manager.h"
+#include "core/platform.h"
 
 namespace fs = std::filesystem;
 
@@ -59,16 +60,14 @@ static std::uint64_t measure(const fs::path& path)
 
 static std::tm local_time(Trash::Clock::time_point when)
 {
-    std::time_t t = Trash::Clock::to_time_t(when);
-    std::tm tm = {};
-    localtime_r(&t, &tm);
-    return tm;
+    return platform::local_time(Trash::Clock::to_time_t(when));
 }
 
-// An id from list(), and nothing that points outside the trash.
+// An id from list(), and nothing that points outside the trash. Backslash is
+// a separator on Windows; make_id never uses it.
 static bool is_valid_id(const std::string& id)
 {
-    return !id.empty() && id != "." && id != ".." && id.find('/') == std::string::npos;
+    return !id.empty() && id != "." && id != ".." && id.find_first_of("/\\") == std::string::npos;
 }
 
 // path if it is free, else path + " (restored)", " (restored 2)", ...

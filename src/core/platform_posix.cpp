@@ -56,6 +56,13 @@ bool is_executable_file(const std::string& path)
     return stat(path.c_str(), &st) == 0 && S_ISREG(st.st_mode) && access(path.c_str(), X_OK) == 0;
 }
 
+std::tm local_time(std::time_t t)
+{
+    std::tm result = {};
+    localtime_r(&t, &result);
+    return result;
+}
+
 bool dir_writable(const std::string& dir, bool& read_only_fs)
 {
     read_only_fs = false;

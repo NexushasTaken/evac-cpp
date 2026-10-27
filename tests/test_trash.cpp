@@ -4,7 +4,9 @@
 #include <fstream>
 #include <sstream>
 
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 
 #include "core/helpers.h"
 #include "core/paths.h"
@@ -455,6 +457,7 @@ TEST_CASE("what can't be restored stays in the trash")
     REQUIRE(f.trash.plan_restore(id).kind == RestorePlan::IMPOSSIBLE);
 }
 
+#ifndef _WIN32  // Windows has no permission bits for directories.
 TEST_CASE("a failed restore keeps the item")
 {
     if (geteuid() == 0)
@@ -473,3 +476,4 @@ TEST_CASE("a failed restore keeps the item")
     REQUIRE(fs::exists(f.paths.trash_dir() + "/" + id + "/item/data.bin"));
     REQUIRE(f.trash.restore(id, false));  // Works once it can.
 }
+#endif

@@ -94,9 +94,15 @@ TEST_CASE("default snapshot name")
 TEST_CASE("git runs without the user's git environment")
 {
     REQUIRE(git::available());
+#ifdef _WIN32
+    _putenv_s("GIT_DIR", "/nonexistent");
+    git::Result r = git::run({"config", "--get", "user.name"});
+    _putenv_s("GIT_DIR", "");  // An empty value removes it.
+#else
     setenv("GIT_DIR", "/nonexistent", 1);
     git::Result r = git::run({"config", "--get", "user.name"});
     unsetenv("GIT_DIR");
+#endif
     REQUIRE(r.ok());
     REQUIRE(r.out == "evac\n");
 }
