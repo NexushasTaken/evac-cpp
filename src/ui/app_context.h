@@ -21,7 +21,7 @@
 struct AppContext
 {
     explicit AppContext(const Locations& locations)
-        : settings(locations.config_dir + "/catapult_settings.json", status),
+        : settings(locations.config_dir + "/evac_settings.json", status),
           paths(locations, settings, status),
           trash(settings, paths, status),
           releases(settings, status),

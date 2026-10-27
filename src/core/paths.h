@@ -9,7 +9,7 @@
 #include "core/status.h"
 
 // Where the launcher keeps its own files.
-//   config_dir: catapult_settings.json
+//   config_dir: evac_settings.json
 //   games_dir:  one subdirectory per game ("dda", "bn", ...) with installs, userdata, ...
 //   cache_dir:  downloaded archives
 struct Locations
@@ -24,7 +24,7 @@ Locations portable_locations(const std::string& dir);
 // XDG base directories. An empty or relative *_home is replaced by the default under home.
 Locations xdg_locations(const std::string& home, const std::string& config_home,
                         const std::string& data_home, const std::string& cache_home);
-// Portable if catapult_settings.json sits next to the executable, XDG otherwise.
+// Portable if evac_settings.json sits next to the executable, XDG otherwise.
 Locations default_locations();
 
 // A userdata folder the user added for the current game. The label is only a

@@ -32,7 +32,8 @@ back up your saves before trusting it with them, and please report anything odd.
 
 This project started as a (nearly) one-to-one port of **Catapult by qrrk** from Godot/GDScript to C++. The
 features, the settings file format, the directory layout and the lists of stable releases and soundpacks all come
-from the original, so the two should be able to share a folder of games (this has not been tested yet).
+from the original. Evac is its own app now and uses its own file names (see Differences), so it does not share a
+folder with Catapult.
 All credit for the design goes to the original author and its contributors. The code here was written fresh in
 C++, following the original's behavior.
 
@@ -62,6 +63,8 @@ Differences from the original:
   setting; the old `launcher_theme` and `ui_scale_*` keys in the settings file are kept but ignored.
 - It is not a single self-contained executable. The `data/` folder (bundled fonts, licenses) has to be next to it.
 - Files go to the XDG directories by default instead of next to the executable (see Running).
+- Its own files have their own names: `evac_settings.json` (same keys as Catapult's `catapult_settings.json`),
+  `evac_install_info.json` in each game install, and an `evac/` folder in each userdata folder.
 - Restoring a backup unpacks it to a staging folder first and asks for confirmation, so a broken backup can't
   destroy your current saves.
 
@@ -105,13 +108,11 @@ The launcher follows the XDG base directory spec:
 
 | What                                                        | Where                                      |
 |-------------------------------------------------------------|--------------------------------------------|
-| `catapult_settings.json`                                    | `$XDG_CONFIG_HOME/evac` (`~/.config/evac`) |
+| `evac_settings.json`                                        | `$XDG_CONFIG_HOME/evac` (`~/.config/evac`) |
 | Games: a folder per game (`dda/`, `bn/`, ...) with the installs, user data, mod repository and save backups | `$XDG_DATA_HOME/evac` (`~/.local/share/evac`) |
 | Downloaded archives                                         | `$XDG_CACHE_HOME/evac` (`~/.cache/evac`)   |
 
-The settings file keeps the original's name, `catapult_settings.json`, so it stays compatible with Catapult.
-
-**Portable mode:** if a `catapult_settings.json` sits next to the executable, the launcher keeps everything in
+**Portable mode:** if an `evac_settings.json` sits next to the executable, the launcher keeps everything in
 that folder instead, like the original (`cache/` and the game folders next to it). To go back to the XDG
 folders, move or delete that file. The `data/` folder (bundled fonts, licenses) always has to be next to the
 executable for now.
@@ -121,7 +122,8 @@ If you used an earlier build that kept its files next to the executable, move th
 ```sh
 mkdir -p ~/.config/evac ~/.local/share/evac ~/.cache/evac
 cd build/Debug
-mv catapult_settings.json ~/.config/evac/
+mv catapult_settings.json ~/.config/evac/evac_settings.json
+for f in */game*/catapult_install_info.json; do mv "$f" "${f%/*}/evac_install_info.json"; done
 mv dda bn eod tish tlg ~/.local/share/evac/   # only the ones that exist
 mv cache/* ~/.cache/evac/                     # optional, they can be downloaded again
 ```
@@ -129,8 +131,10 @@ mv cache/* ~/.cache/evac/                     # optional, they can be downloaded
 If you used a build from before the rename to Evac (catapult-cpp), the launcher's own folders were called
 `catapult` instead of `evac`: `~/.config/catapult`, `~/.local/share/catapult`, `~/.cache/catapult`, and a
 `catapult/` folder (backups, snapshots) inside each userdata folder. Rename them to `evac`, change any paths in
-`catapult_settings.json` that point into the old folders, and in each snapshot repository that was marked as
-kept, run `git config evac.keep true`.
+the settings file that point into the old folders, and in each snapshot repository that was marked as kept, run
+`git config evac.keep true`. The files were renamed too: `catapult_settings.json` is now `evac_settings.json`,
+and each game install's `catapult_install_info.json` is now `evac_install_info.json`. Without that file an
+install is not recognized.
 
 ## Tests
 

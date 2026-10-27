@@ -8,7 +8,7 @@
 
 #include "core/status.h"
 
-// Reads and writes catapult_settings.json (same keys as the original launcher).
+// Reads and writes evac_settings.json (same keys as the original launcher's catapult_settings.json).
 // It may be used from several threads at once (the UI and a worker).
 // Keys that are missing from the file fall back to the defaults. Keys that we
 // don't know about (like launcher_theme) are kept in the file untouched.

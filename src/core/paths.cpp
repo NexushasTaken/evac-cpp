@@ -51,7 +51,7 @@ Locations xdg_locations(const std::string& home, const std::string& config_home,
 Locations default_locations()
 {
     std::string exe_dir = Paths::executable_dir();
-    if (fs::exists(exe_dir + "/catapult_settings.json"))
+    if (fs::exists(exe_dir + "/evac_settings.json"))
         return portable_locations(exe_dir);
 
     std::string home = env_or_empty("HOME");

@@ -4,7 +4,7 @@
 #include <fstream>
 #include <sstream>
 
-const char* const INFO_FILENAME = "catapult_install_info.json";
+const char* const INFO_FILENAME = "evac_install_info.json";
 
 bool load_json_file(const std::string& file, nlohmann::json& out, Status& status)
 {
