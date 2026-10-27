@@ -13,7 +13,7 @@ namespace fs = std::filesystem;
 static const long PROGRESS_AFTER_MSECS = 2000;
 static const double PROGRESS_AFTER_BYTES = 5.0 * 1024 * 1024;
 
-static const char* const USER_AGENT = "Catapult";
+static const char* const USER_AGENT = "Evac";
 
 static long now_msecs()
 {

@@ -202,7 +202,7 @@ TEST_CASE("old backups go to the default userdata even when another one is activ
     f.paths.set_active_userdata(f.dir + "/modded");
 
     REQUIRE(f.backups.list().empty());
-    REQUIRE(read_file(f.dir + "/dda/userdata/catapult/backups/old one/Alpha.zip") == "zip");
+    REQUIRE(read_file(f.dir + "/dda/userdata/evac/backups/old one/Alpha.zip") == "zip");
     REQUIRE(!fs::exists(f.dir + "/modded"));
 
     f.paths.set_active_userdata("");

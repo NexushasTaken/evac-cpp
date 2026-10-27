@@ -88,9 +88,10 @@ TEST_CASE("license sections can all be read")
     Paths paths(make_temp_dir("licenses_paths"), settings, status);
 
     std::vector<LicenseSection> sections = load_license_sections(paths.data_dir());
-    REQUIRE(sections.size() == 7);
-    REQUIRE(sections[0].heading == "Catapult");
+    REQUIRE(sections.size() == 8);
+    REQUIRE(sections[0].heading == "Evac");
     REQUIRE(sections[0].text.find("MIT License") != std::string::npos);
+    REQUIRE(sections[1].text.find("qrrk") != std::string::npos);
     for (size_t i = 0; i < sections.size(); ++i)
     {
         REQUIRE(!sections[i].text.empty());

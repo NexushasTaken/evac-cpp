@@ -73,9 +73,9 @@ TEST_CASE("paths follow the original layout")
 
     REQUIRE(p.userdata() == dir + "/dda/userdata");
     REQUIRE(p.savegames() == dir + "/dda/userdata/save");
-    REQUIRE(p.launcher_dir() == dir + "/dda/userdata/catapult");
-    REQUIRE(p.save_backups() == dir + "/dda/userdata/catapult/backups");
-    REQUIRE(p.snapshots() == dir + "/dda/userdata/catapult/snapshots");
+    REQUIRE(p.launcher_dir() == dir + "/dda/userdata/evac");
+    REQUIRE(p.save_backups() == dir + "/dda/userdata/evac/backups");
+    REQUIRE(p.snapshots() == dir + "/dda/userdata/evac/snapshots");
     REQUIRE(p.next_install_dir() == dir + "/dda/game0");
 
     fs::create_directories(dir + "/dda/game0");
@@ -104,19 +104,19 @@ TEST_CASE("installs summary finds installs and sets the active one")
 TEST_CASE("xdg locations")
 {
     Locations loc = xdg_locations("/home/u", "", "", "");
-    REQUIRE(loc.config_dir == "/home/u/.config/catapult");
-    REQUIRE(loc.games_dir == "/home/u/.local/share/catapult");
-    REQUIRE(loc.cache_dir == "/home/u/.cache/catapult");
+    REQUIRE(loc.config_dir == "/home/u/.config/evac");
+    REQUIRE(loc.games_dir == "/home/u/.local/share/evac");
+    REQUIRE(loc.cache_dir == "/home/u/.cache/evac");
 
     loc = xdg_locations("/home/u", "/c", "/d", "/k");
-    REQUIRE(loc.config_dir == "/c/catapult");
-    REQUIRE(loc.games_dir == "/d/catapult");
-    REQUIRE(loc.cache_dir == "/k/catapult");
+    REQUIRE(loc.config_dir == "/c/evac");
+    REQUIRE(loc.games_dir == "/d/evac");
+    REQUIRE(loc.cache_dir == "/k/evac");
 
     // Relative values must be ignored.
     loc = xdg_locations("/home/u", "rel", "also/rel", "");
-    REQUIRE(loc.config_dir == "/home/u/.config/catapult");
-    REQUIRE(loc.games_dir == "/home/u/.local/share/catapult");
+    REQUIRE(loc.config_dir == "/home/u/.config/evac");
+    REQUIRE(loc.games_dir == "/home/u/.local/share/evac");
 }
 
 TEST_CASE("portable locations keep everything in one directory")
@@ -164,7 +164,7 @@ TEST_CASE("custom userdata folders")
     p.set_active_userdata(dir + "/modded");
     REQUIRE(p.userdata() == dir + "/modded");
     REQUIRE(p.savegames() == dir + "/modded/save");
-    REQUIRE(p.save_backups() == dir + "/modded/catapult/backups");
+    REQUIRE(p.save_backups() == dir + "/modded/evac/backups");
     REQUIRE(p.mod_repo() == dir + "/dda/mod_repo");  // Not part of userdata.
 
     // Renaming changes the label only.

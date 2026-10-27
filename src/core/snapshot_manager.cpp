@@ -209,7 +209,7 @@ std::vector<WorldInfo> SnapshotManager::list_worlds()
         if (info.name.empty() || present.count(info.name))
             continue;
         info.state = WorldInfo::DELETED;
-        git::Result r = run(info.name, args_of({"config", "--get", "--bool", "catapult.keep"}));
+        git::Result r = run(info.name, args_of({"config", "--get", "--bool", "evac.keep"}));
         info.kept = r.ok() && trim(r.out) == "true";
         result.push_back(info);
     }
@@ -459,7 +459,7 @@ SnapshotManager::Result SnapshotManager::discard_changes(const std::string& worl
 
 bool SnapshotManager::mark_kept(const std::string& world)
 {
-    return run_or_report(world, args_of({"config", "catapult.keep", "true"}), "git config");
+    return run_or_report(world, args_of({"config", "evac.keep", "true"}), "git config");
 }
 
 bool SnapshotManager::delete_snapshots(const std::string& world)

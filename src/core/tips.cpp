@@ -4,8 +4,8 @@ static std::vector<std::string> make_tips()
 {
     std::vector<std::string> tips;
     tips.push_back(
-        "You can bring the Catapult folder from Windows to Linux (or vice versa) and keep using it, but you will "
-        "have to download the correct Catapult executable and update your game at least once.");
+        "You can bring the Evac folder from Windows to Linux (or vice versa) and keep using it, but you will "
+        "have to download the correct Evac executable and update your game at least once.");
     tips.push_back(
         "Both C:DDA and C:BN can be installed at the same time. Their installations are completely independent, "
         "and their updates, mods and soundpacks are managed separately.");
@@ -13,8 +13,8 @@ static std::vector<std::string> make_tips()
         "You can downgrade your game version by choosing to \"update\" to an earlier build, but beware of save "
         "compatibility issues.");
     tips.push_back(
-        "Mods that come with the game are not managed by Catapult (except for preventing them from being installed "
-        "a second time). Catapult only deals with the /mods folder, not /data/mods.");
+        "Mods that come with the game are not managed by Evac (except for preventing them from being installed "
+        "a second time). Evac only deals with the /mods folder, not /data/mods.");
     tips.push_back("You can select multiple mods to install/delete by Ctrl-clicking and Shift-clicking in the lists.");
     tips.push_back(
         "Kenan's Modpack is updated quite often. Just click Get Kenan Modpack again to re-download it and replace "

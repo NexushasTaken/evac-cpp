@@ -14,7 +14,7 @@ static std::string read_text(const std::string& path)
 }
 
 static const char LIBRARIES_TEXT[] =
-    "Catapult uses these open source libraries. Each one is distributed under its own license; "
+    "Evac uses these open source libraries. Each one is distributed under its own license; "
     "see the project's website for the full text.\n\n"
     "gtkmm and GTK - GNU LGPL 2.1 or later - https://www.gtkmm.org\n"
     "libcurl - curl license - https://curl.se\n"
@@ -29,7 +29,12 @@ std::vector<LicenseSection> load_license_sections(const std::string& data_dir)
     std::vector<LicenseSection> sections;
     LicenseSection s;
 
-    s.heading = "Catapult";
+    s.heading = "Evac";
+    s.text = read_text(data_dir + "/licenses/Evac.txt");
+    sections.push_back(s);
+
+    // Evac started as a port of Catapult; its license asks to keep this notice.
+    s.heading = "Catapult (the original launcher)";
     s.text = read_text(data_dir + "/licenses/Catapult.txt");
     sections.push_back(s);
 

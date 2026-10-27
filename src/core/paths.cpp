@@ -42,9 +42,9 @@ Locations xdg_locations(const std::string& home, const std::string& config_home,
                         const std::string& data_home, const std::string& cache_home)
 {
     Locations loc;
-    loc.config_dir = xdg_base(config_home, home + "/.config") + "/catapult";
-    loc.games_dir = xdg_base(data_home, home + "/.local/share") + "/catapult";
-    loc.cache_dir = xdg_base(cache_home, home + "/.cache") + "/catapult";
+    loc.config_dir = xdg_base(config_home, home + "/.config") + "/evac";
+    loc.games_dir = xdg_base(data_home, home + "/.local/share") + "/evac";
+    loc.cache_dir = xdg_base(cache_home, home + "/.cache") + "/evac";
     return loc;
 }
 
@@ -342,7 +342,7 @@ std::string Paths::memorial() { return userdata() + "/memorial"; }
 std::string Paths::graveyard() { return userdata() + "/graveyard"; }
 std::string Paths::mod_repo() { return game_base_dir() + "/mod_repo"; }
 std::string Paths::tmp_dir() { return game_base_dir() + "/tmp"; }
-std::string Paths::launcher_dir() { return userdata() + "/catapult"; }
+std::string Paths::launcher_dir() { return userdata() + "/evac"; }
 std::string Paths::save_backups() { return launcher_dir() + "/backups"; }
 std::string Paths::snapshots() { return launcher_dir() + "/snapshots"; }
 std::string Paths::trash_dir() const { return games_dir_ + "/trash"; }
@@ -350,7 +350,7 @@ std::string Paths::trash_dir() const { return games_dir_ + "/trash"; }
 bool Paths::move_old_backups()
 {
     std::string old_dir = game_base_dir() + "/save_backups";
-    std::string parent_dir = default_userdata() + "/catapult";
+    std::string parent_dir = default_userdata() + "/evac";
     std::string new_dir = parent_dir + "/backups";
     std::error_code ec;
     if (!fs::is_directory(old_dir, ec) || fs::exists(fs::symlink_status(new_dir, ec)))

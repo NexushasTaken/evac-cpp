@@ -98,7 +98,7 @@ TEST_CASE("git runs without the user's git environment")
     git::Result r = git::run({"config", "--get", "user.name"});
     unsetenv("GIT_DIR");
     REQUIRE(r.ok());
-    REQUIRE(r.out == "catapult\n");
+    REQUIRE(r.out == "evac\n");
 }
 
 TEST_CASE("take snapshots")

@@ -17,8 +17,8 @@ namespace git
 
 // Settings that must not come from the user's config. See docs/git-backups.md.
 static const char* const FORCED_CONFIG[] = {
-    "user.name=catapult",
-    "user.email=catapult@localhost",
+    "user.name=evac",
+    "user.email=evac@localhost",
     "core.hooksPath=/dev/null",
     "core.autocrlf=false",
     "core.filemode=false",

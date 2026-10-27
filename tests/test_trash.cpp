@@ -344,7 +344,7 @@ TEST_CASE("a renamed restore can get a name the user picked")
     REQUIRE(f.trash.list().empty());
 
     // Backups follow the backup name rules.
-    std::string backup = f.make_thing("dda/userdata/catapult/backups/Manual", 1);
+    std::string backup = f.make_thing("dda/userdata/evac/backups/Manual", 1);
     REQUIRE(f.trash.remove(backup, "backup", "Manual", at(1)));
     write_file(backup + "/x.zip", "x");
     REQUIRE(f.trash.check_restore_name(newest(f).id, "a:b") != "");

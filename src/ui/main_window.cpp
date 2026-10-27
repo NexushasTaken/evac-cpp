@@ -24,7 +24,7 @@ MainWindow::MainWindow(AppContext& ctx)
       tab_settings_(ctx, *this),
       log_view_(ctx.status)
 {
-    set_title("Catapult \xe2\x80\x94 a launcher for Cataclysm: DDA and BN");
+    set_title("Evac \xe2\x80\x94 a launcher for Cataclysm: DDA and BN");
     WindowState saved = load_window_state(ctx.settings);
     set_default_size(saved.valid ? saved.width : DEFAULT_WIDTH, saved.valid ? saved.height : DEFAULT_HEIGHT);
     if (saved.valid && saved.maximized)
@@ -49,7 +49,7 @@ MainWindow::MainWindow(AppContext& ctx)
     runner_.signal_finished().connect(sigc::mem_fun(*this, &MainWindow::on_task_finished));
     signal_close_request().connect(sigc::mem_fun(*this, &MainWindow::on_close), false);
 
-    ctx_.status.post("Welcome to Catapult!");
+    ctx_.status.post("Welcome to Evac!");
     if (ctx_.settings.get_bool("print_tips_of_the_day"))
         ctx_.status.post("Tip of the day: " + pick_tip((unsigned long)std::time(nullptr)));
     tab_game_.start();
