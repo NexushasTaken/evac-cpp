@@ -59,7 +59,7 @@ Snapshots and backups belong to one userdata folder, so they live inside it:
 ```
 <userdata>/
 ├── save/<World>/                   the game's worlds, read and written by both tabs
-└── catapult/                       the launcher's folder, the only one the game does not own
+└── evac/                           the launcher's folder, the only one the game does not own
     ├── backups/<name>/             Backups tab (zip), was <game base>/save_backups/
     └── snapshots/<World>.git       Snapshots tab (git), one bare repository per world
 ```
@@ -72,15 +72,15 @@ Snapshots and backups belong to one userdata folder, so they live inside it:
 - **Rule for the code:** every per-userdata path is built from `Paths::userdata()`, never from
   `game_base_dir()`. Then switching userdata only changes one path. The trash stays global
   (`games_dir/trash`).
-- **One launcher folder:** `catapult/` holds everything the launcher adds, so the game's own folders
+- **One launcher folder:** `evac/` holds everything the launcher adds, so the game's own folders
   stay untouched. Checked in the DDA source: the game never lists the userdata folder itself, it
   only builds fixed paths under it (`src/path_info.cpp`), so an extra folder is ignored. Not checked
   for Bright Nights.
 - **Moving the existing zip backups:** on the first start with this version, if
-  `<game base>/save_backups/` exists and `catapult/backups/` does not, move it there. This is the
+  `<game base>/save_backups/` exists and `evac/backups/` does not, move it there. This is the
   only change to the Backups tab.
 - One bare repo per world (`git init --bare`), used with
-  `git --git-dir=catapult/snapshots/<World>.git --work-tree=save/<World> ...`
+  `git --git-dir=evac/snapshots/<World>.git --work-tree=save/<World> ...`
   (the "bare repo for dotfiles" pattern). No clone and no `.git` inside the game's folders.
 - Only the world folder is tracked. Config, fonts, sound, achievements, memorial and graveyard are not.
 - Snapshot names and descriptions are commit messages: the name is the first line, the description
@@ -95,7 +95,7 @@ Snapshots and backups belong to one userdata folder, so they live inside it:
 - The user's git config must not interfere. A global ignore file (`core.excludesFile`) could
   silently leave world files out of every snapshot. So every call runs with the environment
   `GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1` and forces:
-  `-c user.name=catapult -c user.email=catapult@localhost -c core.hooksPath=/dev/null
+  `-c user.name=evac -c user.email=evac@localhost -c core.hooksPath=/dev/null
   -c core.autocrlf=false -c core.filemode=false -c core.quotePath=false -c commit.gpgsign=false
   -c init.defaultBranch=main -c safe.directory=*`.
   It also forces `core.excludesFile=/dev/null` and `core.attributesFile=/dev/null` (git reads
@@ -144,7 +144,7 @@ backup that does not contain it.
 1. The first time the Snapshots tab finds such a repo, it asks:
    "Courtland no longer exists. Delete its snapshots too? [Cancel] [Move to Trash]".
    Move to Trash moves the repo to the in-app trash, so it can still be recovered from the Trash tab.
-2. On Cancel, the repo is marked as kept (for example `git config catapult.keep true` in the repo,
+2. On Cancel, the repo is marked as kept (for example `git config evac.keep true` in the repo,
    so the mark travels with it) and the tab does not ask again. The world stays in the list, greyed
    out, labelled `deleted`. Its snapshots can be viewed, and **Restore snapshot** recreates the world
    folder (create the folder before `git restore`). **Delete snapshots…** in the `⋮` menu
@@ -156,7 +156,7 @@ A new world created with the same name continues that name's history. Accepted.
 ## Living next to the Backups tab
 
 The two tabs never touch each other's files: zip restore cannot break the repos (they are outside
-`save/`), and git never touches `catapult/backups/`. They only meet in the world folders:
+`save/`), and git never touches `evac/backups/`. They only meet in the world folders:
 
 - **Zip restore** replaces every world. In the Snapshots tab those worlds show `● changed`, and the
   next snapshot records the restore. Correct as is.
@@ -236,7 +236,7 @@ Follow the zip backups as the model (`BackupManager` + `TabBackups`):
 - `src/core/snapshot_manager.{h,cpp}`: list worlds with their status, list snapshots, take
   snapshot, take snapshot of all worlds, restore, discard, find repos of worlds that no longer
   exist, mark kept. No GTK in here.
-- `src/core/paths.{h,cpp}`: `launcher_dir()` = `userdata()/catapult`, `snapshots()` =
+- `src/core/paths.{h,cpp}`: `launcher_dir()` = `userdata()/evac`, `snapshots()` =
   `launcher_dir()/snapshots`, and `save_backups()` changed to `launcher_dir()/backups`, plus the
   one-time move of the old folder.
 - `src/ui/tab_snapshots.{h,cpp}`, added to `src/ui/main_window.cpp` between Fonts and Backups. Slow
@@ -252,7 +252,7 @@ with tests, the tab, the "no longer exists" prompt.
 
 **First version:** the Snapshots tab with the worlds list, snapshot list, details, Take snapshot,
 Take snapshot of all worlds, Restore snapshot, Discard changes, and the "no longer exists" prompt with
-the `deleted` state. Storage under `<userdata>/catapult/`, including the one-time move of
+the `deleted` state. Storage under `<userdata>/evac/`, including the one-time move of
 `save_backups/`. The Backups tab is otherwise not changed. Switching userdata is a separate, later
 feature: this version only makes sure it will work.
 
@@ -260,7 +260,7 @@ feature: this version only makes sure it will work.
 - **Export snapshots…** (done): `git bundle create <World>.bundle --all` to a file the user picks.
   One file with every snapshot, to keep elsewhere or share with history. Also works for a world that
   no longer exists.
-- **Import snapshots…** (done): `git init --bare` the new `catapult/snapshots/<World>.git`,
+- **Import snapshots…** (done): `git init --bare` the new `evac/snapshots/<World>.git`,
   `git bundle verify` against it (verify needs a repository), `git fetch <bundle> +HEAD:refs/heads/main`
   (not `git clone`, which would leave a remote pointing at the bundle file), then restore the latest
   snapshot into `save/<World>`. The world name is the file name without `.bundle`. If it is taken or

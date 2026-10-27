@@ -1,18 +1,38 @@
-# catapult-cpp
+# Evac
 
-A C++17 / GTK4 rewrite of [Catapult](https://github.com/qrrk/Catapult), the launcher and content manager for
+A C++17 / GTK4 launcher and content manager for
 [Cataclysm: Dark Days Ahead](https://github.com/CleverRaven/Cataclysm-DDA) and
 [Cataclysm: Bright Nights](https://github.com/cataclysmbn/Cataclysm-BN) (and the forks Era of Decay,
-There Is Still Hope and The Last Generation).
+There Is Still Hope and The Last Generation), based on [Catapult](https://github.com/qrrk/Catapult).
 
 > **Work in progress, Linux only for now.** Not affiliated with or endorsed by the original Catapult or any of
 > the games.
 
+> **Written with AI.** The code in this project was written by Claude, an AI model by Anthropic. See
+> [How this was made](#how-this-was-made).
+
+## History
+
+Evac started as *catapult-cpp*, a (nearly) one-to-one C++/GTK4 rewrite of
+[Catapult](https://github.com/qrrk/Catapult) by qrrk. It has since been reworked (XDG folders, an in-app trash,
+git snapshots of worlds, several userdata folders per game) and renamed to Evac to set it apart from the
+original. The original design is still the foundation, and the credit for it goes to qrrk and Catapult's
+contributors.
+
+## How this was made
+
+Evac's code was written by Claude (Anthropic) through Claude Code. I (NexushasTaken) picked the features, made
+the design decisions and tested the app by hand; the core library also has unit tests, written along with the
+code. I did not review every line of the code myself.
+
+The features and file formats come from qrrk's Catapult (see [History](#history)). As with any young project,
+back up your saves before trusting it with them, and please report anything odd.
+
 ## Credits
 
-This project is a (nearly) one-to-one port of **Catapult by qrrk** from Godot/GDScript to C++. The features, the
-settings file format, the directory layout and the lists of stable releases and soundpacks all come from the
-original, so the two should be able to share a folder of games (this has not been tested yet).
+This project started as a (nearly) one-to-one port of **Catapult by qrrk** from Godot/GDScript to C++. The
+features, the settings file format, the directory layout and the lists of stable releases and soundpacks all come
+from the original, so the two should be able to share a folder of games (this has not been tested yet).
 All credit for the design goes to the original author and its contributors. The code here was written fresh in
 C++, following the original's behavior.
 
@@ -78,16 +98,18 @@ points clangd at `build/Debug`; change it if you work in the Release build.
 ## Running
 
 ```sh
-build/Debug/catapult
+build/Debug/evac
 ```
 
 The launcher follows the XDG base directory spec:
 
-| What                                                        | Where                                              |
-|-------------------------------------------------------------|----------------------------------------------------|
-| `catapult_settings.json`                                    | `$XDG_CONFIG_HOME/catapult` (`~/.config/catapult`) |
-| Games: a folder per game (`dda/`, `bn/`, ...) with the installs, user data, mod repository and save backups | `$XDG_DATA_HOME/catapult` (`~/.local/share/catapult`) |
-| Downloaded archives                                         | `$XDG_CACHE_HOME/catapult` (`~/.cache/catapult`)   |
+| What                                                        | Where                                      |
+|-------------------------------------------------------------|--------------------------------------------|
+| `catapult_settings.json`                                    | `$XDG_CONFIG_HOME/evac` (`~/.config/evac`) |
+| Games: a folder per game (`dda/`, `bn/`, ...) with the installs, user data, mod repository and save backups | `$XDG_DATA_HOME/evac` (`~/.local/share/evac`) |
+| Downloaded archives                                         | `$XDG_CACHE_HOME/evac` (`~/.cache/evac`)   |
+
+The settings file keeps the original's name, `catapult_settings.json`, so it stays compatible with Catapult.
 
 **Portable mode:** if a `catapult_settings.json` sits next to the executable, the launcher keeps everything in
 that folder instead, like the original (`cache/` and the game folders next to it). To go back to the XDG
@@ -97,12 +119,18 @@ executable for now.
 If you used an earlier build that kept its files next to the executable, move them by hand, for example:
 
 ```sh
-mkdir -p ~/.config/catapult ~/.local/share/catapult ~/.cache/catapult
+mkdir -p ~/.config/evac ~/.local/share/evac ~/.cache/evac
 cd build/Debug
-mv catapult_settings.json ~/.config/catapult/
-mv dda bn eod tish tlg ~/.local/share/catapult/   # only the ones that exist
-mv cache/* ~/.cache/catapult/                     # optional, they can be downloaded again
+mv catapult_settings.json ~/.config/evac/
+mv dda bn eod tish tlg ~/.local/share/evac/   # only the ones that exist
+mv cache/* ~/.cache/evac/                     # optional, they can be downloaded again
 ```
+
+If you used a build from before the rename to Evac (catapult-cpp), the launcher's own folders were called
+`catapult` instead of `evac`: `~/.config/catapult`, `~/.local/share/catapult`, `~/.cache/catapult`, and a
+`catapult/` folder (backups, snapshots) inside each userdata folder. Rename them to `evac`, change any paths in
+`catapult_settings.json` that point into the old folders, and in each snapshot repository that was marked as
+kept, run `git config evac.keep true`.
 
 ## Tests
 
@@ -117,7 +145,7 @@ are tested with `file://` URLs and archives built on the fly. Two extra tests ar
 at a server:
 
 ```sh
-CATAPULT_TEST_HTTPS_URL=https://api.github.com/zen build/Debug/core_tests "[network]"
+EVAC_TEST_HTTPS_URL=https://api.github.com/zen build/Debug/core_tests "[network]"
 ```
 
 ## Layout
@@ -137,10 +165,10 @@ them is disabled until they finish.
 The code in this repository is released under the MIT license, see [`LICENSE`](LICENSE). To contribute, see
 [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
-This program is a port of Catapult, which is released under the MIT license, Copyright (c) 2021-present qrrk. The
-original license text is kept in [`data/licenses/Catapult.txt`](data/licenses/Catapult.txt) and is shown in the
-launcher under Settings, "View opensource licenses". The MIT license requires that notice to stay with copies of
-the work, so please keep it.
+This program started as a port of Catapult, which is released under the MIT license, Copyright (c) 2021-present
+qrrk. The original license text is kept in [`data/licenses/Catapult.txt`](data/licenses/Catapult.txt) and is
+shown in the launcher under Settings, "View opensource licenses". The MIT license requires that notice to stay
+with copies of the work, so please keep it.
 
 The bundled fonts (Fantasque Sans Mono, Hack, Inconsolata LGC, PT Mono, Ubuntu Mono) come with their own
 licenses, found in [`data/fonts/licenses/`](data/fonts/licenses/). The libraries this program uses have their
