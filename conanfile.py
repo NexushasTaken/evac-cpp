@@ -10,7 +10,7 @@ class EvacConan(ConanFile):
     # gtkmm-4.0 is not on Conan Center, so it comes from the system
     # (found with pkg-config in CMakeLists.txt).
     def requirements(self):
-        self.requires("libcurl/8.12.1")
+        self.requires("cpr/1.14.2")
         self.requires("nlohmann_json/3.11.3")
         self.requires("libarchive/3.7.9")
         self.requires("spdlog/1.15.1")
@@ -20,6 +20,9 @@ class EvacConan(ConanFile):
         # The ACL support of the libarchive package does not link on Linux,
         # and we do not need ACLs.
         self.options["libarchive"].with_acl = False
+        # Requests run on worker threads, where curl must not use signals
+        # (CURLOPT_NOSIGNAL).
+        self.options["cpr"].signal = False
 
     def layout(self):
         cmake_layout(self)

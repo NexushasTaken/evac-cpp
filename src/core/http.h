@@ -15,7 +15,7 @@ struct HttpResponse
     std::string body;
 };
 
-// HTTP client on top of libcurl. Calls block until done, so use them from a
+// HTTP client on top of cpr (which wraps libcurl). Calls block until done, so use them from a
 // worker thread. cancel() can be called from any thread to abort a transfer.
 class Http
 {

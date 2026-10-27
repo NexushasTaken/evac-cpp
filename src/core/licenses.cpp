@@ -19,6 +19,7 @@ static const char LIBRARIES_TEXT[] =
     "Evac uses these open source libraries. Each one is distributed under its own license; "
     "see the project's website for the full text.\n\n"
     "gtkmm and GTK - GNU LGPL 2.1 or later - https://www.gtkmm.org\n"
+    "cpr - MIT license - https://github.com/libcpr/cpr\n"
     "libcurl - curl license - https://curl.se\n"
     "OpenSSL - Apache License 2.0 - https://www.openssl.org\n"
     "libarchive - New BSD license - https://www.libarchive.org\n"

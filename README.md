@@ -77,7 +77,7 @@ You need:
 - the gtkmm 4 and fontconfig development files (fontconfig comes with GTK on most systems), for example `gtkmm-4.0` on Arch, `libgtkmm-4.0-dev` on Debian/Ubuntu or
   `gtkmm4.0-devel` on Fedora. (gtkmm is not on Conan Center, so it comes from your system.)
 
-The other libraries (libcurl, libarchive, nlohmann_json, spdlog, Catch2) are fetched and built by Conan.
+The other libraries (cpr and libcurl, libarchive, nlohmann_json, spdlog, Catch2) are fetched and built by Conan.
 
 ```sh
 # Once per machine, if you have never used Conan:

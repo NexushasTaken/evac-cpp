@@ -1,9 +1,10 @@
 #include "core/http.h"
 
-#include <curl/curl.h>
+#include <cpr/cpr.h>
 
 #include <chrono>
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 
@@ -24,7 +25,7 @@ static long now_msecs()
 }
 
 #ifndef _WIN32
-// The curl built by Conan doesn't know where the system certificates are.
+// The curl under cpr, as built by Conan, doesn't know where the system certificates are.
 static const char* find_ca_bundle()
 {
     static const char* const candidates[] = {
@@ -43,15 +44,9 @@ static const char* find_ca_bundle()
 }
 #endif
 
-Http::Http(Status& status) : status_(status), cancel_(false)
-{
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-}
+Http::Http(Status& status) : status_(status), cancel_(false) {}
 
-Http::~Http()
-{
-    curl_global_cleanup();
-}
+Http::~Http() {}
 
 void Http::set_proxy(const std::string& host, int port)
 {
@@ -80,37 +75,26 @@ void Http::cancel()
     cancel_ = true;
 }
 
-// Options shared by all requests.
-static void setup_common(CURL* curl, const std::string& url, const std::string& proxy_host, int proxy_port,
-                         char* error_buffer)
+// Options shared by all requests. Redirects are followed by default.
+static void setup_common(cpr::Session& session, const std::string& url, const std::string& proxy_host,
+                         int proxy_port)
 {
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, USER_AGENT);
-    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
-    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 30L);
-    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error_buffer);
+    session.SetUrl(cpr::Url{url});
+    session.SetUserAgent(cpr::UserAgent{USER_AGENT});
+    session.SetConnectTimeout(cpr::ConnectTimeout{std::chrono::seconds(30)});
 
-#ifdef _WIN32
-    // Windows has no bundle file; use its certificate store.
-    curl_easy_setopt(curl, CURLOPT_SSL_OPTIONS, (long)CURLSSLOPT_NATIVE_CA);
-#else
+#ifndef _WIN32
+    // On Windows cpr uses the system certificate store by itself.
     const char* ca = find_ca_bundle();
     if (ca)
-        curl_easy_setopt(curl, CURLOPT_CAINFO, ca);
+        session.SetSslOptions(cpr::Ssl(cpr::ssl::CaInfo{ca}));
 #endif
 
     if (!proxy_host.empty() && proxy_port > 0)
     {
         std::string proxy = proxy_host + ":" + std::to_string(proxy_port);
-        curl_easy_setopt(curl, CURLOPT_PROXY, proxy.c_str());
+        session.SetProxies(cpr::Proxies{{"http", proxy}, {"https", proxy}});
     }
-}
-
-static size_t write_to_string(char* data, size_t size, size_t count, void* user)
-{
-    static_cast<std::string*>(user)->append(data, size * count);
-    return size * count;
 }
 
 bool Http::get(const std::string& url, const std::vector<std::string>& headers, HttpResponse& response)
@@ -119,53 +103,58 @@ bool Http::get(const std::string& url, const std::vector<std::string>& headers, 
     response.code = 0;
     response.body.clear();
 
-    CURL* curl = curl_easy_init();
-    if (!curl)
+    cpr::Session session;
+    setup_common(session, url, proxy_host_, proxy_port_);
+
+    // "Name: value" lines.
+    cpr::Header header;
+    for (const std::string& line : headers)
+    {
+        size_t colon = line.find(':');
+        if (colon == std::string::npos)
+            continue;
+        size_t value_start = line.find_first_not_of(' ', colon + 1);
+        header[line.substr(0, colon)] = value_start == std::string::npos ? "" : line.substr(value_start);
+    }
+    session.SetHeader(header);
+
+    cpr::Response r = session.Get();
+    if (r.error)
+    {
+        status_.post("HTTP request failed: " + r.error.message, MSG_ERROR);
         return false;
-
-    char error[CURL_ERROR_SIZE] = "";
-    setup_common(curl, url, proxy_host_, proxy_port_, error);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_to_string);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response.body);
-
-    struct curl_slist* header_list = nullptr;
-    for (size_t i = 0; i < headers.size(); ++i)
-        header_list = curl_slist_append(header_list, headers[i].c_str());
-    if (header_list)
-        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, header_list);
-
-    CURLcode result = curl_easy_perform(curl);
-    if (result == CURLE_OK)
-        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response.code);
-    else
-        status_.post(std::string("HTTP request failed: ") + (error[0] ? error : curl_easy_strerror(result)), MSG_ERROR);
-
-    curl_slist_free_all(header_list);
-    curl_easy_cleanup(curl);
-    return result == CURLE_OK;
+    }
+    response.code = r.status_code;
+    response.body = std::move(r.text);
+    return true;
 }
 
 long long Http::remote_size(const std::string& url)
 {
-    CURL* curl = curl_easy_init();
-    if (!curl)
+    cpr::Session session;
+    setup_common(session, url, proxy_host_, proxy_port_);
+    session.SetTimeout(cpr::Timeout{std::chrono::seconds(30)});
+
+    cpr::Response r = session.Head();
+    if (r.error)
+    {
+        status_.post("Could not get the download size: " + r.error.message, MSG_WARN);
         return -1;
+    }
+    if (r.status_code >= 400)
+    {
+        status_.post("Could not get the download size: HTTP " + std::to_string(r.status_code), MSG_WARN);
+        return -1;
+    }
 
-    char error[CURL_ERROR_SIZE] = "";
-    setup_common(curl, url, proxy_host_, proxy_port_, error);
-    curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
-    curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
-
-    // After the redirects, this is the length of the file itself.
-    curl_off_t size = -1;
-    CURLcode result = curl_easy_perform(curl);
-    if (result == CURLE_OK)
-        curl_easy_getinfo(curl, CURLINFO_CONTENT_LENGTH_DOWNLOAD_T, &size);
-    else
-        status_.post(std::string("Could not get the download size: ") + (error[0] ? error : curl_easy_strerror(result)),
-                     MSG_WARN);
-    curl_easy_cleanup(curl);
+    // After the redirects, these are the headers of the file itself.
+    auto it = r.header.find("Content-Length");
+    if (it == r.header.end())
+        return -1;
+    char* end = nullptr;
+    long long size = std::strtoll(it->second.c_str(), &end, 10);
+    if (end == it->second.c_str() || size < 0)
+        return -1;
     return size;
 }
 
@@ -199,41 +188,6 @@ std::string Http::describe_download(Settings& settings, const fs::path& cache_di
     if (size < 0)
         return "Download size: unknown, the server does not say.";
     return "Download size: " + format_size(size) + ".";
-}
-
-struct DownloadState
-{
-    std::ofstream file;
-    Status* status;
-    std::atomic<bool>* cancel;
-    long last_time;
-    double last_bytes;
-};
-
-static size_t write_to_file(char* data, size_t size, size_t count, void* user)
-{
-    DownloadState* state = static_cast<DownloadState*>(user);
-    state->file.write(data, (std::streamsize)(size * count));
-    return state->file ? size * count : 0;
-}
-
-static int on_progress(void* user, curl_off_t total, curl_off_t now, curl_off_t, curl_off_t)
-{
-    DownloadState* state = static_cast<DownloadState*>(user);
-    if (*state->cancel)
-        return 1;  // Non-zero aborts the transfer.
-    if (now < 1)
-        return 0;
-
-    long delta_time = now_msecs() - state->last_time;
-    double delta_bytes = (double)now - state->last_bytes;
-    if (delta_time >= PROGRESS_AFTER_MSECS || delta_bytes >= PROGRESS_AFTER_BYTES)
-    {
-        state->status->post(Http::format_progress((double)now, (double)total, delta_time, delta_bytes));
-        state->last_time = now_msecs();
-        state->last_bytes = (double)now;
-    }
-    return 0;
 }
 
 std::string Http::format_progress(double downloaded, double total, long delta_msecs, double delta_bytes)
@@ -283,42 +237,55 @@ bool Http::download_file(const std::string& url, const fs::path& target_dir, con
 
     status_.post("Downloading " + target_filename);
 
-    DownloadState state;
-    state.file.open(part_path, std::ios::binary | std::ios::trunc);
-    state.status = &status_;
-    state.cancel = &cancel_;
-    state.last_time = now_msecs();
-    state.last_bytes = 0;
-    if (!state.file)
+    std::ofstream file(part_path, std::ios::binary | std::ios::trunc);
+    if (!file)
     {
         status_.post("Download of " + target_filename + " failed: cannot write " + to_utf8(part_path), MSG_ERROR);
         return false;
     }
 
-    CURL* curl = curl_easy_init();
-    if (!curl)
-        return false;
+    cpr::Session session;
+    setup_common(session, url, proxy_host_, proxy_port_);
 
-    char error[CURL_ERROR_SIZE] = "";
-    setup_common(curl, url, proxy_host_, proxy_port_, error);
-    curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_to_file);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &state);
-    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
-    curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, on_progress);
-    curl_easy_setopt(curl, CURLOPT_XFERINFODATA, &state);
+    long last_time = now_msecs();
+    double last_bytes = 0;
+    // Called by cpr while the transfer runs. Returning false aborts it.
+    session.SetProgressCallback(cpr::ProgressCallback{
+        [&](cpr::cpr_pf_arg_t total, cpr::cpr_pf_arg_t now, cpr::cpr_pf_arg_t, cpr::cpr_pf_arg_t, intptr_t) {
+            if (cancel_)
+                return false;
+            if (now < 1)
+                return true;
 
-    CURLcode result = curl_easy_perform(curl);
-    curl_easy_cleanup(curl);
-    state.file.close();
+            long delta_time = now_msecs() - last_time;
+            double delta_bytes = (double)now - last_bytes;
+            if (delta_time >= PROGRESS_AFTER_MSECS || delta_bytes >= PROGRESS_AFTER_BYTES)
+            {
+                status_.post(format_progress((double)now, (double)total, delta_time, delta_bytes));
+                last_time = now_msecs();
+                last_bytes = (double)now;
+            }
+            return true;
+        }});
 
-    if (result != CURLE_OK)
+    cpr::Response r = session.Download(file);
+    file.close();
+
+    // cpr does not stop on a failed write or an HTTP error, so check both here.
+    std::string error;
+    if (r.error)
+        error = r.error.message;
+    else if (r.status_code >= 400)
+        error = "HTTP " + std::to_string(r.status_code);
+    else if (!file)
+        error = "cannot write " + to_utf8(part_path);
+
+    if (!error.empty())
     {
         if (cancel_)
             status_.post("Download of " + target_filename + " was cancelled", MSG_WARN);
         else
-            status_.post("Download of " + target_filename + " failed: " + (error[0] ? error : curl_easy_strerror(result)),
-                         MSG_ERROR);
+            status_.post("Download of " + target_filename + " failed: " + error, MSG_ERROR);
         fs::remove(part_path, ec);
         return false;
     }
