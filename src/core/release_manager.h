@@ -19,7 +19,7 @@ class ReleaseManager
 public:
     ReleaseManager(Settings& settings, Status& status);
 
-    // "linux" or "win".
+    // "linux", "win" or "mac" (see platform::os_name).
     static std::string current_platform();
 
     static std::string make_key(const std::string& game, const std::string& channel);
@@ -41,7 +41,8 @@ public:
     // The GitHub API URL for the releases of a game, empty if unknown.
     static std::string releases_url(const std::string& game);
 
-    // The part of the asset name that identifies the right build, empty if unknown.
+    // The part of the asset name that identifies the right build, empty if unknown
+    // or if there are no builds for the platform.
     static std::string asset_substring(const std::string& game, const std::string& platform);
 
 private:

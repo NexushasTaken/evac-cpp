@@ -1,8 +1,10 @@
 #include "core/release_manager.h"
 
+#include "core/platform.h"
+
 std::string ReleaseManager::current_platform()
 {
-    return "linux";
+    return platform::os_name();
 }
 
 std::string ReleaseManager::make_key(const std::string& game, const std::string& channel)
@@ -32,6 +34,8 @@ std::string ReleaseManager::releases_url(const std::string& game)
 
 std::string ReleaseManager::asset_substring(const std::string& game, const std::string& platform)
 {
+    if (platform != "linux" && platform != "win")
+        return "";  // No builds the launcher can install (macOS ones are .dmg).
     bool lin = (platform == "linux");
     if (game == "dda")
         return lin ? "cdda-linux-with-graphics-and-sounds-x64" : "cdda-windows-with-graphics-and-sounds-x64";
@@ -137,6 +141,12 @@ bool ReleaseManager::fetch(const std::string& release_key)
     if (url.empty())
     {
         status_.post("Invalid release key: " + release_key, MSG_ERROR);
+        return false;
+    }
+    if (substring.empty())
+    {
+        // An empty substring would match every asset.
+        status_.post("There are no builds of this game for this platform.", MSG_WARN);
         return false;
     }
 

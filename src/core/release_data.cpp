@@ -182,6 +182,8 @@ static std::vector<Release> to_vector(const StableRelease* items, size_t count)
 
 std::vector<Release> stable_releases(const std::string& game, const std::string& platform)
 {
+    if (platform != "linux" && platform != "win")
+        return std::vector<Release>();
     bool linux_platform = (platform == "linux");
     if (game == "dda")
     {

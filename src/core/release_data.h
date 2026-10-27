@@ -19,7 +19,7 @@ struct StableRelease
 };
 
 // The hardcoded stable releases for a game ("dda" or "bn"; empty for the
-// others) on a platform ("linux" or "win").
+// others) on a platform ("linux" or "win"; empty for any other).
 std::vector<Release> stable_releases(const std::string& game, const std::string& platform);
 
 #endif

@@ -20,6 +20,7 @@ pkg_check_modules(FONTCONFIG REQUIRED IMPORTED_TARGET fontconfig pangoft2)
 # Core library: no GTK in here.
 add_library(evac_core STATIC
     src/core/version.cpp
+    src/core/process.cpp
     src/core/status.cpp
     src/core/helpers.cpp
     src/core/settings.cpp
@@ -43,6 +44,12 @@ add_library(evac_core STATIC
     src/core/window_state.cpp
     src/core/licenses.cpp
     src/core/trash.cpp)
+# The OS-specific parts (see src/core/platform.h and process.h).
+if(WIN32)
+    target_sources(evac_core PRIVATE src/core/platform_windows.cpp src/core/process_windows.cpp)
+else()
+    target_sources(evac_core PRIVATE src/core/platform_posix.cpp src/core/process_posix.cpp)
+endif()
 target_compile_definitions(evac_core PRIVATE EVAC_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
 target_include_directories(evac_core PUBLIC src)
 target_link_libraries(evac_core PUBLIC
@@ -86,6 +93,7 @@ add_executable(core_tests
     tests/test_snapshots.cpp
     tests/test_extras.cpp
     tests/test_trash.cpp
-    tests/test_launcher.cpp)
+    tests/test_launcher.cpp
+    tests/test_platform.cpp)
 target_link_libraries(core_tests PRIVATE evac_core Catch2::Catch2WithMain)
 add_test(NAME core_tests COMMAND core_tests)

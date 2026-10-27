@@ -24,7 +24,12 @@ Locations portable_locations(const std::string& dir);
 // XDG base directories. An empty or relative *_home is replaced by the default under home.
 Locations xdg_locations(const std::string& home, const std::string& config_home,
                         const std::string& data_home, const std::string& cache_home);
-// Portable if evac_settings.json sits next to the executable, XDG otherwise.
+// %APPDATA%\evac for the settings, %LOCALAPPDATA%\evac for games and cache.
+Locations windows_locations(const std::string& appdata, const std::string& local_appdata);
+// ~/Library/Application Support/evac, and ~/Library/Caches/evac for the cache.
+Locations macos_locations(const std::string& home);
+// Portable if evac_settings.json sits next to the executable, otherwise the
+// usual place for the platform: XDG on Linux, see above for Windows and macOS.
 Locations default_locations();
 
 // A userdata folder the user added for the current game. The label is only a

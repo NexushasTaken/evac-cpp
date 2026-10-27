@@ -1,13 +1,12 @@
 #include "core/snapshot_manager.h"
 
-#include <unistd.h>
-
 #include <cctype>
-#include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <set>
+
+#include "core/platform.h"
 
 namespace fs = std::filesystem;
 
@@ -290,9 +289,10 @@ bool SnapshotManager::can_write(std::string& reason)
     std::error_code ec;
     if (!fs::is_directory(dir, ec))
         dir = paths_.userdata();
-    if (access(dir.c_str(), W_OK) == 0)
+    bool read_only_fs = false;
+    if (platform::dir_writable(dir, read_only_fs))
         return true;
-    if (errno == EROFS)
+    if (read_only_fs)
         reason = "The userdata folder is read-only (" + paths_.userdata()
                  + "). On a Windows partition, this happens when Windows was hibernated or shut down with Fast Startup.";
     else

@@ -1,11 +1,11 @@
 #include "core/paths.h"
 
 #include <algorithm>
-#include <cstdlib>
 #include <filesystem>
 
 #include "core/fs.h"
 #include "core/helpers.h"
+#include "core/platform.h"
 
 namespace fs = std::filesystem;
 
@@ -14,12 +14,6 @@ namespace fs = std::filesystem;
 #endif
 
 static const char* const GAMES[] = {"dda", "bn", "eod", "tish", "tlg"};
-
-static std::string env_or_empty(const char* name)
-{
-    const char* value = std::getenv(name);
-    return value ? value : "";
-}
 
 Locations portable_locations(const std::string& dir)
 {
@@ -48,17 +42,48 @@ Locations xdg_locations(const std::string& home, const std::string& config_home,
     return loc;
 }
 
+Locations windows_locations(const std::string& appdata, const std::string& local_appdata)
+{
+    Locations loc;
+    loc.config_dir = appdata + "/evac";
+    // The games are big, so they stay on this machine instead of a roaming profile.
+    loc.games_dir = local_appdata + "/evac";
+    loc.cache_dir = local_appdata + "/evac/cache";
+    return loc;
+}
+
+Locations macos_locations(const std::string& home)
+{
+    Locations loc;
+    loc.config_dir = home + "/Library/Application Support/evac";
+    loc.games_dir = loc.config_dir;
+    loc.cache_dir = home + "/Library/Caches/evac";
+    return loc;
+}
+
 Locations default_locations()
 {
     std::string exe_dir = Paths::executable_dir();
     if (fs::exists(exe_dir + "/evac_settings.json"))
         return portable_locations(exe_dir);
 
-    std::string home = env_or_empty("HOME");
+    std::string os = platform::os_name();
+    if (os == "win")
+    {
+        std::string appdata = platform::get_env("APPDATA");
+        std::string local_appdata = platform::get_env("LOCALAPPDATA");
+        if (appdata.empty() || local_appdata.empty())
+            return portable_locations(exe_dir);
+        return windows_locations(appdata, local_appdata);
+    }
+
+    std::string home = platform::get_env("HOME");
     if (home.empty())
         return portable_locations(exe_dir);
-    return xdg_locations(home, env_or_empty("XDG_CONFIG_HOME"), env_or_empty("XDG_DATA_HOME"),
-                         env_or_empty("XDG_CACHE_HOME"));
+    if (os == "mac")
+        return macos_locations(home);
+    return xdg_locations(home, platform::get_env("XDG_CONFIG_HOME"), platform::get_env("XDG_DATA_HOME"),
+                         platform::get_env("XDG_CACHE_HOME"));
 }
 
 Paths::Paths(const Locations& locations, Settings& settings, Status& status)
@@ -73,11 +98,10 @@ Paths::Paths(const std::string& root, Settings& settings, Status& status)
 
 std::string Paths::executable_dir()
 {
-    std::error_code ec;
-    fs::path exe = fs::read_symlink("/proc/self/exe", ec);
-    if (ec)
+    std::string exe = platform::executable_path();
+    if (exe.empty())
         return fs::current_path().string();
-    return exe.parent_path().string();
+    return fs::path(exe).parent_path().string();
 }
 
 std::vector<std::string> Paths::list_dir(const std::string& dir)

@@ -1,14 +1,31 @@
 #include "core/game_launcher.h"
 
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <unistd.h>
-
 #include <filesystem>
 
 #include "core/helpers.h"
+#include "core/platform.h"
+#include "core/process.h"
 
 namespace fs = std::filesystem;
+
+// The file to start in an install, in the order they are tried. Linux builds
+// come with a script that sets up the library path. On Windows, DDA calls the
+// game cataclysm-tiles.exe and newer BN builds cataclysm-bn-tiles.exe.
+static std::vector<std::string> executable_names()
+{
+    std::vector<std::string> names;
+    std::string os = platform::os_name();
+    if (os == "linux")
+    {
+        names.push_back("cataclysm-launcher");
+    }
+    else if (os == "win")
+    {
+        names.push_back("cataclysm-tiles.exe");
+        names.push_back("cataclysm-bn-tiles.exe");
+    }
+    return names;
+}
 
 bool split_command_line(const std::string& text, std::vector<std::string>& words, std::string& error)
 {
@@ -98,12 +115,23 @@ std::string GameLauncher::last_world()
 bool GameLauncher::start(const std::string& world)
 {
     std::string game_dir = paths_.game_dir();
-    std::string executable = game_dir + "/cataclysm-launcher";
     std::string userdata = paths_.userdata() + "/";
 
-    if (access(executable.c_str(), X_OK) != 0)
+    std::vector<std::string> names = executable_names();
+    if (names.empty())
     {
-        status_.post("Cannot start the game, no executable found: " + executable, MSG_ERROR);
+        status_.post("Cannot start the game: starting games is not supported on this platform yet.", MSG_ERROR);
+        return false;
+    }
+    std::string executable;
+    for (size_t i = 0; i < names.size() && executable.empty(); ++i)
+    {
+        if (platform::is_executable_file(game_dir + "/" + names[i]))
+            executable = game_dir + "/" + names[i];
+    }
+    if (executable.empty())
+    {
+        status_.post("Cannot start the game, no executable found: " + game_dir + "/" + names[0], MSG_ERROR);
         return false;
     }
 
@@ -116,7 +144,6 @@ bool GameLauncher::start(const std::string& world)
     }
 
     std::vector<std::string> args;
-    args.push_back(executable);
     args.push_back("--userdir");
     args.push_back(userdata);
     if (!world.empty())
@@ -126,29 +153,12 @@ bool GameLauncher::start(const std::string& world)
     }
     args.insert(args.end(), extra_args.begin(), extra_args.end());
 
-    std::vector<char*> argv;
-    for (size_t i = 0; i < args.size(); ++i)
-        argv.push_back(const_cast<char*>(args[i].c_str()));
-    argv.push_back(nullptr);
-
-    // Fork twice, so that the game is not our child and never becomes a zombie.
-    pid_t pid = fork();
-    if (pid < 0)
+    // The game finds its data folder relative to the working directory.
+    if (!process::spawn_detached(executable, args, game_dir, error))
     {
-        status_.post("Cannot start the game: fork failed", MSG_ERROR);
+        status_.post("Cannot start the game: " + error, MSG_ERROR);
         return false;
     }
-    if (pid == 0)
-    {
-        if (fork() == 0)
-        {
-            setsid();
-            execv(executable.c_str(), argv.data());
-            _exit(127);
-        }
-        _exit(0);
-    }
-    waitpid(pid, nullptr, 0);
 
     status_.post("Started the game.", MSG_DEBUG);
     return true;

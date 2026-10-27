@@ -4,6 +4,8 @@
 #include <string>
 #include <vector>
 
+#include "core/process.h"
+
 // Runs the git binary. Blocks until git is done, so use a worker thread for
 // anything slow.
 //
@@ -13,15 +15,8 @@
 namespace git
 {
 
-struct Result
-{
-    bool started = false;  // False if git could not be run at all.
-    int exit_code = -1;
-    std::string out;
-    std::string err;
-
-    bool ok() const { return started && exit_code == 0; }
-};
+// started is false if git could not be run at all.
+typedef process::Result Result;
 
 // args are the arguments after "git", passed as they are (no shell).
 Result run(const std::vector<std::string>& args);

@@ -21,6 +21,7 @@ static long now_msecs()
     return (long)duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
 }
 
+#ifndef _WIN32
 // The curl built by Conan doesn't know where the system certificates are.
 static const char* find_ca_bundle()
 {
@@ -29,6 +30,7 @@ static const char* find_ca_bundle()
         "/etc/pki/tls/certs/ca-bundle.crt",                   // Fedora, RHEL
         "/etc/ca-certificates/extracted/tls-ca-bundle.pem",   // Arch
         "/etc/ssl/ca-bundle.pem",                             // openSUSE
+        "/etc/ssl/cert.pem",                                  // macOS, Alpine, BSDs
     };
     for (size_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); ++i)
     {
@@ -37,6 +39,7 @@ static const char* find_ca_bundle()
     }
     return nullptr;
 }
+#endif
 
 Http::Http(Status& status) : status_(status), cancel_(false)
 {
@@ -86,9 +89,14 @@ static void setup_common(CURL* curl, const std::string& url, const std::string& 
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 30L);
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error_buffer);
 
+#ifdef _WIN32
+    // Windows has no bundle file; use its certificate store.
+    curl_easy_setopt(curl, CURLOPT_SSL_OPTIONS, (long)CURLSSLOPT_NATIVE_CA);
+#else
     const char* ca = find_ca_bundle();
     if (ca)
         curl_easy_setopt(curl, CURLOPT_CAINFO, ca);
+#endif
 
     if (!proxy_host.empty() && proxy_port > 0)
     {
