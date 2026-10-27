@@ -134,7 +134,8 @@ them is disabled until they finish.
 
 ## License
 
-**The license for the code in this repository has not been chosen yet.**
+The code in this repository is released under the MIT license, see [`LICENSE`](LICENSE). To contribute, see
+[`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 This program is a port of Catapult, which is released under the MIT license, Copyright (c) 2021-present qrrk. The
 original license text is kept in [`data/licenses/Catapult.txt`](data/licenses/Catapult.txt) and is shown in the
