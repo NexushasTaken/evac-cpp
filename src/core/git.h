@@ -11,9 +11,9 @@
 //
 // Every call ignores the user's git config (global and system) and the GIT_*
 // environment variables, and forces the settings the launcher relies on (see
-// docs/git-backups.md, "Running git"), so the result is the same on every machine.
-namespace git
-{
+// docs/git-backups.md, "Running git"), so the result is the same on every
+// machine.
+namespace git {
 
 // started is false if git could not be run at all.
 typedef process::Result Result;

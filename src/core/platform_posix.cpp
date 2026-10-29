@@ -1,5 +1,3 @@
-#include "core/platform.h"
-
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -8,68 +6,63 @@
 #include <cstdlib>
 #include <filesystem>
 
+#include "core/platform.h"
+
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
 #endif
 
 namespace fs = std::filesystem;
 
-namespace platform
-{
+namespace platform {
 
-std::string os_name()
-{
+std::string os_name() {
 #ifdef __APPLE__
-    return "mac";
+  return "mac";
 #else
-    return "linux";
+  return "linux";
 #endif
 }
 
-fs::path executable_path()
-{
-    std::error_code ec;
+fs::path executable_path() {
+  std::error_code ec;
 #ifdef __APPLE__
-    uint32_t size = 0;
-    _NSGetExecutablePath(nullptr, &size);
-    std::string buf(size, '\0');
-    if (_NSGetExecutablePath(&buf[0], &size) != 0)
-        return "";
-    buf.resize(buf.find('\0'));
-    fs::path exe = fs::weakly_canonical(buf, ec);  // It can contain symlinks and "..".
-    return ec ? fs::path(buf) : exe;
+  uint32_t size = 0;
+  _NSGetExecutablePath(nullptr, &size);
+  std::string buf(size, '\0');
+  if (_NSGetExecutablePath(&buf[0], &size) != 0) return "";
+  buf.resize(buf.find('\0'));
+  fs::path exe =
+      fs::weakly_canonical(buf, ec);  // It can contain symlinks and "..".
+  return ec ? fs::path(buf) : exe;
 #else
-    fs::path exe = fs::read_symlink("/proc/self/exe", ec);
-    return ec ? fs::path() : exe;
+  fs::path exe = fs::read_symlink("/proc/self/exe", ec);
+  return ec ? fs::path() : exe;
 #endif
 }
 
-std::string get_env(const char* name)
-{
-    const char* value = std::getenv(name);
-    return value ? value : "";
+std::string get_env(const char* name) {
+  const char* value = std::getenv(name);
+  return value ? value : "";
 }
 
-bool is_executable_file(const fs::path& path)
-{
-    struct stat st;
-    return stat(path.c_str(), &st) == 0 && S_ISREG(st.st_mode) && access(path.c_str(), X_OK) == 0;
+bool is_executable_file(const fs::path& path) {
+  struct stat st;
+  return stat(path.c_str(), &st) == 0 && S_ISREG(st.st_mode) &&
+         access(path.c_str(), X_OK) == 0;
 }
 
-std::tm local_time(std::time_t t)
-{
-    std::tm result = {};
-    localtime_r(&t, &result);
-    return result;
+std::tm local_time(std::time_t t) {
+  std::tm result = {};
+  localtime_r(&t, &result);
+  return result;
 }
 
-bool dir_writable(const fs::path& dir, bool& read_only_fs)
-{
-    read_only_fs = false;
-    if (access(dir.c_str(), W_OK) == 0)
-        return true;
-    read_only_fs = (errno == EROFS);
-    return false;
+bool dir_writable(const fs::path& dir, bool& read_only_fs) {
+  read_only_fs = false;
+  if (access(dir.c_str(), W_OK) == 0) return true;
+  read_only_fs = (errno == EROFS);
+  return false;
 }
 
 }  // namespace platform

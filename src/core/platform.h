@@ -10,8 +10,7 @@
 // builds one of them.
 //
 // All strings are UTF-8, on every platform.
-namespace platform
-{
+namespace platform {
 
 // "linux", "win" or "mac". The same names the release lists use. Other POSIX
 // systems count as "linux" (they run Linux builds, or none).
@@ -26,7 +25,8 @@ std::string get_env(const char* name);
 // True if path is a regular file this user may run.
 bool is_executable_file(const std::filesystem::path& path);
 
-// t in the local time zone (localtime_r is not on Windows, localtime is not thread-safe).
+// t in the local time zone (localtime_r is not on Windows, localtime is not
+// thread-safe).
 std::tm local_time(std::time_t t);
 
 // True if new files can be made in dir. read_only_fs is set when the whole

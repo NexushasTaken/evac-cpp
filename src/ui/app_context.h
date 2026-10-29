@@ -18,36 +18,34 @@
 
 // Everything the UI needs from the core, created once in main().
 // The order of the members matters: they use the ones above them.
-struct AppContext
-{
-    explicit AppContext(const Locations& locations)
-        : settings(locations.config_dir / "evac_settings.json", status),
-          paths(locations, settings, status),
-          trash(settings, paths, status),
-          releases(settings, status),
-          installer(settings, paths, status, trash),
-          launcher(settings, paths, status),
-          fonts(paths, status),
-          soundpacks(settings, paths, status, trash),
-          mods(settings, paths, status, trash),
-          backups(settings, paths, status, trash),
-          snapshots(paths, status, trash)
-    {
-        settings.load();
-    }
+struct AppContext {
+  explicit AppContext(const Locations& locations)
+      : settings(locations.config_dir / "evac_settings.json", status),
+        paths(locations, settings, status),
+        trash(settings, paths, status),
+        releases(settings, status),
+        installer(settings, paths, status, trash),
+        launcher(settings, paths, status),
+        fonts(paths, status),
+        soundpacks(settings, paths, status, trash),
+        mods(settings, paths, status, trash),
+        backups(settings, paths, status, trash),
+        snapshots(paths, status, trash) {
+    settings.load();
+  }
 
-    Status status;
-    Settings settings;
-    Paths paths;
-    Trash trash;
-    ReleaseManager releases;
-    ReleaseInstaller installer;
-    GameLauncher launcher;
-    FontManager fonts;
-    SoundpackManager soundpacks;
-    ModManager mods;
-    BackupManager backups;
-    SnapshotManager snapshots;
+  Status status;
+  Settings settings;
+  Paths paths;
+  Trash trash;
+  ReleaseManager releases;
+  ReleaseInstaller installer;
+  GameLauncher launcher;
+  FontManager fonts;
+  SoundpackManager soundpacks;
+  ModManager mods;
+  BackupManager backups;
+  SnapshotManager snapshots;
 };
 
 #endif

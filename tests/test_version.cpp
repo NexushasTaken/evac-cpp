@@ -2,7 +2,4 @@
 
 #include "core/version.h"
 
-TEST_CASE("version is not empty")
-{
-    REQUIRE(!evac_version().empty());
-}
+TEST_CASE("version is not empty") { REQUIRE(!evac_version().empty()); }

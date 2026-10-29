@@ -3,7 +3,6 @@
 
 #include <QBrush>
 #include <QString>
-
 #include <cstdint>
 #include <filesystem>
 #include <string>
@@ -39,8 +38,10 @@ int selected_row(QAbstractItemView* view);
 // out but stay selectable.
 QBrush dim_brush(QWidget* widget);
 
-// An icon from the desktop's icon theme. Themes don't exist everywhere (Windows,
-// macOS), so the button gets the text instead when the icon isn't there.
-void set_icon(QAbstractButton* button, const char* theme_name, const QString& fallback_text);
+// An icon from the desktop's icon theme. Themes don't exist everywhere
+// (Windows, macOS), so the button gets the text instead when the icon isn't
+// there.
+void set_icon(QAbstractButton* button, const char* theme_name,
+              const QString& fallback_text);
 
 #endif

@@ -1,5 +1,4 @@
 #include <catch2/catch_test_macros.hpp>
-
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -7,87 +6,89 @@
 
 #include "core/http.h"
 
-TEST_CASE("progress string")
-{
-    REQUIRE(Http::format_progress(512 * 1024, 1024 * 1024, 2000, 512 * 1024)
-            == "Download progress: 512.0 KB (50.0%) at 256 KB/s");
-    REQUIRE(Http::format_progress(10.0 * 1024 * 1024, 0, 1000, 5.0 * 1024 * 1024)
-            == "Download progress: 10.0 MB at 5.0 MB/s");
+TEST_CASE("progress string") {
+  REQUIRE(Http::format_progress(512 * 1024, 1024 * 1024, 2000, 512 * 1024) ==
+          "Download progress: 512.0 KB (50.0%) at 256 KB/s");
+  REQUIRE(
+      Http::format_progress(10.0 * 1024 * 1024, 0, 1000, 5.0 * 1024 * 1024) ==
+      "Download progress: 10.0 MB at 5.0 MB/s");
 }
 
-TEST_CASE("size string")
-{
-    REQUIRE(Http::format_size(512 * 1024) == "512.0 KB");
-    REQUIRE(Http::format_size(137811281) == "131.4 MB");
-    REQUIRE(Http::format_size(3LL * 1024 * 1024 * 1024) == "3.0 GB");
+TEST_CASE("size string") {
+  REQUIRE(Http::format_size(512 * 1024) == "512.0 KB");
+  REQUIRE(Http::format_size(137811281) == "131.4 MB");
+  REQUIRE(Http::format_size(3LL * 1024 * 1024 * 1024) == "3.0 GB");
 }
 
-TEST_CASE("a cached archive is not downloaded, so there is no size to look up")
-{
-    std::filesystem::path dir = std::filesystem::temp_directory_path() / "evac_test_describe";
-    std::filesystem::remove_all(dir);
-    std::filesystem::create_directories(dir);
-    {
-        std::ofstream f(dir / "game.zip");
-        f << std::string(2048, 'x');
-    }
+TEST_CASE(
+    "a cached archive is not downloaded, so there is no size to look up") {
+  std::filesystem::path dir =
+      std::filesystem::temp_directory_path() / "evac_test_describe";
+  std::filesystem::remove_all(dir);
+  std::filesystem::create_directories(dir);
+  {
+    std::ofstream f(dir / "game.zip");
+    f << std::string(2048, 'x');
+  }
 
-    Status status;
-    Settings settings((dir / "s.json").string(), status);
-    settings.load();
-    Http http(status);
+  Status status;
+  Settings settings((dir / "s.json").string(), status);
+  settings.load();
+  Http http(status);
 
-    // The URL is never contacted while the archive is in the cache.
-    REQUIRE(http.describe_download(settings, dir.string(), "http://127.0.0.1:1/game.zip", "game.zip")
-            == "Nothing to download: game.zip is already in the cache (2.0 KB).");
+  // The URL is never contacted while the archive is in the cache.
+  REQUIRE(http.describe_download(settings, dir.string(),
+                                 "http://127.0.0.1:1/game.zip", "game.zip") ==
+          "Nothing to download: game.zip is already in the cache (2.0 KB).");
 
-    std::filesystem::remove_all(dir);
+  std::filesystem::remove_all(dir);
 }
 
 // Network tests only run when EVAC_TEST_URL points at a server that serves
 // a file called hello.txt containing "hello\n" (see the README).
-TEST_CASE("get and download against a local server", "[network]")
-{
-    const char* base = std::getenv("EVAC_TEST_URL");
-    if (!base)
-        SKIP("EVAC_TEST_URL is not set");
+TEST_CASE("get and download against a local server", "[network]") {
+  const char* base = std::getenv("EVAC_TEST_URL");
+  if (!base) SKIP("EVAC_TEST_URL is not set");
 
-    Status status;
-    Http http(status);
+  Status status;
+  Http http(status);
 
-    HttpResponse response;
-    REQUIRE(http.get(std::string(base) + "/hello.txt", std::vector<std::string>(), response));
-    REQUIRE(response.code == 200);
-    REQUIRE(response.body == "hello\n");
+  HttpResponse response;
+  REQUIRE(http.get(std::string(base) + "/hello.txt", std::vector<std::string>(),
+                   response));
+  REQUIRE(response.code == 200);
+  REQUIRE(response.body == "hello\n");
 
-    REQUIRE(http.get(std::string(base) + "/missing", std::vector<std::string>(), response));
-    REQUIRE(response.code == 404);
+  REQUIRE(http.get(std::string(base) + "/missing", std::vector<std::string>(),
+                   response));
+  REQUIRE(response.code == 404);
 
-    std::filesystem::path dir = std::filesystem::temp_directory_path() / "evac_test_http";
-    std::filesystem::remove_all(dir);
-    REQUIRE(http.download_file(std::string(base) + "/hello.txt", dir.string(), "got.txt"));
-    std::ifstream f(dir / "got.txt");
-    std::stringstream ss;
-    ss << f.rdbuf();
-    REQUIRE(ss.str() == "hello\n");
-    REQUIRE(!std::filesystem::exists(dir / "got.txt.part"));
+  std::filesystem::path dir =
+      std::filesystem::temp_directory_path() / "evac_test_http";
+  std::filesystem::remove_all(dir);
+  REQUIRE(http.download_file(std::string(base) + "/hello.txt", dir.string(),
+                             "got.txt"));
+  std::ifstream f(dir / "got.txt");
+  std::stringstream ss;
+  ss << f.rdbuf();
+  REQUIRE(ss.str() == "hello\n");
+  REQUIRE(!std::filesystem::exists(dir / "got.txt.part"));
 
-    REQUIRE(!http.download_file(std::string(base) + "/missing", dir.string(), "nope.txt"));
-    REQUIRE(!std::filesystem::exists(dir / "nope.txt"));
+  REQUIRE(!http.download_file(std::string(base) + "/missing", dir.string(),
+                              "nope.txt"));
+  REQUIRE(!std::filesystem::exists(dir / "nope.txt"));
 }
 
 // Checks that HTTPS and the system certificates work, e.g.
 // EVAC_TEST_HTTPS_URL=https://api.github.com/zen
-TEST_CASE("https request", "[network]")
-{
-    const char* url = std::getenv("EVAC_TEST_HTTPS_URL");
-    if (!url)
-        SKIP("EVAC_TEST_HTTPS_URL is not set");
+TEST_CASE("https request", "[network]") {
+  const char* url = std::getenv("EVAC_TEST_HTTPS_URL");
+  if (!url) SKIP("EVAC_TEST_HTTPS_URL is not set");
 
-    Status status;
-    Http http(status);
-    HttpResponse response;
-    REQUIRE(http.get(url, std::vector<std::string>(), response));
-    REQUIRE(response.code == 200);
-    REQUIRE(!response.body.empty());
+  Status status;
+  Http http(status);
+  HttpResponse response;
+  REQUIRE(http.get(url, std::vector<std::string>(), response));
+  REQUIRE(response.code == 200);
+  REQUIRE(!response.body.empty());
 }
