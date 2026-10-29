@@ -11,6 +11,9 @@ Thanks for helping! Bug reports, fixes and features are all welcome.
 - Format your changes with [`.clang-format`](.clang-format) before committing: stage them, then run
   `git clang-format`. It formats only the lines you changed, then `git add` the result. Most editors
   (clangd, VS Code, Qt Creator) pick up `.clang-format` on their own.
+- Some commits only reformat or rename code. They are listed in
+  [`.git-blame-ignore-revs`](.git-blame-ignore-revs). To make `git blame` skip them, run once in your clone:
+  `git config blame.ignoreRevsFile .git-blame-ignore-revs`. GitHub's blame view skips them already.
 - Keep a pull request to one topic.
 
 ## Commits
@@ -30,6 +33,7 @@ Scopes are the tab or core area you touched: `game`, `mods`, `soundpacks`, `font
 - `src/core/` never includes Qt, so it can be tested without a window.
 - Slow work (downloads, installs, backups) runs on the worker thread through `TaskRunner`
   (`src/ui/task_runner.h`), never on the Qt main (GUI) thread.
+- Class and struct data members are named `m_name` (`m_status`, `m_ctx`).
 - Every delete or replace asks the user to confirm first.
 - Files that belong to the game (saves, configs, mod folders) are read and written in the game's own format.
   Don't invent launcher-only fields or layouts for them.

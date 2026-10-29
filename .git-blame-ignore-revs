@@ -1,5 +1,8 @@
-# Commits that only reformat code; git blame skips them.
+# Mechanical commits (reformatting, renames); git blame skips them.
 # Enable locally: git config blame.ignoreRevsFile .git-blame-ignore-revs
 
 # style: apply clang-format to src and tests
 6f65e8a3ca8545251a88dfbf7922aaa9ec949db3
+
+# refactor: name data members m_name instead of name_
+2dcb356203a35e2ff7b4788bbc7d22d52d431a28
