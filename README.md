@@ -47,6 +47,7 @@ The original project is MIT licensed, see [License](#license).
 | Mods        | Install and delete mods, get the Kenan modpack into a local repository              |
 | Soundpacks  | Install, reinstall and delete soundpacks, install from a downloaded file            |
 | Fonts       | Set bundled or your own fonts, edit the fallback lists, sizes and rendering options |
+| Snapshots   | Git snapshots of each world: take, restore or discard them (needs git, see Running) |
 | Backups     | Back up, restore and delete save game backups                                       |
 | Settings    | Launcher options, proxy, caching                                                    |
 
@@ -104,6 +105,10 @@ points clangd at `build/Debug`; change it if you work in the Release build.
 build/Debug/evac
 ```
 
+The Snapshots tab needs [git](https://git-scm.com) 2.23 or newer, installed with your package manager (`git` on
+Arch, Debian/Ubuntu and Fedora). Everything else works without it; without git the Snapshots tab says so and
+stays disabled.
+
 The launcher follows the XDG base directory spec:
 
 | What                                                        | Where                                      |
@@ -145,7 +150,7 @@ build/Debug/core_tests
 ```
 
 The tests cover the core library (everything except the Qt interface) and need no network access: downloads
-are tested with `file://` URLs and archives built on the fly. Two extra tests are skipped unless you point them
+are tested with `file://` URLs and archives built on the fly. The snapshot tests need git 2.23 or newer. Two extra tests are skipped unless you point them
 at a server:
 
 ```sh
