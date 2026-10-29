@@ -32,22 +32,22 @@ class MainWindow : public QMainWindow {
   void show_page(QWidget* page);
   void check_trash_limit();
 
-  AppContext& ctx_;
-  bool page_refresh_pending_;      // A tab was opened while a job was running.
-  std::uint64_t trash_size_seen_;  // To notice when the trash grows.
-  TaskRunner runner_;
+  AppContext& m_ctx;
+  bool m_page_refresh_pending;      // A tab was opened while a job was running.
+  std::uint64_t m_trash_size_seen;  // To notice when the trash grows.
+  TaskRunner m_runner;
 
   // Owned by the window (Qt deletes child widgets with their parent).
-  QTabWidget* tabs_;
-  TabGame* tab_game_;
-  TabMods* tab_mods_;
-  TabSoundpacks* tab_soundpacks_;
-  TabFonts* tab_fonts_;
-  TabSnapshots* tab_snapshots_;
-  TabBackups* tab_backups_;
-  TabTrash* tab_trash_;
-  TabSettings* tab_settings_;
-  LogView* log_view_;
+  QTabWidget* m_tabs;
+  TabGame* m_tab_game;
+  TabMods* m_tab_mods;
+  TabSoundpacks* m_tab_soundpacks;
+  TabFonts* m_tab_fonts;
+  TabSnapshots* m_tab_snapshots;
+  TabBackups* m_tab_backups;
+  TabTrash* m_tab_trash;
+  TabSettings* m_tab_settings;
+  LogView* m_log_view;
 };
 
 #endif

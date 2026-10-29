@@ -15,7 +15,7 @@ class LogView : public QPlainTextEdit {
   void on_message(const StatusMessage& message);  // Any thread.
   void add(const StatusMessage& message);         // Main thread.
 
-  Status& status_;
+  Status& m_status;
 };
 
 #endif

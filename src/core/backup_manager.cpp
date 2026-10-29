@@ -19,7 +19,7 @@ static bool ends_with_zip(const std::string& name) {
 
 BackupManager::BackupManager(Settings& settings, Paths& paths, Status& status,
                              Trash& trash)
-    : settings_(settings), paths_(paths), status_(status), trash_(trash) {}
+    : m_settings(settings), m_paths(paths), m_status(status), m_trash(trash) {}
 
 bool BackupManager::is_valid_backup_name(const std::string& name) {
   if (name.empty()) return false;
@@ -39,13 +39,13 @@ std::string BackupManager::default_backup_name(const std::tm& time) {
 
 std::vector<BackupSummary> BackupManager::list() {
   std::vector<BackupSummary> result;
-  paths_.move_old_backups();
+  m_paths.move_old_backups();
 
-  std::vector<std::string> names = Paths::list_dir(paths_.save_backups());
+  std::vector<std::string> names = Paths::list_dir(m_paths.save_backups());
   for (size_t i = 0; i < names.size(); ++i) {
     BackupSummary summary;
     summary.name = names[i];
-    summary.path = paths_.save_backups() / to_path(names[i]);
+    summary.path = m_paths.save_backups() / to_path(names[i]);
 
     // One .zip per world.
     std::error_code ec;
@@ -63,52 +63,53 @@ std::vector<BackupSummary> BackupManager::list() {
 
 bool BackupManager::backup_current(const std::string& backup_name) {
   if (!is_valid_backup_name(backup_name)) {
-    status_.post("\"" + backup_name + "\" is not a valid backup name.",
-                 MSG_ERROR);
+    m_status.post("\"" + backup_name + "\" is not a valid backup name.",
+                  MSG_ERROR);
     return false;
   }
 
-  paths_.move_old_backups();
-  fs::path dest_dir = paths_.save_backups() / to_path(backup_name);
+  m_paths.move_old_backups();
+  fs::path dest_dir = m_paths.save_backups() / to_path(backup_name);
   if (fs::exists(dest_dir)) {
-    status_.post("A backup named \"" + backup_name + "\" already exists.",
-                 MSG_ERROR);
+    m_status.post("A backup named \"" + backup_name + "\" already exists.",
+                  MSG_ERROR);
     return false;
   }
 
-  fs::path saves = paths_.savegames();
+  fs::path saves = m_paths.savegames();
   std::vector<std::string> worlds = Paths::list_dir(saves);
   if (worlds.empty()) {
-    status_.post("There are no saved games to back up.", MSG_WARN);
+    m_status.post("There are no saved games to back up.", MSG_WARN);
     return false;
   }
 
-  status_.post("Backing up current saves to \"" + backup_name + "\"...");
+  m_status.post("Backing up current saves to \"" + backup_name + "\"...");
   std::error_code ec;
   fs::create_directories(dest_dir, ec);
   if (ec) {
-    status_.post("Cannot create " + to_utf8(dest_dir) + ": " + ec.message(),
-                 MSG_ERROR);
+    m_status.post("Cannot create " + to_utf8(dest_dir) + ": " + ec.message(),
+                  MSG_ERROR);
     return false;
   }
 
   for (size_t i = 0; i < worlds.size(); ++i) {
     if (!archive_helper::zip(saves, worlds[i],
-                             dest_dir / to_path(worlds[i] + ".zip"), status_)) {
+                             dest_dir / to_path(worlds[i] + ".zip"),
+                             m_status)) {
       // Don't leave a backup that is missing worlds.
       fs::remove_all(dest_dir, ec);
       return false;
     }
   }
 
-  status_.post("Backup created.");
+  m_status.post("Backup created.");
   return true;
 }
 
 bool BackupManager::restore(const std::string& backup_name) {
-  fs::path source_dir = paths_.save_backups() / to_path(backup_name);
+  fs::path source_dir = m_paths.save_backups() / to_path(backup_name);
   if (!is_valid_backup_name(backup_name) || !fs::is_directory(source_dir)) {
-    status_.post("Backup \"" + backup_name + "\" not found.", MSG_ERROR);
+    m_status.post("Backup \"" + backup_name + "\" not found.", MSG_ERROR);
     return false;
   }
 
@@ -120,49 +121,50 @@ bool BackupManager::restore(const std::string& backup_name) {
       zips.push_back(it->path());
   }
   if (zips.empty()) {
-    status_.post("Backup \"" + backup_name + "\" has no worlds in it.",
-                 MSG_ERROR);
+    m_status.post("Backup \"" + backup_name + "\" has no worlds in it.",
+                  MSG_ERROR);
     return false;
   }
 
-  status_.post("Restoring backup \"" + backup_name + "\"...");
+  m_status.post("Restoring backup \"" + backup_name + "\"...");
 
   // Unpack next to the saves first, and only replace them when that worked.
-  fs::path stage = paths_.tmp_dir() / "restore";
+  fs::path stage = m_paths.tmp_dir() / "restore";
   fs::remove_all(stage, ec);
   fs::create_directories(stage, ec);
   for (size_t i = 0; i < zips.size(); ++i) {
-    if (!archive_helper::extract(zips[i], stage, status_)) {
+    if (!archive_helper::extract(zips[i], stage, m_status)) {
       fs::remove_all(stage, ec);
-      status_.post("The current saves were not changed.", MSG_WARN);
+      m_status.post("The current saves were not changed.", MSG_WARN);
       return false;
     }
   }
 
-  fs::path saves = paths_.savegames();
+  fs::path saves = m_paths.savegames();
   if (fs::exists(saves) &&
-      !trash_.remove(saves, "saves", "Saves before restoring " + backup_name)) {
+      !m_trash.remove(saves, "saves",
+                      "Saves before restoring " + backup_name)) {
     fs::remove_all(stage, ec);
     return false;
   }
   fs::create_directories(saves.parent_path(), ec);
-  bool moved = fs_helper::move_dir(stage, saves, status_);
+  bool moved = fs_helper::move_dir(stage, saves, m_status);
   fs::remove_all(stage, ec);
   if (!moved) return false;
 
-  status_.post("Backup restored.");
+  m_status.post("Backup restored.");
   return true;
 }
 
 bool BackupManager::delete_backup(const std::string& backup_name) {
-  fs::path target = paths_.save_backups() / to_path(backup_name);
+  fs::path target = m_paths.save_backups() / to_path(backup_name);
   if (!is_valid_backup_name(backup_name) || !fs::is_directory(target)) {
-    status_.post("Backup \"" + backup_name + "\" not found.", MSG_ERROR);
+    m_status.post("Backup \"" + backup_name + "\" not found.", MSG_ERROR);
     return false;
   }
 
-  status_.post("Deleting backup \"" + backup_name + "\"...");
-  if (!trash_.remove(target, "backup", backup_name)) return false;
-  status_.post("Backup deleted.");
+  m_status.post("Deleting backup \"" + backup_name + "\"...");
+  if (!m_trash.remove(target, "backup", backup_name)) return false;
+  m_status.post("Backup deleted.");
   return true;
 }

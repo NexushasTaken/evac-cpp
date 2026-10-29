@@ -37,30 +37,30 @@ std::string Status::format(const std::string& msg, MessageType type,
 }
 
 void Status::post(const std::string& msg, MessageType type) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::lock_guard<std::mutex> lock(m_mutex);
 
-  if (type == MSG_DEBUG && !debug_enabled_) return;
+  if (type == MSG_DEBUG && !m_debug_enabled) return;
 
   StatusMessage m;
   m.type = type;
   m.text = format(msg, type, current_timestamp());
 
-  if (listener_)
-    listener_(m);
+  if (m_listener)
+    m_listener(m);
   else
-    buffer_.push_back(m);
+    m_buffer.push_back(m);
 }
 
 void Status::set_listener(const Listener& listener) {
-  std::lock_guard<std::mutex> lock(mutex_);
-  listener_ = listener;
-  if (listener_) {
-    for (size_t i = 0; i < buffer_.size(); ++i) listener_(buffer_[i]);
-    buffer_.clear();
+  std::lock_guard<std::mutex> lock(m_mutex);
+  m_listener = listener;
+  if (m_listener) {
+    for (size_t i = 0; i < m_buffer.size(); ++i) m_listener(m_buffer[i]);
+    m_buffer.clear();
   }
 }
 
 void Status::set_debug_enabled(bool enabled) {
-  std::lock_guard<std::mutex> lock(mutex_);
-  debug_enabled_ = enabled;
+  std::lock_guard<std::mutex> lock(m_mutex);
+  m_debug_enabled = enabled;
 }

@@ -31,9 +31,9 @@ class GameLauncher {
   bool has_last_world();
 
  private:
-  Settings& settings_;
-  Paths& paths_;
-  Status& status_;
+  Settings& m_settings;
+  Paths& m_paths;
+  Status& m_status;
 };
 
 #endif

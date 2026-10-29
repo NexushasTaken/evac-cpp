@@ -59,28 +59,28 @@ class TabMods : public QWidget {
   void install_mods(const std::vector<std::string>& new_ids,
                     const std::vector<std::string>& reinstall_ids);
 
-  AppContext& ctx_;
-  TaskRunner& runner_;
-  QWidget& parent_;
-  bool updating_;
-  std::vector<ModRow> installed_rows_;
-  std::vector<ModRow> available_rows_;
-  std::set<int> previous_installed_selection_;
-  std::set<int> previous_available_selection_;
+  AppContext& m_ctx;
+  TaskRunner& m_runner;
+  QWidget& m_parent;
+  bool m_updating;
+  std::vector<ModRow> m_installed_rows;
+  std::vector<ModRow> m_available_rows;
+  std::set<int> m_previous_installed_selection;
+  std::set<int> m_previous_available_selection;
 
-  QLabel* hint_label_;
-  QWidget* content_;
-  QLabel* installed_caption_;
-  QLabel* available_caption_;
-  QTreeWidget* installed_list_;
-  QTreeWidget* available_list_;
-  QCheckBox* show_stock_check_;
-  QCheckBox* show_installed_check_;
-  QPushButton* delete_button_;
-  QPushButton* add_selected_button_;
-  QPushButton* add_all_button_;
-  QPushButton* kenan_button_;
-  QTextBrowser* info_view_;
+  QLabel* m_hint_label;
+  QWidget* m_content;
+  QLabel* m_installed_caption;
+  QLabel* m_available_caption;
+  QTreeWidget* m_installed_list;
+  QTreeWidget* m_available_list;
+  QCheckBox* m_show_stock_check;
+  QCheckBox* m_show_installed_check;
+  QPushButton* m_delete_button;
+  QPushButton* m_add_selected_button;
+  QPushButton* m_add_all_button;
+  QPushButton* m_kenan_button;
+  QTextBrowser* m_info_view;
 };
 
 #endif

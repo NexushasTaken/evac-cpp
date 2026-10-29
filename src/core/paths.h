@@ -119,10 +119,10 @@ class Paths {
   std::filesystem::path find_active_game_dir();
   void store_custom_userdata(const std::vector<UserdataFolder>& folders);
 
-  std::filesystem::path games_dir_;
-  std::filesystem::path cache_dir_;
-  Settings& settings_;
-  Status& status_;
+  std::filesystem::path m_games_dir;
+  std::filesystem::path m_cache_dir;
+  Settings& m_settings;
+  Status& m_status;
 };
 
 #endif

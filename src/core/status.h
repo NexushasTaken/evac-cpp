@@ -30,10 +30,10 @@ class Status {
                             const std::string& timestamp);
 
  private:
-  std::mutex mutex_;
-  Listener listener_;
-  std::vector<StatusMessage> buffer_;
-  bool debug_enabled_ = false;
+  std::mutex m_mutex;
+  Listener m_listener;
+  std::vector<StatusMessage> m_buffer;
+  bool m_debug_enabled = false;
 };
 
 #endif

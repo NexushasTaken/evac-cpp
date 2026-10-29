@@ -40,21 +40,21 @@ class TabBackups : public QWidget {
                        const std::vector<std::string>& changed);
   void on_delete_clicked();
 
-  AppContext& ctx_;
-  TaskRunner& runner_;
-  QWidget& parent_;
-  bool updating_;
-  std::vector<BackupSummary> backups_;
+  AppContext& m_ctx;
+  TaskRunner& m_runner;
+  QWidget& m_parent;
+  bool m_updating;
+  std::vector<BackupSummary> m_backups;
 
-  QLabel* hint_label_;
-  QWidget* content_;
-  QListWidget* list_;
-  QPushButton* restore_button_;
-  QPushButton* delete_button_;
-  QPushButton* refresh_button_;
-  QTextBrowser* info_view_;
-  QLineEdit* name_entry_;
-  QPushButton* create_button_;
+  QLabel* m_hint_label;
+  QWidget* m_content;
+  QListWidget* m_list;
+  QPushButton* m_restore_button;
+  QPushButton* m_delete_button;
+  QPushButton* m_refresh_button;
+  QTextBrowser* m_info_view;
+  QLineEdit* m_name_entry;
+  QPushButton* m_create_button;
 };
 
 #endif

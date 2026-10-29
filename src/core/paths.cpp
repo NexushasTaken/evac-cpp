@@ -83,16 +83,16 @@ Locations default_locations() {
 }
 
 Paths::Paths(const Locations& locations, Settings& settings, Status& status)
-    : games_dir_(locations.games_dir),
-      cache_dir_(locations.cache_dir),
-      settings_(settings),
-      status_(status) {}
+    : m_games_dir(locations.games_dir),
+      m_cache_dir(locations.cache_dir),
+      m_settings(settings),
+      m_status(status) {}
 
 Paths::Paths(const fs::path& root, Settings& settings, Status& status)
-    : games_dir_(root),
-      cache_dir_(root / "cache"),
-      settings_(settings),
-      status_(status) {}
+    : m_games_dir(root),
+      m_cache_dir(root / "cache"),
+      m_settings(settings),
+      m_status(status) {}
 
 fs::path Paths::executable_dir() {
   fs::path exe = platform::executable_path();
@@ -117,7 +117,7 @@ Paths::InstallsSummary Paths::installs_summary() {
 
   for (size_t g = 0; g < sizeof(GAMES) / sizeof(GAMES[0]); ++g) {
     std::string game = GAMES[g];
-    fs::path base_dir = games_dir_ / game;
+    fs::path base_dir = m_games_dir / game;
     std::map<std::string, fs::path> installs;
 
     std::vector<std::string> subdirs = list_dir(base_dir);
@@ -125,7 +125,7 @@ Paths::InstallsSummary Paths::installs_summary() {
       fs::path dir = base_dir / to_path(subdirs[i]);
       fs::path info_file = dir / INFO_FILENAME;
       nlohmann::json info;
-      if (fs::exists(info_file) && load_json_file(info_file, info, status_) &&
+      if (fs::exists(info_file) && load_json_file(info_file, info, m_status) &&
           info.is_object() && info.contains("name") &&
           info["name"].is_string()) {
         installs[info["name"].get<std::string>()] = dir;
@@ -135,22 +135,23 @@ Paths::InstallsSummary Paths::installs_summary() {
   }
 
   // Ensure that some installation of the game is set as active.
-  std::string game = settings_.get_string("game");
+  std::string game = m_settings.get_string("game");
   InstallsSummary::const_iterator it = result.find(game);
   if (it != result.end()) {
-    std::string active = settings_.get_string("active_install_" + game);
+    std::string active = m_settings.get_string("active_install_" + game);
     if (active.empty() || it->second.find(active) == it->second.end())
-      settings_.set_string("active_install_" + game, it->second.begin()->first);
+      m_settings.set_string("active_install_" + game,
+                            it->second.begin()->first);
   }
 
   return result;
 }
 
 fs::path Paths::game_base_dir() {
-  return games_dir_ / to_path(settings_.get_string("game"));
+  return m_games_dir / to_path(m_settings.get_string("game"));
 }
 
-fs::path Paths::cache_dir() const { return cache_dir_; }
+fs::path Paths::cache_dir() const { return m_cache_dir; }
 
 fs::path Paths::data_dir() const {
   fs::path local = executable_dir() / "data";
@@ -160,14 +161,14 @@ fs::path Paths::data_dir() const {
 
 fs::path Paths::game_dir() {
   std::string active =
-      settings_.get_string("active_install_" + settings_.get_string("game"));
+      m_settings.get_string("active_install_" + m_settings.get_string("game"));
   if (active.empty()) return next_install_dir();
   return find_active_game_dir();
 }
 
 fs::path Paths::find_active_game_dir() {
   std::string active =
-      settings_.get_string("active_install_" + settings_.get_string("game"));
+      m_settings.get_string("active_install_" + m_settings.get_string("game"));
   fs::path base_dir = game_base_dir();
 
   std::vector<std::string> subdirs = list_dir(base_dir);
@@ -175,7 +176,7 @@ fs::path Paths::find_active_game_dir() {
     fs::path dir = base_dir / to_path(subdirs[i]);
     fs::path info_file = dir / INFO_FILENAME;
     nlohmann::json info;
-    if (fs::exists(info_file) && load_json_file(info_file, info, status_) &&
+    if (fs::exists(info_file) && load_json_file(info_file, info, m_status) &&
         info.is_object() && info.contains("name") && info["name"] == active) {
       return dir;
     }
@@ -195,8 +196,8 @@ fs::path Paths::default_userdata() { return game_base_dir() / "userdata"; }
 
 // The active one must still be in the list, a stale value means the default.
 fs::path Paths::userdata() {
-  fs::path active = to_path(
-      settings_.get_string("active_userdata_" + settings_.get_string("game")));
+  fs::path active = to_path(m_settings.get_string(
+      "active_userdata_" + m_settings.get_string("game")));
   if (!active.empty()) {
     std::vector<UserdataFolder> folders = custom_userdata();
     for (size_t i = 0; i < folders.size(); ++i) {
@@ -209,7 +210,7 @@ fs::path Paths::userdata() {
 std::vector<UserdataFolder> Paths::custom_userdata() {
   std::vector<UserdataFolder> result;
   nlohmann::json list =
-      settings_.get_json("userdata_folders_" + settings_.get_string("game"));
+      m_settings.get_json("userdata_folders_" + m_settings.get_string("game"));
   if (!list.is_array()) return result;
   for (size_t i = 0; i < list.size(); ++i) {
     const nlohmann::json& item = list[i];
@@ -231,7 +232,8 @@ void Paths::store_custom_userdata(const std::vector<UserdataFolder>& folders) {
   for (size_t i = 0; i < folders.size(); ++i)
     list.push_back(
         {{"path", to_utf8(folders[i].path)}, {"label", folders[i].label}});
-  settings_.set_json("userdata_folders_" + settings_.get_string("game"), list);
+  m_settings.set_json("userdata_folders_" + m_settings.get_string("game"),
+                      list);
 }
 
 static fs::path clean_path(const fs::path& path) {
@@ -302,13 +304,14 @@ void Paths::remove_userdata(const fs::path& path) {
     if (folders[i].path != path) kept.push_back(folders[i]);
   }
   store_custom_userdata(kept);
-  std::string key = "active_userdata_" + settings_.get_string("game");
-  if (to_path(settings_.get_string(key)) == path) settings_.set_string(key, "");
+  std::string key = "active_userdata_" + m_settings.get_string("game");
+  if (to_path(m_settings.get_string(key)) == path)
+    m_settings.set_string(key, "");
 }
 
 void Paths::set_active_userdata(const fs::path& path) {
-  std::string key = "active_userdata_" + settings_.get_string("game");
-  settings_.set_string(key, path == default_userdata() ? "" : to_utf8(path));
+  std::string key = "active_userdata_" + m_settings.get_string("game");
+  m_settings.set_string(key, path == default_userdata() ? "" : to_utf8(path));
 }
 
 bool Paths::is_default_userdata_active() {
@@ -332,7 +335,7 @@ fs::path Paths::tmp_dir() { return game_base_dir() / "tmp"; }
 fs::path Paths::launcher_dir() { return userdata() / "evac"; }
 fs::path Paths::save_backups() { return launcher_dir() / "backups"; }
 fs::path Paths::snapshots() { return launcher_dir() / "snapshots"; }
-fs::path Paths::trash_dir() const { return games_dir_ / "trash"; }
+fs::path Paths::trash_dir() const { return m_games_dir / "trash"; }
 
 bool Paths::move_old_backups() {
   fs::path old_dir = game_base_dir() / "save_backups";
@@ -343,13 +346,13 @@ bool Paths::move_old_backups() {
       fs::exists(fs::symlink_status(new_dir, ec)))
     return true;
 
-  status_.post("Moving the backups from " + to_utf8(old_dir) + " to " +
-               to_utf8(new_dir) + "...");
+  m_status.post("Moving the backups from " + to_utf8(old_dir) + " to " +
+                to_utf8(new_dir) + "...");
   fs::create_directories(parent_dir, ec);
   if (ec) {
-    status_.post("Cannot create " + to_utf8(parent_dir) + ": " + ec.message(),
-                 MSG_ERROR);
+    m_status.post("Cannot create " + to_utf8(parent_dir) + ": " + ec.message(),
+                  MSG_ERROR);
     return false;
   }
-  return fs_helper::move_dir(old_dir, new_dir, status_);
+  return fs_helper::move_dir(old_dir, new_dir, m_status);
 }

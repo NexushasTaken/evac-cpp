@@ -2,21 +2,21 @@
 
 #include <exception>
 
-TaskRunner::TaskRunner(Status& status) : status_(status), busy_(false) {}
+TaskRunner::TaskRunner(Status& status) : m_status(status), m_busy(false) {}
 
 TaskRunner::~TaskRunner() { wait(); }
 
 bool TaskRunner::run(const std::function<void()>& work,
                      const std::function<void()>& done) {
-  if (busy_) return false;
+  if (m_busy) return false;
 
-  busy_ = true;
-  done_ = done;
-  thread_ = std::thread([this, work]() {
+  m_busy = true;
+  m_done = done;
+  m_thread = std::thread([this, work]() {
     try {
       work();
     } catch (const std::exception& e) {
-      status_.post(std::string("Unexpected error: ") + e.what(), MSG_ERROR);
+      m_status.post(std::string("Unexpected error: ") + e.what(), MSG_ERROR);
     }
     // Queued: runs on the thread this object lives in (the main thread).
     // Dropped if the runner is gone by then.
@@ -27,17 +27,17 @@ bool TaskRunner::run(const std::function<void()>& work,
 }
 
 void TaskRunner::on_finished() {
-  if (thread_.joinable()) thread_.join();
-  busy_ = false;
+  if (m_thread.joinable()) m_thread.join();
+  m_busy = false;
 
-  std::function<void()> done = done_;
-  done_ = nullptr;
+  std::function<void()> done = m_done;
+  m_done = nullptr;
   if (done) done();
   emit finished();
 }
 
 void TaskRunner::wait() {
-  if (thread_.joinable()) thread_.join();
-  busy_ = false;
-  done_ = nullptr;
+  if (m_thread.joinable()) m_thread.join();
+  m_busy = false;
+  m_done = nullptr;
 }

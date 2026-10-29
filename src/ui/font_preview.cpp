@@ -37,26 +37,26 @@ static bool font_for_file(const QString& path, int pixel_size, QFont& font) {
 
 FontPreview::FontPreview() {
   setTitle("Preview (roughly how it looks; the game draws fonts itself)");
-  label_ = make_label("");
-  label_->setTextInteractionFlags(Qt::TextSelectableByMouse);
-  label_->setContentsMargins(8, 8, 8, 8);
+  m_label = make_label("");
+  m_label->setTextInteractionFlags(Qt::TextSelectableByMouse);
+  m_label->setContentsMargins(8, 8, 8, 8);
   QVBoxLayout* layout = new QVBoxLayout(this);
-  layout->addWidget(label_);
+  layout->addWidget(m_label);
 }
 
 void FontPreview::show_font(const std::filesystem::path& path, int pixel_size) {
   if (path.empty()) {
-    label_->setFont(font());
-    label_->setText("Select a font to see it here.");
+    m_label->setFont(font());
+    m_label->setText("Select a font to see it here.");
     return;
   }
 
   QFont preview;
   if (!font_for_file(qstr(path), pixel_size, preview)) {
-    label_->setFont(font());
-    label_->setText("This font can't be shown here.");
+    m_label->setFont(font());
+    m_label->setText("This font can't be shown here.");
     return;
   }
-  label_->setText(SAMPLE);
-  label_->setFont(preview);
+  m_label->setText(SAMPLE);
+  m_label->setFont(preview);
 }

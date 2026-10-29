@@ -77,15 +77,15 @@ bool split_command_line(const std::string& text,
 }
 
 GameLauncher::GameLauncher(Settings& settings, Paths& paths, Status& status)
-    : settings_(settings), paths_(paths), status_(status) {}
+    : m_settings(settings), m_paths(paths), m_status(status) {}
 
 bool GameLauncher::has_last_world() {
-  return fs::exists(paths_.config() / "lastworld.json");
+  return fs::exists(m_paths.config() / "lastworld.json");
 }
 
 std::string GameLauncher::last_world() {
   nlohmann::json info;
-  if (!load_json_file(paths_.config() / "lastworld.json", info, status_))
+  if (!load_json_file(m_paths.config() / "lastworld.json", info, m_status))
     return "";
   if (!info.is_object() || !info.contains("world_name") ||
       !info["world_name"].is_string())
@@ -94,13 +94,13 @@ std::string GameLauncher::last_world() {
 }
 
 bool GameLauncher::start(const std::string& world) {
-  fs::path game_dir = paths_.game_dir();
+  fs::path game_dir = m_paths.game_dir();
   // The game wants a trailing separator.
-  std::string userdata = to_utf8(paths_.userdata() / "");
+  std::string userdata = to_utf8(m_paths.userdata() / "");
 
   std::vector<std::string> names = executable_names();
   if (names.empty()) {
-    status_.post(
+    m_status.post(
         "Cannot start the game: starting games is not supported on this "
         "platform yet.",
         MSG_ERROR);
@@ -112,17 +112,17 @@ bool GameLauncher::start(const std::string& world) {
       executable = game_dir / names[i];
   }
   if (executable.empty()) {
-    status_.post("Cannot start the game, no executable found: " +
-                     to_utf8(game_dir / names[0]),
-                 MSG_ERROR);
+    m_status.post("Cannot start the game, no executable found: " +
+                      to_utf8(game_dir / names[0]),
+                  MSG_ERROR);
     return false;
   }
 
   std::vector<std::string> extra_args;
   std::string error;
-  if (!split_command_line(settings_.get_string("game_extra_args"), extra_args,
+  if (!split_command_line(m_settings.get_string("game_extra_args"), extra_args,
                           error)) {
-    status_.post(
+    m_status.post(
         "Cannot start the game, the extra command-line parameters are wrong: " +
             error,
         MSG_ERROR);
@@ -140,10 +140,10 @@ bool GameLauncher::start(const std::string& world) {
 
   // The game finds its data folder relative to the working directory.
   if (!process::spawn_detached(executable, args, game_dir, error)) {
-    status_.post("Cannot start the game: " + error, MSG_ERROR);
+    m_status.post("Cannot start the game: " + error, MSG_ERROR);
     return false;
   }
 
-  status_.post("Started the game.", MSG_DEBUG);
+  m_status.post("Started the game.", MSG_DEBUG);
   return true;
 }

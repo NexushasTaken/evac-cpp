@@ -22,45 +22,45 @@ static const char* const NO_INFO_TEXT =
     "Select an existing backup to see its details here.";
 
 TabBackups::TabBackups(AppContext& ctx, TaskRunner& runner, QWidget& parent)
-    : ctx_(ctx), runner_(runner), parent_(parent), updating_(false) {
+    : m_ctx(ctx), m_runner(runner), m_parent(parent), m_updating(false) {
   build_ui();
 }
 
 void TabBackups::build_ui() {
   QVBoxLayout* outer = new QVBoxLayout(this);
   outer->setContentsMargins(12, 12, 12, 12);
-  hint_label_ = make_label("");
-  hint_label_->setWordWrap(true);
-  hint_label_->setAlignment(Qt::AlignLeft | Qt::AlignTop);
-  outer->addWidget(hint_label_);
-  content_ = new QWidget();
-  outer->addWidget(content_, 1);
+  m_hint_label = make_label("");
+  m_hint_label->setWordWrap(true);
+  m_hint_label->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+  outer->addWidget(m_hint_label);
+  m_content = new QWidget();
+  outer->addWidget(m_content, 1);
 
-  QVBoxLayout* content = new QVBoxLayout(content_);
+  QVBoxLayout* content = new QVBoxLayout(m_content);
   content->setContentsMargins(0, 0, 0, 0);
   content->setSpacing(8);
   content->addWidget(make_label("Save directory backups:"));
-  list_ = new QListWidget();
-  list_->setSelectionMode(QAbstractItemView::SingleSelection);
-  content->addWidget(list_, 1);
+  m_list = new QListWidget();
+  m_list->setSelectionMode(QAbstractItemView::SingleSelection);
+  content->addWidget(m_list, 1);
 
   QHBoxLayout* buttons = new QHBoxLayout();
   buttons->setSpacing(6);
-  restore_button_ = new QPushButton("Restore");
-  restore_button_->setToolTip(
+  m_restore_button = new QPushButton("Restore");
+  m_restore_button->setToolTip(
       "Replace your current saves with the selected backup.");
-  delete_button_ = new QPushButton("Delete");
-  delete_button_->setToolTip("Delete the selected backup.");
-  refresh_button_ = new QPushButton("Refresh");
-  buttons->addWidget(restore_button_, 1);
-  buttons->addWidget(delete_button_, 1);
-  buttons->addWidget(refresh_button_, 1);
+  m_delete_button = new QPushButton("Delete");
+  m_delete_button->setToolTip("Delete the selected backup.");
+  m_refresh_button = new QPushButton("Refresh");
+  buttons->addWidget(m_restore_button, 1);
+  buttons->addWidget(m_delete_button, 1);
+  buttons->addWidget(m_refresh_button, 1);
   content->addLayout(buttons);
 
-  info_view_ = new QTextBrowser();
-  info_view_->setOpenExternalLinks(true);
-  info_view_->setFixedHeight(90);
-  content->addWidget(info_view_);
+  m_info_view = new QTextBrowser();
+  m_info_view->setOpenExternalLinks(true);
+  m_info_view->setFixedHeight(90);
+  content->addWidget(m_info_view);
 
   QFrame* separator = new QFrame();
   separator->setFrameShape(QFrame::HLine);
@@ -70,92 +70,92 @@ void TabBackups::build_ui() {
   QHBoxLayout* create_row = new QHBoxLayout();
   create_row->setSpacing(6);
   create_row->addWidget(make_label("Name:"));
-  name_entry_ = new QLineEdit();
-  name_entry_->setToolTip(
+  m_name_entry = new QLineEdit();
+  m_name_entry->setToolTip(
       "Characters that are not allowed in file names, and spaces at the start "
       "or end, are not allowed here.");
-  create_row->addWidget(name_entry_, 1);
-  create_button_ = new QPushButton("Create");
-  create_button_->setToolTip("Back up the saved games of the current game.");
-  create_row->addWidget(create_button_);
+  create_row->addWidget(m_name_entry, 1);
+  m_create_button = new QPushButton("Create");
+  m_create_button->setToolTip("Back up the saved games of the current game.");
+  create_row->addWidget(m_create_button);
   content->addLayout(create_row);
 
-  connect(list_, &QListWidget::itemSelectionChanged, this,
+  connect(m_list, &QListWidget::itemSelectionChanged, this,
           &TabBackups::on_selection_changed);
-  connect(name_entry_, &QLineEdit::textChanged, this,
+  connect(m_name_entry, &QLineEdit::textChanged, this,
           &TabBackups::on_name_changed);
-  connect(name_entry_, &QLineEdit::returnPressed, this,
+  connect(m_name_entry, &QLineEdit::returnPressed, this,
           &TabBackups::on_create_clicked);
-  connect(create_button_, &QPushButton::clicked, this,
+  connect(m_create_button, &QPushButton::clicked, this,
           &TabBackups::on_create_clicked);
-  connect(restore_button_, &QPushButton::clicked, this,
+  connect(m_restore_button, &QPushButton::clicked, this,
           &TabBackups::on_restore_clicked);
-  connect(delete_button_, &QPushButton::clicked, this,
+  connect(m_delete_button, &QPushButton::clicked, this,
           &TabBackups::on_delete_clicked);
-  connect(refresh_button_, &QPushButton::clicked, this,
+  connect(m_refresh_button, &QPushButton::clicked, this,
           &TabBackups::reload_list);
 }
 
 void TabBackups::show_unavailable(const QString& message) {
-  hint_label_->setText(message);
-  hint_label_->setVisible(true);
-  content_->setVisible(false);
+  m_hint_label->setText(message);
+  m_hint_label->setVisible(true);
+  m_content->setVisible(false);
 }
 
 void TabBackups::refresh() {
-  std::string game = ctx_.settings.get_string("game");
-  Paths::InstallsSummary installs = ctx_.paths.installs_summary();
+  std::string game = m_ctx.settings.get_string("game");
+  Paths::InstallsSummary installs = m_ctx.paths.installs_summary();
   if (installs.find(game) == installs.end()) {
     show_unavailable("Install the game first (on the Game tab).");
     return;
   }
-  hint_label_->setVisible(false);
-  content_->setVisible(true);
+  m_hint_label->setVisible(false);
+  m_content->setVisible(true);
 
   std::tm local = platform::local_time(std::time(nullptr));
-  name_entry_->setText(qstr(BackupManager::default_backup_name(local)));
+  m_name_entry->setText(qstr(BackupManager::default_backup_name(local)));
 
   reload_list();
 }
 
 void TabBackups::reload_list() {
-  backups_ = ctx_.backups.list();
+  m_backups = m_ctx.backups.list();
 
-  updating_ = true;
-  list_->clear();
-  for (size_t i = 0; i < backups_.size(); ++i)
-    list_->addItem(qstr(backups_[i].name));
-  updating_ = false;
+  m_updating = true;
+  m_list->clear();
+  for (size_t i = 0; i < m_backups.size(); ++i)
+    m_list->addItem(qstr(m_backups[i].name));
+  m_updating = false;
 
-  info_view_->setPlainText(NO_INFO_TEXT);
+  m_info_view->setPlainText(NO_INFO_TEXT);
   update_buttons();
 }
 
 int TabBackups::selected_backup() {
-  int row = selected_row(list_);
-  if (row < 0 || (size_t)row >= backups_.size()) return -1;
+  int row = selected_row(m_list);
+  if (row < 0 || (size_t)row >= m_backups.size()) return -1;
   return row;
 }
 
 void TabBackups::update_buttons() {
   bool have = (selected_backup() >= 0);
-  restore_button_->setEnabled(have);
-  delete_button_->setEnabled(have);
-  create_button_->setEnabled(
-      BackupManager::is_valid_backup_name(str(name_entry_->text())));
+  m_restore_button->setEnabled(have);
+  m_delete_button->setEnabled(have);
+  m_create_button->setEnabled(
+      BackupManager::is_valid_backup_name(str(m_name_entry->text())));
 }
 
 void TabBackups::on_selection_changed() {
-  if (updating_) return;
+  if (m_updating) return;
   update_buttons();
 
   int index = selected_backup();
   if (index < 0) {
-    info_view_->setPlainText(NO_INFO_TEXT);
+    m_info_view->setPlainText(NO_INFO_TEXT);
     return;
   }
 
-  const BackupSummary& backup = backups_[index];
+  const BackupSummary& backup = m_backups[index];
   std::string worlds;
   for (size_t i = 0; i < backup.worlds.size(); ++i)
     worlds += (i > 0 ? ", " : "") + backup.worlds[i];
@@ -164,14 +164,14 @@ void TabBackups::on_selection_changed() {
   QString text = "<u>Location:</u><br><a href=\"" + url.toHtmlEscaped() +
                  "\">" + escape(to_utf8(backup.path)) +
                  "</a><br><br><u>Worlds:</u><br>" + escape(worlds);
-  info_view_->setHtml(text);
+  m_info_view->setHtml(text);
 }
 
 // Red entry text for a name that can't be used.
 void TabBackups::on_name_changed() {
-  std::string name = str(name_entry_->text());
+  std::string name = str(m_name_entry->text());
   bool valid = BackupManager::is_valid_backup_name(name);
-  name_entry_->setStyleSheet(
+  m_name_entry->setStyleSheet(
       name.empty() || valid ? QString() : QString("color: #d02020;"));
   update_buttons();
 }
@@ -179,46 +179,46 @@ void TabBackups::on_name_changed() {
 // Runs a slow job on the worker thread, with the whole tab disabled until it is
 // done.
 void TabBackups::run_task(const std::function<void()>& work) {
-  content_->setEnabled(false);
-  bool started = runner_.run(work, [this]() {
-    content_->setEnabled(true);
+  m_content->setEnabled(false);
+  bool started = m_runner.run(work, [this]() {
+    m_content->setEnabled(true);
     reload_list();
   });
-  if (!started) content_->setEnabled(true);
+  if (!started) m_content->setEnabled(true);
 }
 
 void TabBackups::on_create_clicked() {
-  std::string name = str(name_entry_->text());
+  std::string name = str(m_name_entry->text());
   if (!BackupManager::is_valid_backup_name(name)) return;
-  run_task([this, name]() { ctx_.backups.backup_current(name); });
+  run_task([this, name]() { m_ctx.backups.backup_current(name); });
 }
 
 void TabBackups::on_restore_clicked() {
   int index = selected_backup();
   if (index < 0) return;
-  std::string name = backups_[index].name;
+  std::string name = m_backups[index].name;
 
   // Running git status on every world can take a while, so the worlds with
   // changes not in a snapshot are found on the worker thread.
   std::shared_ptr<std::vector<std::string> > changed =
       std::make_shared<std::vector<std::string> >();
-  content_->setEnabled(false);
-  bool started = runner_.run(
+  m_content->setEnabled(false);
+  bool started = m_runner.run(
       [this, changed]() {
-        if (git::available()) *changed = ctx_.snapshots.worlds_with_changes();
+        if (git::available()) *changed = m_ctx.snapshots.worlds_with_changes();
       },
       [this, changed, name]() {
-        content_->setEnabled(true);
+        m_content->setEnabled(true);
         confirm_restore(name, *changed);
       });
-  if (!started) content_->setEnabled(true);
+  if (!started) m_content->setEnabled(true);
 }
 
 void TabBackups::confirm_restore(const std::string& name,
                                  const std::vector<std::string>& changed) {
   // This replaces the current saves, so make sure that is what the user wants.
   std::string current =
-      ctx_.settings.get_bool("use_trash")
+      m_ctx.settings.get_bool("use_trash")
           ? "Your current saves of this game will be moved to the trash"
           : "Your current saves of this game will be deleted for good";
   std::string detail = current + " and replaced with the backup \"" + name +
@@ -233,22 +233,22 @@ void TabBackups::confirm_restore(const std::string& name,
               " changes not in a snapshot. Take a snapshot on the Snapshots "
               "tab first to keep them there.";
   }
-  dialogs::confirm(parent_, "Restore this backup?", qstr(detail), "Restore",
+  dialogs::confirm(m_parent, "Restore this backup?", qstr(detail), "Restore",
                    [this, name]() {
-                     run_task([this, name]() { ctx_.backups.restore(name); });
+                     run_task([this, name]() { m_ctx.backups.restore(name); });
                    });
 }
 
 void TabBackups::on_delete_clicked() {
   int index = selected_backup();
   if (index < 0) return;
-  std::string name = backups_[index].name;
-  bool use_trash = ctx_.settings.get_bool("use_trash");
+  std::string name = m_backups[index].name;
+  bool use_trash = m_ctx.settings.get_bool("use_trash");
   dialogs::confirm(
-      parent_, "Delete the backup?",
+      m_parent, "Delete the backup?",
       qstr("The backup \"" + name + "\" " + dialogs::removal_text(use_trash) +
            "."),
       qstr(dialogs::removal_button(use_trash)), [this, name]() {
-        run_task([this, name]() { ctx_.backups.delete_backup(name); });
+        run_task([this, name]() { m_ctx.backups.delete_backup(name); });
       });
 }

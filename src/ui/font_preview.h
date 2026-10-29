@@ -18,7 +18,7 @@ class FontPreview : public QGroupBox {
   void show_font(const std::filesystem::path& path, int pixel_size);
 
  private:
-  QLabel* label_;
+  QLabel* m_label;
 };
 
 #endif

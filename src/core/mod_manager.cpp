@@ -57,13 +57,13 @@ const Modpack* ModManager::modpack_for_game(const std::string& game) {
 
 ModManager::ModManager(Settings& settings, Paths& paths, Status& status,
                        Trash& trash)
-    : settings_(settings),
-      paths_(paths),
-      status_(status),
-      trash_(trash),
-      http_(status) {}
+    : m_settings(settings),
+      m_paths(paths),
+      m_status(status),
+      m_trash(trash),
+      m_http(status) {}
 
-void ModManager::cancel() { http_.cancel(); }
+void ModManager::cancel() { m_http.cancel(); }
 
 std::string ModManager::strip_html_tags(const std::string& text) {
   static const std::regex tag("<[^<>]+>");
@@ -137,7 +137,7 @@ std::map<std::string, ModEntry> ModManager::parse_mods_dir(
 
 void ModManager::refresh_installed() {
   std::map<std::string, ModEntry> result =
-      parse_mods_dir(paths_.mods_user(), status_);
+      parse_mods_dir(m_paths.mods_user(), m_status);
   for (std::map<std::string, ModEntry>::iterator it = result.begin();
        it != result.end(); ++it) {
     it->second.is_stock = false;
@@ -146,7 +146,7 @@ void ModManager::refresh_installed() {
 
   // Stock mods come last, so they win if the ID is the same.
   std::map<std::string, ModEntry> stock =
-      parse_mods_dir(paths_.mods_stock(), status_);
+      parse_mods_dir(m_paths.mods_stock(), m_status);
   for (std::map<std::string, ModEntry>::iterator it = stock.begin();
        it != stock.end(); ++it) {
     it->second.is_stock = true;
@@ -154,19 +154,19 @@ void ModManager::refresh_installed() {
     result[it->first] = it->second;
   }
 
-  installed_ = result;
+  m_installed = result;
 }
 
 void ModManager::refresh_available() {
-  available_ = parse_mods_dir(paths_.mod_repo(), status_);
+  m_available = parse_mods_dir(m_paths.mod_repo(), m_status);
 }
 
 ModStatus ModManager::mod_status(const std::string& id) const {
-  if (installed_.find(id + "__") != installed_.end())
+  if (m_installed.find(id + "__") != m_installed.end())
     return MOD_INSTALLED_MODIFIED_ID;
 
-  std::map<std::string, ModEntry>::const_iterator it = installed_.find(id);
-  if (it == installed_.end()) return MOD_NOT_INSTALLED;
+  std::map<std::string, ModEntry>::const_iterator it = m_installed.find(id);
+  if (it == m_installed.end()) return MOD_NOT_INSTALLED;
   if (!it->second.is_stock) return MOD_INSTALLED;
   return it->second.is_obsolete ? MOD_STOCK_OBSOLETE : MOD_STOCK;
 }
@@ -215,35 +215,35 @@ static bool rename_mod(const fs::path& file, const std::string& id,
 }
 
 bool ModManager::install_mod(const std::string& id) {
-  std::map<std::string, ModEntry>::const_iterator found = available_.find(id);
-  if (found == available_.end()) {
-    status_.post("Could not find mod with ID \"" + id + "\"", MSG_ERROR);
+  std::map<std::string, ModEntry>::const_iterator found = m_available.find(id);
+  if (found == m_available.end()) {
+    m_status.post("Could not find mod with ID \"" + id + "\"", MSG_ERROR);
     return false;
   }
   const ModEntry& mod = found->second;
-  fs::path mods_dir = paths_.mods_user();
+  fs::path mods_dir = m_paths.mods_user();
 
-  if (!fs_helper::copy_dir(mod.location, mods_dir, status_)) return false;
+  if (!fs_helper::copy_dir(mod.location, mods_dir, m_status)) return false;
 
   // If a stock mod with this ID is obsolete, both would clash in the game.
   // Our copy gets another ID (and a star in the name to tell them apart).
-  std::map<std::string, ModEntry>::const_iterator clash = installed_.find(id);
-  if (clash != installed_.end() && clash->second.is_obsolete) {
-    status_.post(
+  std::map<std::string, ModEntry>::const_iterator clash = m_installed.find(id);
+  if (clash != m_installed.end() && clash->second.is_obsolete) {
+    m_status.post(
         "There is already an obsoleted mod with ID " + id + ". " + mod.name +
         " will be installed with modified ID and name to avoid collisions.");
     fs::path target = mods_dir / mod.location.filename() / "modinfo.json";
-    if (!rename_mod(target, id, status_)) return false;
+    if (!rename_mod(target, id, m_status)) return false;
   }
 
-  status_.post("Installed " + mod.name);
+  m_status.post("Installed " + mod.name);
   return true;
 }
 
 bool ModManager::install_mods(const std::vector<std::string>& ids) {
   if (ids.empty()) return true;
   if (ids.size() > 1)
-    status_.post("Installing " + std::to_string(ids.size()) + " mods...");
+    m_status.post("Installing " + std::to_string(ids.size()) + " mods...");
 
   bool ok = true;
   for (size_t i = 0; i < ids.size(); ++i) {
@@ -254,28 +254,28 @@ bool ModManager::install_mods(const std::vector<std::string>& ids) {
 }
 
 bool ModManager::delete_mod(const std::string& id) {
-  std::map<std::string, ModEntry>::const_iterator found = installed_.find(id);
-  if (found == installed_.end()) {
-    status_.post("Could not find mod with ID \"" + id + "\"", MSG_ERROR);
+  std::map<std::string, ModEntry>::const_iterator found = m_installed.find(id);
+  if (found == m_installed.end()) {
+    m_status.post("Could not find mod with ID \"" + id + "\"", MSG_ERROR);
     return false;
   }
   if (found->second.is_stock) {
-    status_.post(
+    m_status.post(
         found->second.name + " comes with the game and cannot be deleted.",
         MSG_ERROR);
     return false;
   }
 
   std::string name = found->second.name;
-  if (!trash_.remove(found->second.location, "mod", name)) return false;
-  status_.post("Deleted " + name);
+  if (!m_trash.remove(found->second.location, "mod", name)) return false;
+  m_status.post("Deleted " + name);
   return true;
 }
 
 bool ModManager::delete_mods(const std::vector<std::string>& ids) {
   if (ids.empty()) return true;
   if (ids.size() > 1)
-    status_.post("Deleting " + std::to_string(ids.size()) + " mods...");
+    m_status.post("Deleting " + std::to_string(ids.size()) + " mods...");
 
   bool ok = true;
   for (size_t i = 0; i < ids.size(); ++i) {
@@ -290,22 +290,22 @@ bool ModManager::delete_mods(const std::vector<std::string>& ids) {
 }
 
 bool ModManager::retrieve_modpack(const Modpack& pack) {
-  status_.post("Retrieving " + pack.name + "...");
+  m_status.post("Retrieving " + pack.name + "...");
 
-  fs::path archive_path = paths_.cache_dir() / to_path(pack.filename);
+  fs::path archive_path = m_paths.cache_dir() / to_path(pack.filename);
   std::error_code ec;
 
-  if (settings_.get_bool("ignore_cache") || !fs::exists(archive_path)) {
-    http_.apply_proxy_settings(settings_, true);
-    if (!http_.download_file(pack.url, paths_.cache_dir(), pack.filename))
+  if (m_settings.get_bool("ignore_cache") || !fs::exists(archive_path)) {
+    m_http.apply_proxy_settings(m_settings, true);
+    if (!m_http.download_file(pack.url, m_paths.cache_dir(), pack.filename))
       return false;
   }
 
   // Always extract into an empty directory.
-  fs::path tmp_dir = paths_.tmp_dir();
+  fs::path tmp_dir = m_paths.tmp_dir();
   fs::remove_all(tmp_dir, ec);
-  bool extracted = archive_helper::extract(archive_path, tmp_dir, status_);
-  if (!settings_.get_bool("keep_cache")) fs::remove(archive_path, ec);
+  bool extracted = archive_helper::extract(archive_path, tmp_dir, m_status);
+  if (!m_settings.get_bool("keep_cache")) fs::remove(archive_path, ec);
   if (!extracted) {
     fs::remove_all(tmp_dir, ec);
     return false;
@@ -315,7 +315,7 @@ bool ModManager::retrieve_modpack(const Modpack& pack) {
   // leave it empty.
   for (size_t i = 0; i < pack.internal_paths.size(); ++i) {
     if (!fs::is_directory(tmp_dir / to_path(pack.internal_paths[i]))) {
-      status_.post(
+      m_status.post(
           "The archive does not contain \"" + pack.internal_paths[i] + "\".",
           MSG_ERROR);
       fs::remove_all(tmp_dir, ec);
@@ -324,30 +324,30 @@ bool ModManager::retrieve_modpack(const Modpack& pack) {
   }
 
   bool ok = true;
-  fs::path repo = paths_.mod_repo();
+  fs::path repo = m_paths.mod_repo();
 
-  status_.post("Wiping the repository...");
-  if (fs::exists(repo) && !fs_helper::rm_dir(repo, status_)) ok = false;
+  m_status.post("Wiping the repository...");
+  if (fs::exists(repo) && !fs_helper::rm_dir(repo, m_status)) ok = false;
 
-  status_.post("Adding mods from the pack to repository...");
+  m_status.post("Adding mods from the pack to repository...");
   for (size_t i = 0; i < pack.internal_paths.size(); ++i) {
     if (!fs_helper::move_dir(tmp_dir / to_path(pack.internal_paths[i]), repo,
-                             status_))
+                             m_status))
       ok = false;
   }
 
-  if (settings_.get_bool("install_archived_mods")) {
-    status_.post("Adding archived mods to repository...");
+  if (m_settings.get_bool("install_archived_mods")) {
+    m_status.post("Adding archived mods to repository...");
     if (!fs_helper::move_dir(tmp_dir / to_path(pack.archived_path), repo,
-                             status_))
+                             m_status))
       ok = false;
   }
 
-  status_.post("Cleaning up...");
+  m_status.post("Cleaning up...");
   fs::remove_all(tmp_dir, ec);
 
   refresh_available();
-  status_.post(ok ? "All finished." : "Finished with errors.",
-               ok ? MSG_INFO : MSG_WARN);
+  m_status.post(ok ? "All finished." : "Finished with errors.",
+                ok ? MSG_INFO : MSG_WARN);
   return ok;
 }

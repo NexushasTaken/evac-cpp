@@ -7,18 +7,18 @@
 
 #include "ui/qt_helpers.h"
 
-LogView::LogView(Status& status) : status_(status) {
+LogView::LogView(Status& status) : m_status(status) {
   setFixedHeight(150);
   setReadOnly(true);
   setLineWrapMode(QPlainTextEdit::WidgetWidth);
   setWordWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
   setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
 
-  status_.set_listener(
+  m_status.set_listener(
       [this](const StatusMessage& message) { on_message(message); });
 }
 
-LogView::~LogView() { status_.set_listener(Status::Listener()); }
+LogView::~LogView() { m_status.set_listener(Status::Listener()); }
 
 void LogView::on_message(const StatusMessage& message) {
   // Queued: runs on the main thread. Dropped if the view is gone by then.

@@ -20,13 +20,13 @@ static bool starts_with(const std::string& text, const char* prefix) {
 
 SoundpackManager::SoundpackManager(Settings& settings, Paths& paths,
                                    Status& status, Trash& trash)
-    : settings_(settings),
-      paths_(paths),
-      status_(status),
-      trash_(trash),
-      http_(status) {}
+    : m_settings(settings),
+      m_paths(paths),
+      m_status(status),
+      m_trash(trash),
+      m_http(status) {}
 
-void SoundpackManager::cancel() { http_.cancel(); }
+void SoundpackManager::cancel() { m_http.cancel(); }
 
 std::vector<InstalledSoundpack> SoundpackManager::parse_sound_dir(
     const fs::path& sound_dir) {
@@ -68,11 +68,11 @@ std::vector<InstalledSoundpack> SoundpackManager::parse_sound_dir(
 
 std::vector<InstalledSoundpack> SoundpackManager::get_installed(
     bool include_stock) {
-  std::vector<InstalledSoundpack> packs = parse_sound_dir(paths_.sound_user());
+  std::vector<InstalledSoundpack> packs = parse_sound_dir(m_paths.sound_user());
 
   if (include_stock) {
     std::vector<InstalledSoundpack> stock =
-        parse_sound_dir(paths_.sound_stock());
+        parse_sound_dir(m_paths.sound_stock());
     for (size_t i = 0; i < stock.size(); ++i) {
       stock[i].is_stock = true;
       packs.push_back(stock[i]);
@@ -90,14 +90,15 @@ bool SoundpackManager::find_user_pack(const fs::path& location,
       return true;
     }
   }
-  status_.post("Could not find a soundpack in " + to_utf8(location), MSG_ERROR);
+  m_status.post("Could not find a soundpack in " + to_utf8(location),
+                MSG_ERROR);
   return false;
 }
 
 bool SoundpackManager::delete_pack(const fs::path& location) {
   InstalledSoundpack pack;
   if (!find_user_pack(location, pack)) return false;
-  return trash_.remove(pack.location, "soundpack", pack.name);
+  return m_trash.remove(pack.location, "soundpack", pack.name);
 }
 
 bool SoundpackManager::set_enabled(const fs::path& location, bool enabled) {
@@ -116,60 +117,60 @@ bool SoundpackManager::set_enabled(const fs::path& location, bool enabled) {
   std::error_code ec;
   fs::file_status to_status = fs::symlink_status(to, ec);
   if (fs::exists(to_status)) {
-    status_.post("Not renaming the config of soundpack \"" + pack.name +
-                     "\": " + to_utf8(to) + " already exists.",
-                 MSG_ERROR);
+    m_status.post("Not renaming the config of soundpack \"" + pack.name +
+                      "\": " + to_utf8(to) + " already exists.",
+                  MSG_ERROR);
     return false;
   }
   ec.clear();
   fs::rename(from, to, ec);
   if (ec) {
-    status_.post("Could not rename the config of soundpack \"" + pack.name +
-                     "\": " + ec.message(),
-                 MSG_ERROR);
+    m_status.post("Could not rename the config of soundpack \"" + pack.name +
+                      "\": " + ec.message(),
+                  MSG_ERROR);
     return false;
   }
 
-  status_.post(std::string(enabled ? "Enabled" : "Disabled") + " soundpack \"" +
-               pack.name + "\".");
+  m_status.post(std::string(enabled ? "Enabled" : "Disabled") +
+                " soundpack \"" + pack.name + "\".");
   return true;
 }
 
 bool SoundpackManager::has_user_copy(const SoundpackSource& pack) {
   std::error_code ec;
   return fs::exists(
-      fs::symlink_status(paths_.sound_user() / to_path(pack.name), ec));
+      fs::symlink_status(m_paths.sound_user() / to_path(pack.name), ec));
 }
 
 bool SoundpackManager::install_pack(const SoundpackSource& pack,
                                     const fs::path& from_file, bool reinstall,
                                     bool keep_archive) {
-  fs::path sound_dir = paths_.sound_user();
-  fs::path tmp_dir = paths_.tmp_dir() / to_path(pack.name);
+  fs::path sound_dir = m_paths.sound_user();
+  fs::path tmp_dir = m_paths.tmp_dir() / to_path(pack.name);
   fs::path archive_path;
   std::error_code ec;
 
   if (!reinstall && has_user_copy(pack)) {
-    status_.post("Soundpack \"" + pack.name + "\" is already installed in " +
-                     to_utf8(sound_dir / to_path(pack.name)) +
-                     ". Reinstall it instead.",
-                 MSG_ERROR);
+    m_status.post("Soundpack \"" + pack.name + "\" is already installed in " +
+                      to_utf8(sound_dir / to_path(pack.name)) +
+                      ". Reinstall it instead.",
+                  MSG_ERROR);
     return false;
   }
 
   if (reinstall)
-    status_.post("Reinstalling soundpack \"" + pack.name + "\"...");
+    m_status.post("Reinstalling soundpack \"" + pack.name + "\"...");
   else
-    status_.post("Installing soundpack \"" + pack.name + "\"...");
+    m_status.post("Installing soundpack \"" + pack.name + "\"...");
 
   if (!from_file.empty()) {
     archive_path = from_file;
   } else {
-    archive_path = paths_.cache_dir() / to_path(pack.filename);
-    if (settings_.get_bool("ignore_cache") || !fs::exists(archive_path)) {
-      http_.apply_proxy_settings(settings_, true);
-      if (!http_.download_file(pack.url, paths_.cache_dir(), pack.filename)) {
-        status_.post("Could not download soundpack archive.", MSG_ERROR);
+    archive_path = m_paths.cache_dir() / to_path(pack.filename);
+    if (m_settings.get_bool("ignore_cache") || !fs::exists(archive_path)) {
+      m_http.apply_proxy_settings(m_settings, true);
+      if (!m_http.download_file(pack.url, m_paths.cache_dir(), pack.filename)) {
+        m_status.post("Could not download soundpack archive.", MSG_ERROR);
         return false;
       }
     }
@@ -177,15 +178,16 @@ bool SoundpackManager::install_pack(const SoundpackSource& pack,
 
   // Always extract into an empty directory.
   fs::remove_all(tmp_dir, ec);
-  bool extracted = archive_helper::extract(archive_path, tmp_dir, status_);
+  bool extracted = archive_helper::extract(archive_path, tmp_dir, m_status);
 
-  if (!keep_archive && !settings_.get_bool("keep_cache"))
+  if (!keep_archive && !m_settings.get_bool("keep_cache"))
     fs::remove(archive_path, ec);
 
   fs::path source = tmp_dir / to_path(pack.internal_path);
   if (extracted && !fs::is_directory(source)) {
-    status_.post("The archive does not contain \"" + pack.internal_path + "\".",
-                 MSG_ERROR);
+    m_status.post(
+        "The archive does not contain \"" + pack.internal_path + "\".",
+        MSG_ERROR);
     extracted = false;
   }
   if (!extracted) {
@@ -197,16 +199,16 @@ bool SoundpackManager::install_pack(const SoundpackSource& pack,
   // there even when reinstalling, if the installed copy has another name.
   fs::path old_copy = sound_dir / to_path(pack.name);
   if (reinstall && fs::exists(fs::symlink_status(old_copy, ec)) &&
-      !trash_.remove(old_copy, "soundpack", pack.name)) {
+      !m_trash.remove(old_copy, "soundpack", pack.name)) {
     fs::remove_all(tmp_dir, ec);
     return false;
   }
 
   bool moved =
-      fs_helper::move_dir(source, sound_dir / to_path(pack.name), status_);
+      fs_helper::move_dir(source, sound_dir / to_path(pack.name), m_status);
   fs::remove_all(tmp_dir, ec);
   if (!moved) return false;
 
-  status_.post("Soundpack installed.");
+  m_status.post("Soundpack installed.");
   return true;
 }

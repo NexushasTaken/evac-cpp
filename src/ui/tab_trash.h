@@ -41,21 +41,21 @@ class TabTrash : public QWidget {
   void on_free_up_clicked();
   void on_open_folder_clicked();
 
-  AppContext& ctx_;
-  TaskRunner& runner_;
-  QWidget& parent_;
-  bool updating_;
-  std::vector<TrashItem> items_;
+  AppContext& m_ctx;
+  TaskRunner& m_runner;
+  QWidget& m_parent;
+  bool m_updating;
+  std::vector<TrashItem> m_items;
 
-  QWidget* content_;
-  QLabel* summary_label_;
-  QTreeWidget* list_;
-  QTextBrowser* info_view_;
-  QPushButton* restore_button_;
-  QPushButton* delete_button_;
-  QPushButton* empty_button_;
-  QPushButton* free_up_button_;
-  QPushButton* open_folder_button_;
+  QWidget* m_content;
+  QLabel* m_summary_label;
+  QTreeWidget* m_list;
+  QTextBrowser* m_info_view;
+  QPushButton* m_restore_button;
+  QPushButton* m_delete_button;
+  QPushButton* m_empty_button;
+  QPushButton* m_free_up_button;
+  QPushButton* m_open_folder_button;
 };
 
 #endif

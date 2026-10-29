@@ -49,11 +49,11 @@ class ReleaseManager {
                                      const std::string& platform);
 
  private:
-  Settings& settings_;
-  Status& status_;
-  Http http_;
-  std::mutex mutex_;
-  std::map<std::string, std::vector<Release> > releases_;
+  Settings& m_settings;
+  Status& m_status;
+  Http m_http;
+  std::mutex m_mutex;
+  std::map<std::string, std::vector<Release> > m_releases;
 };
 
 #endif

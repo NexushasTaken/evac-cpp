@@ -29,10 +29,10 @@ struct RestorePlan {
   enum Kind {
     ORIGINAL,  // Goes back where it was.
     RENAMED,   // Goes back next to where it was, with " (restored)" added. For
-              // saves: the worlds go back, and the ones whose names are taken
-              // get renamed.
-    CONFLICT,    // Something the game would mix up with it is there. Needs
-                 // replace.
+               // saves: the worlds go back, and the ones whose names are taken
+               // get renamed.
+    CONFLICT,  // Something the game would mix up with it is there. Needs
+               // replace.
     IMPOSSIBLE,  // Can't be restored, see reason.
   };
   Kind kind = IMPOSSIBLE;
@@ -102,9 +102,9 @@ class Trash {
  private:
   bool load_item(const std::string& id, TrashItem& out);
 
-  Settings& settings_;
-  Paths& paths_;
-  Status& status_;
+  Settings& m_settings;
+  Paths& m_paths;
+  Status& m_status;
 };
 
 #endif

@@ -43,21 +43,21 @@ class TabSoundpacks : public QWidget {
   void on_install_from_file_clicked();
   void install_selected(const std::string& from_file);
 
-  AppContext& ctx_;
-  TaskRunner& runner_;
-  QWidget& parent_;
-  bool updating_;
-  std::vector<InstalledSoundpack> installed_;
+  AppContext& m_ctx;
+  TaskRunner& m_runner;
+  QWidget& m_parent;
+  bool m_updating;
+  std::vector<InstalledSoundpack> m_installed;
 
-  QLabel* hint_label_;
-  QWidget* content_;
-  QListWidget* installed_list_;
-  QListWidget* available_list_;
-  QCheckBox* show_stock_check_;
-  QPushButton* toggle_button_;
-  QPushButton* delete_button_;
-  QPushButton* install_button_;
-  QPushButton* install_from_file_button_;
+  QLabel* m_hint_label;
+  QWidget* m_content;
+  QListWidget* m_installed_list;
+  QListWidget* m_available_list;
+  QCheckBox* m_show_stock_check;
+  QPushButton* m_toggle_button;
+  QPushButton* m_delete_button;
+  QPushButton* m_install_button;
+  QPushButton* m_install_from_file_button;
 };
 
 #endif

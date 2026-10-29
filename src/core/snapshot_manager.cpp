@@ -44,7 +44,7 @@ static bool ends_with(const std::string& text, const std::string& end) {
 }
 
 SnapshotManager::SnapshotManager(Paths& paths, Status& status, Trash& trash)
-    : paths_(paths), status_(status), trash_(trash) {}
+    : m_paths(paths), m_status(status), m_trash(trash) {}
 
 std::string SnapshotManager::default_snapshot_name(const std::tm& time) {
   static const char* const DAYS[] = {"Sun", "Mon", "Tue", "Wed",
@@ -62,11 +62,11 @@ std::string SnapshotManager::default_snapshot_name(const std::tm& time) {
 }
 
 fs::path SnapshotManager::world_dir(const std::string& world) {
-  return paths_.savegames() / to_path(world);
+  return m_paths.savegames() / to_path(world);
 }
 
 fs::path SnapshotManager::repo_path(const std::string& world) {
-  return paths_.snapshots() / to_path(world + REPO_SUFFIX);
+  return m_paths.snapshots() / to_path(world + REPO_SUFFIX);
 }
 
 // The work tree only when the world folder exists: git refuses a missing one,
@@ -97,7 +97,7 @@ bool SnapshotManager::run_or_report(const std::string& world,
   git::Result r = run(world, args);
   if (r.ok()) return true;
   std::string detail = trim(r.err);
-  status_.post(
+  m_status.post(
       what + " failed for " + world + (detail.empty() ? "." : ": " + detail),
       MSG_ERROR);
   return false;
@@ -113,18 +113,18 @@ bool SnapshotManager::ensure_repo(const std::string& world) {
   fs::path repo = repo_path(world);
   std::error_code ec;
   if (fs::is_directory(repo, ec)) return true;
-  fs::create_directories(paths_.snapshots(), ec);
+  fs::create_directories(m_paths.snapshots(), ec);
   if (ec) {
-    status_.post(
-        "Cannot create " + to_utf8(paths_.snapshots()) + ": " + ec.message(),
+    m_status.post(
+        "Cannot create " + to_utf8(m_paths.snapshots()) + ": " + ec.message(),
         MSG_ERROR);
     return false;
   }
   git::Result r = git::run(args_of({"init", "-q", "--bare", to_utf8(repo)}));
   if (!r.ok()) {
-    status_.post("Cannot create the snapshot repository for " + world + ": " +
-                     trim(r.err),
-                 MSG_ERROR);
+    m_status.post("Cannot create the snapshot repository for " + world + ": " +
+                      trim(r.err),
+                  MSG_ERROR);
     return false;
   }
   return true;
@@ -137,7 +137,7 @@ int SnapshotManager::stage_all(const std::string& world) {
   git::Result r = run(world, args_of({"diff", "--cached", "--quiet"}));
   if (r.started && r.exit_code == 0) return 0;
   if (r.started && r.exit_code == 1) return 1;
-  status_.post("git diff failed for " + world + ": " + trim(r.err), MSG_ERROR);
+  m_status.post("git diff failed for " + world + ": " + trim(r.err), MSG_ERROR);
   return -1;
 }
 
@@ -170,7 +170,7 @@ std::vector<WorldInfo> SnapshotManager::list_worlds() {
   std::vector<WorldInfo> result;
   std::set<std::string> present;
 
-  std::vector<std::string> worlds = Paths::list_dir(paths_.savegames());
+  std::vector<std::string> worlds = Paths::list_dir(m_paths.savegames());
   for (size_t i = 0; i < worlds.size(); ++i) {
     WorldInfo info;
     info.name = worlds[i];
@@ -180,15 +180,15 @@ std::vector<WorldInfo> SnapshotManager::list_worlds() {
     } else {
       git::Result r = run(info.name, args_of({"status", "--porcelain", "-z"}));
       if (!r.ok())
-        status_.post("git status failed for " + info.name + ": " + trim(r.err),
-                     MSG_WARN);
+        m_status.post("git status failed for " + info.name + ": " + trim(r.err),
+                      MSG_WARN);
       info.state =
           (r.ok() && r.out.empty()) ? WorldInfo::UNCHANGED : WorldInfo::CHANGED;
     }
     result.push_back(info);
   }
 
-  std::vector<std::string> repos = Paths::list_dir(paths_.snapshots());
+  std::vector<std::string> repos = Paths::list_dir(m_paths.snapshots());
   for (size_t i = 0; i < repos.size(); ++i) {
     if (!ends_with(repos[i], REPO_SUFFIX)) continue;
     WorldInfo info;
@@ -212,7 +212,8 @@ std::vector<Snapshot> SnapshotManager::list_snapshots(
   git::Result r =
       run(world, args_of({"log", "-z", "--format=%H%x1f%ct%x1f%B"}));
   if (!r.ok()) {
-    status_.post("git log failed for " + world + ": " + trim(r.err), MSG_ERROR);
+    m_status.post("git log failed for " + world + ": " + trim(r.err),
+                  MSG_ERROR);
     return result;
   }
 
@@ -266,13 +267,14 @@ std::string SnapshotManager::git_command(const std::string& world) {
 }
 
 bool SnapshotManager::can_write(std::string& reason) {
-  fs::path dir = paths_.savegames();
+  fs::path dir = m_paths.savegames();
   std::error_code ec;
-  if (!fs::is_directory(dir, ec)) dir = paths_.userdata();
+  if (!fs::is_directory(dir, ec)) dir = m_paths.userdata();
   bool read_only_fs = false;
   if (platform::dir_writable(dir, read_only_fs)) return true;
   if (read_only_fs)
-    reason = "The userdata folder is read-only (" + to_utf8(paths_.userdata()) +
+    reason = "The userdata folder is read-only (" +
+             to_utf8(m_paths.userdata()) +
              "). On a Windows partition, this happens when Windows was "
              "hibernated or shut down with Fast Startup.";
   else
@@ -292,17 +294,17 @@ SnapshotManager::Result SnapshotManager::take(const std::string& world,
                                               bool report_unchanged) {
   std::string title = trim(name);
   if (title.empty()) {
-    status_.post("A snapshot needs a name.", MSG_ERROR);
+    m_status.post("A snapshot needs a name.", MSG_ERROR);
     return FAILED;
   }
   std::error_code ec;
   if (world.empty() || !fs::is_directory(world_dir(world), ec)) {
-    status_.post("World \"" + world + "\" not found.", MSG_ERROR);
+    m_status.post("World \"" + world + "\" not found.", MSG_ERROR);
     return FAILED;
   }
   std::string reason;
   if (!can_write(reason)) {
-    status_.post(reason, MSG_ERROR);
+    m_status.post(reason, MSG_ERROR);
     return FAILED;
   }
   if (!ensure_repo(world)) return FAILED;
@@ -311,18 +313,18 @@ SnapshotManager::Result SnapshotManager::take(const std::string& world,
   if (staged < 0) return FAILED;
   if (staged == 0) {
     if (report_unchanged)
-      status_.post(world + ": no changes since the last snapshot.");
+      m_status.post(world + ": no changes since the last snapshot.");
     return NOTHING_TO_DO;
   }
   if (!commit(world, title, description)) return FAILED;
-  status_.post("Snapshot \"" + title + "\" of " + world + " taken.");
+  m_status.post("Snapshot \"" + title + "\" of " + world + " taken.");
   return DONE;
 }
 
 SnapshotManager::AllResult SnapshotManager::take_snapshot_all(
     const std::string& name, const std::string& description) {
   AllResult result;
-  std::vector<std::string> worlds = Paths::list_dir(paths_.savegames());
+  std::vector<std::string> worlds = Paths::list_dir(m_paths.savegames());
   for (size_t i = 0; i < worlds.size(); ++i) {
     Result r = take(worlds[i], name, description, false);
     if (r == DONE)
@@ -342,29 +344,29 @@ SnapshotManager::AllResult SnapshotManager::take_snapshot_all(
                                    : " worlds had no changes");
   if (result.failed > 0)
     text += ", " + std::to_string(result.failed) + " failed";
-  status_.post(text + ".", result.failed > 0 ? MSG_WARN : MSG_INFO);
+  m_status.post(text + ".", result.failed > 0 ? MSG_WARN : MSG_INFO);
   return result;
 }
 
 SnapshotManager::Result SnapshotManager::restore(const std::string& world,
                                                  const std::string& hash) {
   if (!has_commits(world)) {
-    status_.post(world + " has no snapshots.", MSG_ERROR);
+    m_status.post(world + " has no snapshots.", MSG_ERROR);
     return FAILED;
   }
   git::Result found = run(world, args_of({"log", "-1", "--format=%H%x1f%s",
                                           hash + "^{commit}", "--"}));
   size_t sep = found.out.find('\x1f');
   if (!found.ok() || sep == std::string::npos) {
-    status_.post("Snapshot " + hash + " of " + world + " not found.",
-                 MSG_ERROR);
+    m_status.post("Snapshot " + hash + " of " + world + " not found.",
+                  MSG_ERROR);
     return FAILED;
   }
   std::string full_hash = found.out.substr(0, sep);
   std::string snap_name = trim(found.out.substr(sep + 1));
   std::string reason;
   if (!can_write(reason)) {
-    status_.post(reason, MSG_ERROR);
+    m_status.post(reason, MSG_ERROR);
     return FAILED;
   }
 
@@ -375,7 +377,7 @@ SnapshotManager::Result SnapshotManager::restore(const std::string& world,
   if (!existed) {
     fs::create_directories(world_dir(world), ec);
     if (ec) {
-      status_.post(
+      m_status.post(
           "Cannot create " + to_utf8(world_dir(world)) + ": " + ec.message(),
           MSG_ERROR);
       return FAILED;
@@ -387,22 +389,22 @@ SnapshotManager::Result SnapshotManager::restore(const std::string& world,
   git::Result same =
       run(world, args_of({"diff", "--cached", "--quiet", full_hash, "--"}));
   if (same.started && same.exit_code == 0) {
-    status_.post(world + " already matches the snapshot \"" + snap_name +
-                 "\". Nothing to restore.");
+    m_status.post(world + " already matches the snapshot \"" + snap_name +
+                  "\". Nothing to restore.");
     return NOTHING_TO_DO;
   }
   if (staged == 1 && existed &&
       !commit(world, "Before restoring \"" + snap_name + "\"", ""))
     return FAILED;
 
-  status_.post("Restoring the snapshot \"" + snap_name + "\" of " + world +
-               "...");
+  m_status.post("Restoring the snapshot \"" + snap_name + "\" of " + world +
+                "...");
   if (!reset_to(world, full_hash)) return FAILED;
   staged = stage_all(world);
   if (staged < 0) return FAILED;
   if (staged == 1 && !commit(world, "Restored \"" + snap_name + "\"", ""))
     return FAILED;
-  status_.post("Snapshot \"" + snap_name + "\" of " + world + " restored.");
+  m_status.post("Snapshot \"" + snap_name + "\" of " + world + " restored.");
   return DONE;
 }
 
@@ -410,21 +412,21 @@ SnapshotManager::Result SnapshotManager::discard_changes(
     const std::string& world) {
   std::error_code ec;
   if (!has_commits(world) || !fs::is_directory(world_dir(world), ec)) {
-    status_.post(world + " has no snapshot to go back to.", MSG_ERROR);
+    m_status.post(world + " has no snapshot to go back to.", MSG_ERROR);
     return FAILED;
   }
   std::string reason;
   if (!can_write(reason)) {
-    status_.post(reason, MSG_ERROR);
+    m_status.post(reason, MSG_ERROR);
     return FAILED;
   }
   git::Result r = run(world, args_of({"status", "--porcelain", "-z"}));
   if (r.ok() && r.out.empty()) {
-    status_.post(world + " has no changes to discard.");
+    m_status.post(world + " has no changes to discard.");
     return NOTHING_TO_DO;
   }
   if (!reset_to(world, "HEAD")) return FAILED;
-  status_.post("Changes to " + world + " discarded.");
+  m_status.post("Changes to " + world + " discarded.");
   return DONE;
 }
 
@@ -437,31 +439,31 @@ bool SnapshotManager::delete_snapshots(const std::string& world) {
   fs::path repo = repo_path(world);
   std::error_code ec;
   if (world.empty() || !fs::is_directory(repo, ec)) {
-    status_.post("No snapshots of \"" + world + "\" found.", MSG_ERROR);
+    m_status.post("No snapshots of \"" + world + "\" found.", MSG_ERROR);
     return false;
   }
-  if (!trash_.remove(repo, "snapshots", world)) return false;
-  status_.post("Snapshots of " + world + " deleted.");
+  if (!m_trash.remove(repo, "snapshots", world)) return false;
+  m_status.post("Snapshots of " + world + " deleted.");
   return true;
 }
 
 bool SnapshotManager::export_snapshots(const std::string& world,
                                        const fs::path& path) {
   if (!has_commits(world)) {
-    status_.post(world + " has no snapshots to export.", MSG_ERROR);
+    m_status.post(world + " has no snapshots to export.", MSG_ERROR);
     return false;
   }
   // git runs in the world folder, so a relative path would land there.
   std::error_code ec;
   fs::path target = fs::absolute(path, ec);
   if (ec) target = path;
-  status_.post("Exporting the snapshots of " + world + "...");
+  m_status.post("Exporting the snapshots of " + world + "...");
   if (!run_or_report(
           world, args_of({"bundle", "create", "-q", to_utf8(target), "--all"}),
           "Export"))
     return false;
-  status_.post("Snapshots of " + world + " exported to " + to_utf8(target) +
-               ".");
+  m_status.post("Snapshots of " + world + " exported to " + to_utf8(target) +
+                ".");
   return true;
 }
 
@@ -516,12 +518,12 @@ SnapshotManager::Result SnapshotManager::import_snapshots(
     const fs::path& bundle_path, const std::string& world) {
   std::string problem = check_import_name(world);
   if (!problem.empty()) {
-    status_.post("Cannot import as \"" + world + "\": " + problem, MSG_ERROR);
+    m_status.post("Cannot import as \"" + world + "\": " + problem, MSG_ERROR);
     return FAILED;
   }
   std::string reason;
   if (!can_write(reason)) {
-    status_.post(reason, MSG_ERROR);
+    m_status.post(reason, MSG_ERROR);
     return FAILED;
   }
   std::string bundle = to_utf8(bundle_path);
@@ -531,7 +533,7 @@ SnapshotManager::Result SnapshotManager::import_snapshots(
     std::string detail = heads.ok()
                              ? "it does not say which snapshot is the latest."
                              : trim(heads.err);
-    status_.post("Cannot import " + bundle + ": " + detail, MSG_ERROR);
+    m_status.post("Cannot import " + bundle + ": " + detail, MSG_ERROR);
     return FAILED;
   }
 
@@ -543,7 +545,7 @@ SnapshotManager::Result SnapshotManager::import_snapshots(
     fs::remove_all(repo, ec);
     return FAILED;
   }
-  status_.post("Importing the snapshots of " + world + "...");
+  m_status.post("Importing the snapshots of " + world + "...");
   bool ok =
       run_or_report(world, args_of({"bundle", "verify", "-q", bundle}),
                     "Checking the bundle") &&
@@ -554,8 +556,8 @@ SnapshotManager::Result SnapshotManager::import_snapshots(
   if (ok) {
     fs::create_directories(dir, ec);
     if (ec)
-      status_.post("Cannot create " + to_utf8(dir) + ": " + ec.message(),
-                   MSG_ERROR);
+      m_status.post("Cannot create " + to_utf8(dir) + ": " + ec.message(),
+                    MSG_ERROR);
     ok = !ec && reset_to(world, "HEAD");
   }
   if (!ok) {
@@ -564,8 +566,8 @@ SnapshotManager::Result SnapshotManager::import_snapshots(
     return FAILED;
   }
   size_t count = list_snapshots(world).size();
-  status_.post("Imported " + world + " with " + std::to_string(count) +
-               (count == 1 ? " snapshot." : " snapshots."));
+  m_status.post("Imported " + world + " with " + std::to_string(count) +
+                (count == 1 ? " snapshot." : " snapshots."));
   return DONE;
 }
 
@@ -574,30 +576,30 @@ SnapshotManager::Result SnapshotManager::start_fresh(
     const std::string& description) {
   std::error_code ec;
   if (!fs::is_directory(world_dir(world), ec) || !has_commits(world)) {
-    status_.post(world + " has no snapshots to start fresh from.", MSG_ERROR);
+    m_status.post(world + " has no snapshots to start fresh from.", MSG_ERROR);
     return FAILED;
   }
   if (trim(name).empty()) {
-    status_.post("A snapshot needs a name.", MSG_ERROR);
+    m_status.post("A snapshot needs a name.", MSG_ERROR);
     return FAILED;
   }
   std::string reason;
   if (!can_write(reason)) {
-    status_.post(reason, MSG_ERROR);
+    m_status.post(reason, MSG_ERROR);
     return FAILED;
   }
-  if (!trash_.remove(repo_path(world), "snapshots", world)) return FAILED;
+  if (!m_trash.remove(repo_path(world), "snapshots", world)) return FAILED;
   Result result = take(world, name, description, true);
   if (result == FAILED)
-    status_.post("The old snapshots of " + world +
-                     " are in the trash, but the new snapshot failed.",
-                 MSG_ERROR);
+    m_status.post("The old snapshots of " + world +
+                      " are in the trash, but the new snapshot failed.",
+                  MSG_ERROR);
   else if (result == NOTHING_TO_DO)
-    status_.post("Started fresh: " + world +
-                 " is empty, so it has no snapshots now.");
+    m_status.post("Started fresh: " + world +
+                  " is empty, so it has no snapshots now.");
   else
-    status_.post("Started fresh: " + world + " has one snapshot, \"" +
-                 trim(name) + "\".");
+    m_status.post("Started fresh: " + world + " has one snapshot, \"" +
+                  trim(name) + "\".");
   return result;
 }
 

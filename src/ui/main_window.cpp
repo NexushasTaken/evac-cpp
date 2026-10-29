@@ -22,10 +22,10 @@ static const int DEFAULT_WIDTH = 760;
 static const int DEFAULT_HEIGHT = 820;
 
 MainWindow::MainWindow(AppContext& ctx)
-    : ctx_(ctx),
-      page_refresh_pending_(false),
-      trash_size_seen_(ctx.trash.total_size()),
-      runner_(ctx.status) {
+    : m_ctx(ctx),
+      m_page_refresh_pending(false),
+      m_trash_size_seen(ctx.trash.total_size()),
+      m_runner(ctx.status) {
   setWindowTitle("Evac \xe2\x80\x94 a launcher for Cataclysm: DDA and BN");
   WindowState saved = load_window_state(ctx.settings);
   resize(saved.valid ? saved.width : DEFAULT_WIDTH,
@@ -34,67 +34,68 @@ MainWindow::MainWindow(AppContext& ctx)
     setWindowState(
         Qt::WindowMaximized);  // Takes effect when the window is shown.
 
-  tab_game_ = new TabGame(ctx, runner_, *this);
-  tab_mods_ = new TabMods(ctx, runner_, *this);
-  tab_soundpacks_ = new TabSoundpacks(ctx, runner_, *this);
-  tab_fonts_ = new TabFonts(ctx, *this);
-  tab_snapshots_ = new TabSnapshots(ctx, runner_, *this);
-  tab_backups_ = new TabBackups(ctx, runner_, *this);
-  tab_trash_ = new TabTrash(ctx, runner_, *this);
-  tab_settings_ = new TabSettings(ctx, *this);
-  log_view_ = new LogView(ctx.status);
+  m_tab_game = new TabGame(ctx, m_runner, *this);
+  m_tab_mods = new TabMods(ctx, m_runner, *this);
+  m_tab_soundpacks = new TabSoundpacks(ctx, m_runner, *this);
+  m_tab_fonts = new TabFonts(ctx, *this);
+  m_tab_snapshots = new TabSnapshots(ctx, m_runner, *this);
+  m_tab_backups = new TabBackups(ctx, m_runner, *this);
+  m_tab_trash = new TabTrash(ctx, m_runner, *this);
+  m_tab_settings = new TabSettings(ctx, *this);
+  m_log_view = new LogView(ctx.status);
 
-  tabs_ = new QTabWidget();
-  tabs_->addTab(tab_game_, "Game");
-  tabs_->addTab(tab_mods_, "Mods");
-  tabs_->addTab(tab_soundpacks_, "Soundpacks");
-  tabs_->addTab(tab_fonts_, "Fonts");
-  tabs_->addTab(tab_snapshots_, "Snapshots");
-  tabs_->addTab(tab_backups_, "Backups");
-  tabs_->addTab(tab_trash_, "Trash");
-  tabs_->addTab(tab_settings_, "Settings");
+  m_tabs = new QTabWidget();
+  m_tabs->addTab(m_tab_game, "Game");
+  m_tabs->addTab(m_tab_mods, "Mods");
+  m_tabs->addTab(m_tab_soundpacks, "Soundpacks");
+  m_tabs->addTab(m_tab_fonts, "Fonts");
+  m_tabs->addTab(m_tab_snapshots, "Snapshots");
+  m_tabs->addTab(m_tab_backups, "Backups");
+  m_tabs->addTab(m_tab_trash, "Trash");
+  m_tabs->addTab(m_tab_settings, "Settings");
 
   QWidget* central = new QWidget();
   QVBoxLayout* layout = new QVBoxLayout(central);
-  layout->addWidget(tabs_, 1);
-  layout->addWidget(log_view_);
+  layout->addWidget(m_tabs, 1);
+  layout->addWidget(m_log_view);
   setCentralWidget(central);
 
-  connect(tabs_, &QTabWidget::currentChanged, this,
+  connect(m_tabs, &QTabWidget::currentChanged, this,
           &MainWindow::on_switch_page);
-  connect(&runner_, &TaskRunner::finished, this, &MainWindow::on_task_finished);
+  connect(&m_runner, &TaskRunner::finished, this,
+          &MainWindow::on_task_finished);
 
-  ctx_.status.post("Welcome to Evac!");
-  if (ctx_.settings.get_bool("print_tips_of_the_day"))
-    ctx_.status.post("Tip of the day: " +
-                     pick_tip((unsigned long)std::time(nullptr)));
-  tab_game_->start();
+  m_ctx.status.post("Welcome to Evac!");
+  if (m_ctx.settings.get_bool("print_tips_of_the_day"))
+    m_ctx.status.post("Tip of the day: " +
+                      pick_tip((unsigned long)std::time(nullptr)));
+  m_tab_game->start();
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {
   // Stop a running download and wait for the worker, so it never touches
   // things that are already gone.
-  if (runner_.busy()) {
-    ctx_.releases.cancel();
-    ctx_.installer.cancel();
-    ctx_.soundpacks.cancel();
-    ctx_.mods.cancel();
-    runner_.wait();
+  if (m_runner.busy()) {
+    m_ctx.releases.cancel();
+    m_ctx.installer.cancel();
+    m_ctx.soundpacks.cancel();
+    m_ctx.mods.cancel();
+    m_runner.wait();
   }
   save_window_state();
-  ctx_.settings.save();
+  m_ctx.settings.save();
   event->accept();
 }
 
 void MainWindow::on_switch_page(int index) {
-  QWidget* page = tabs_->widget(index);
-  log_view_->setVisible(
-      page != tab_settings_);  // The log is not needed next to the settings.
+  QWidget* page = m_tabs->widget(index);
+  m_log_view->setVisible(
+      page != m_tab_settings);  // The log is not needed next to the settings.
 
   // A running job is changing the files and lists that the tabs show, so
   // wait until it is over.
-  if (runner_.busy()) {
-    page_refresh_pending_ = true;
+  if (m_runner.busy()) {
+    m_page_refresh_pending = true;
     return;
   }
   show_page(page);
@@ -102,55 +103,55 @@ void MainWindow::on_switch_page(int index) {
 
 void MainWindow::on_task_finished() {
   check_trash_limit();
-  if (!page_refresh_pending_) return;
-  page_refresh_pending_ = false;
-  show_page(tabs_->currentWidget());
+  if (!m_page_refresh_pending) return;
+  m_page_refresh_pending = false;
+  show_page(m_tabs->currentWidget());
 }
 
 // After a job that put something in the trash, see if it is over its size
 // limit. Never deletes without asking: with "trash_auto_prune" it asks right
 // away, otherwise it only says so.
 void MainWindow::check_trash_limit() {
-  std::uint64_t total = ctx_.trash.total_size();
-  bool grew = (total > trash_size_seen_);
-  trash_size_seen_ = total;
-  if (!grew || ctx_.trash.over_limit().empty()) return;
+  std::uint64_t total = m_ctx.trash.total_size();
+  bool grew = (total > m_trash_size_seen);
+  m_trash_size_seen = total;
+  if (!grew || m_ctx.trash.over_limit().empty()) return;
 
-  if (ctx_.settings.get_bool("trash_auto_prune"))
-    tab_trash_->ask_free_up();
+  if (m_ctx.settings.get_bool("trash_auto_prune"))
+    m_tab_trash->ask_free_up();
   else
-    ctx_.status.post("The trash is over its size limit (" +
-                         str(format_size(total, true)) +
-                         "). Use Free Up Space on the Trash tab, or change the "
-                         "limit in Settings.",
-                     MSG_WARN);
+    m_ctx.status.post(
+        "The trash is over its size limit (" + str(format_size(total, true)) +
+            "). Use Free Up Space on the Trash tab, or change the "
+            "limit in Settings.",
+        MSG_WARN);
 }
 
 // Tabs read the game's files when they are shown, as these can change at any
 // time.
 void MainWindow::show_page(QWidget* page) {
-  if (page == tab_game_)
-    tab_game_->apply_settings();
-  else if (page == tab_mods_)
-    tab_mods_->refresh();
-  else if (page == tab_soundpacks_)
-    tab_soundpacks_->refresh();
-  else if (page == tab_fonts_)
-    tab_fonts_->refresh();
-  else if (page == tab_snapshots_)
-    tab_snapshots_->refresh();
-  else if (page == tab_backups_)
-    tab_backups_->refresh();
-  else if (page == tab_trash_)
-    tab_trash_->refresh();
-  else if (page == tab_settings_)
-    tab_settings_->load_from_settings();
+  if (page == m_tab_game)
+    m_tab_game->apply_settings();
+  else if (page == m_tab_mods)
+    m_tab_mods->refresh();
+  else if (page == m_tab_soundpacks)
+    m_tab_soundpacks->refresh();
+  else if (page == m_tab_fonts)
+    m_tab_fonts->refresh();
+  else if (page == m_tab_snapshots)
+    m_tab_snapshots->refresh();
+  else if (page == m_tab_backups)
+    m_tab_backups->refresh();
+  else if (page == m_tab_trash)
+    m_tab_trash->refresh();
+  else if (page == m_tab_settings)
+    m_tab_settings->load_from_settings();
 }
 
 // A maximized window keeps the size it had before, so that un-maximizing it
 // next time gives something sensible.
 void MainWindow::save_window_state() {
-  WindowState previous = load_window_state(ctx_.settings);
+  WindowState previous = load_window_state(m_ctx.settings);
   WindowState state;
   state.valid = true;
   state.maximized = isMaximized();
@@ -161,5 +162,5 @@ void MainWindow::save_window_state() {
     state.width = width();
     state.height = height();
   }
-  store_window_state(ctx_.settings, state);
+  store_window_state(m_ctx.settings, state);
 }

@@ -139,9 +139,9 @@ class SnapshotManager {
               const std::string& description);
   bool reset_to(const std::string& world, const std::string& rev);
 
-  Paths& paths_;
-  Status& status_;
-  Trash& trash_;
+  Paths& m_paths;
+  Status& m_status;
+  Trash& m_trash;
 };
 
 #endif

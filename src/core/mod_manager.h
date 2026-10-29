@@ -61,10 +61,10 @@ class ModManager {
   void refresh_available();
 
   const std::map<std::string, ModEntry>& installed() const {
-    return installed_;
+    return m_installed;
   }
   const std::map<std::string, ModEntry>& available() const {
-    return available_;
+    return m_available;
   }
 
   ModStatus mod_status(const std::string& id) const;
@@ -85,13 +85,13 @@ class ModManager {
   bool install_mod(const std::string& id);
   bool delete_mod(const std::string& id);
 
-  Settings& settings_;
-  Paths& paths_;
-  Status& status_;
-  Trash& trash_;
-  Http http_;
-  std::map<std::string, ModEntry> installed_;
-  std::map<std::string, ModEntry> available_;
+  Settings& m_settings;
+  Paths& m_paths;
+  Status& m_status;
+  Trash& m_trash;
+  Http m_http;
+  std::map<std::string, ModEntry> m_installed;
+  std::map<std::string, ModEntry> m_available;
 };
 
 #endif

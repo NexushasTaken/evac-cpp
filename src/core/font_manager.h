@@ -71,7 +71,7 @@ class FontManager {
   bool write_game_options();
 
   const std::vector<FontInfo>& available_fonts() const {
-    return available_fonts_;
+    return m_available_fonts;
   }
   // Where the file of an available font is: the bundled ones before they are
   // installed.
@@ -125,11 +125,11 @@ class FontManager {
   bool is_user_font(const std::string& path);
   int current_font_index(const std::string& field) const;
 
-  Paths& paths_;
-  Status& status_;
-  std::vector<FontInfo> available_fonts_;
-  nlohmann::json font_config_;
-  nlohmann::json game_options_;
+  Paths& m_paths;
+  Status& m_status;
+  std::vector<FontInfo> m_available_fonts;
+  nlohmann::json m_font_config;
+  nlohmann::json m_game_options;
 };
 
 #endif

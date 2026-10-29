@@ -44,13 +44,13 @@ static const char* find_ca_bundle() {
 }
 #endif
 
-Http::Http(Status& status) : status_(status), cancel_(false) {}
+Http::Http(Status& status) : m_status(status), m_cancel(false) {}
 
 Http::~Http() {}
 
 void Http::set_proxy(const std::string& host, int port) {
-  proxy_host_ = host;
-  proxy_port_ = port;
+  m_proxy_host = host;
+  m_proxy_port = port;
 }
 
 void Http::apply_proxy_settings(Settings& settings, bool for_download) {
@@ -58,14 +58,14 @@ void Http::apply_proxy_settings(Settings& settings, bool for_download) {
   if (option == "on" || (for_download && option == "download")) {
     std::string host = settings.get_string("proxy_host");
     int port = settings.get_int("proxy_port");
-    status_.post("Using proxy: " + host + ":" + std::to_string(port));
+    m_status.post("Using proxy: " + host + ":" + std::to_string(port));
     set_proxy(host, port);
   } else {
     set_proxy("", 0);
   }
 }
 
-void Http::cancel() { cancel_ = true; }
+void Http::cancel() { m_cancel = true; }
 
 // Options shared by all requests. Redirects are followed by default.
 static void setup_common(cpr::Session& session, const std::string& url,
@@ -91,12 +91,12 @@ static void setup_common(cpr::Session& session, const std::string& url,
 
 bool Http::get(const std::string& url, const std::vector<std::string>& headers,
                HttpResponse& response) {
-  cancel_ = false;
+  m_cancel = false;
   response.code = 0;
   response.body.clear();
 
   cpr::Session session;
-  setup_common(session, url, proxy_host_, proxy_port_);
+  setup_common(session, url, m_proxy_host, m_proxy_port);
 
   // "Name: value" lines.
   cpr::Header header;
@@ -111,7 +111,7 @@ bool Http::get(const std::string& url, const std::vector<std::string>& headers,
 
   cpr::Response r = session.Get();
   if (r.error) {
-    status_.post("HTTP request failed: " + r.error.message, MSG_ERROR);
+    m_status.post("HTTP request failed: " + r.error.message, MSG_ERROR);
     return false;
   }
   response.code = r.status_code;
@@ -121,19 +121,19 @@ bool Http::get(const std::string& url, const std::vector<std::string>& headers,
 
 long long Http::remote_size(const std::string& url) {
   cpr::Session session;
-  setup_common(session, url, proxy_host_, proxy_port_);
+  setup_common(session, url, m_proxy_host, m_proxy_port);
   session.SetTimeout(cpr::Timeout{std::chrono::seconds(30)});
 
   cpr::Response r = session.Head();
   if (r.error) {
-    status_.post("Could not get the download size: " + r.error.message,
-                 MSG_WARN);
+    m_status.post("Could not get the download size: " + r.error.message,
+                  MSG_WARN);
     return -1;
   }
   if (r.status_code >= 400) {
-    status_.post("Could not get the download size: HTTP " +
-                     std::to_string(r.status_code),
-                 MSG_WARN);
+    m_status.post("Could not get the download size: HTTP " +
+                      std::to_string(r.status_code),
+                  MSG_WARN);
     return -1;
   }
 
@@ -206,14 +206,14 @@ std::string Http::format_progress(double downloaded, double total,
 
 bool Http::download_file(const std::string& url, const fs::path& target_dir,
                          const std::string& target_filename) {
-  cancel_ = false;
+  m_cancel = false;
 
   std::error_code ec;
   fs::create_directories(target_dir, ec);
   if (ec) {
-    status_.post("Download of " + target_filename + " failed: cannot create " +
-                     to_utf8(target_dir),
-                 MSG_ERROR);
+    m_status.post("Download of " + target_filename + " failed: cannot create " +
+                      to_utf8(target_dir),
+                  MSG_ERROR);
     return false;
   }
 
@@ -221,18 +221,18 @@ bool Http::download_file(const std::string& url, const fs::path& target_dir,
   fs::path part_path = final_path;
   part_path += ".part";
 
-  status_.post("Downloading " + target_filename);
+  m_status.post("Downloading " + target_filename);
 
   std::ofstream file(part_path, std::ios::binary | std::ios::trunc);
   if (!file) {
-    status_.post("Download of " + target_filename + " failed: cannot write " +
-                     to_utf8(part_path),
-                 MSG_ERROR);
+    m_status.post("Download of " + target_filename + " failed: cannot write " +
+                      to_utf8(part_path),
+                  MSG_ERROR);
     return false;
   }
 
   cpr::Session session;
-  setup_common(session, url, proxy_host_, proxy_port_);
+  setup_common(session, url, m_proxy_host, m_proxy_port);
 
   long last_time = now_msecs();
   double last_bytes = 0;
@@ -240,15 +240,15 @@ bool Http::download_file(const std::string& url, const fs::path& target_dir,
   session.SetProgressCallback(cpr::ProgressCallback{
       [&](cpr::cpr_pf_arg_t total, cpr::cpr_pf_arg_t now, cpr::cpr_pf_arg_t,
           cpr::cpr_pf_arg_t, intptr_t) {
-        if (cancel_) return false;
+        if (m_cancel) return false;
         if (now < 1) return true;
 
         long delta_time = now_msecs() - last_time;
         double delta_bytes = (double)now - last_bytes;
         if (delta_time >= PROGRESS_AFTER_MSECS ||
             delta_bytes >= PROGRESS_AFTER_BYTES) {
-          status_.post(format_progress((double)now, (double)total, delta_time,
-                                       delta_bytes));
+          m_status.post(format_progress((double)now, (double)total, delta_time,
+                                        delta_bytes));
           last_time = now_msecs();
           last_bytes = (double)now;
         }
@@ -268,23 +268,23 @@ bool Http::download_file(const std::string& url, const fs::path& target_dir,
     error = "cannot write " + to_utf8(part_path);
 
   if (!error.empty()) {
-    if (cancel_)
-      status_.post("Download of " + target_filename + " was cancelled",
-                   MSG_WARN);
+    if (m_cancel)
+      m_status.post("Download of " + target_filename + " was cancelled",
+                    MSG_WARN);
     else
-      status_.post("Download of " + target_filename + " failed: " + error,
-                   MSG_ERROR);
+      m_status.post("Download of " + target_filename + " failed: " + error,
+                    MSG_ERROR);
     fs::remove(part_path, ec);
     return false;
   }
 
   fs::rename(part_path, final_path, ec);
   if (ec) {
-    status_.post("Download of " + target_filename + " failed: " + ec.message(),
-                 MSG_ERROR);
+    m_status.post("Download of " + target_filename + " failed: " + ec.message(),
+                  MSG_ERROR);
     return false;
   }
 
-  status_.post("Download of " + target_filename + " finished");
+  m_status.post("Download of " + target_filename + " finished");
   return true;
 }

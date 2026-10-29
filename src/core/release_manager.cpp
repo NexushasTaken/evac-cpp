@@ -10,7 +10,7 @@ std::string ReleaseManager::make_key(const std::string& game,
 }
 
 ReleaseManager::ReleaseManager(Settings& settings, Status& status)
-    : settings_(settings), status_(status), http_(status) {}
+    : m_settings(settings), m_status(status), m_http(status) {}
 
 std::string ReleaseManager::releases_url(const std::string& game) {
   if (game == "dda")
@@ -106,7 +106,7 @@ bool ReleaseManager::parse_builds(const std::string& body,
 bool ReleaseManager::fetch(const std::string& release_key) {
   size_t dash = release_key.find('-');
   if (dash == std::string::npos) {
-    status_.post("Invalid release key: " + release_key, MSG_ERROR);
+    m_status.post("Invalid release key: " + release_key, MSG_ERROR);
     return false;
   }
   std::string game = release_key.substr(0, dash);
@@ -115,68 +115,69 @@ bool ReleaseManager::fetch(const std::string& release_key) {
 
   if (channel == "stable") {
     std::vector<Release> list = stable_releases(game, platform);
-    std::lock_guard<std::mutex> lock(mutex_);
-    releases_[release_key] = list;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_releases[release_key] = list;
     return true;
   }
   if (channel != "experimental") {
-    status_.post("Invalid release key: " + release_key, MSG_ERROR);
+    m_status.post("Invalid release key: " + release_key, MSG_ERROR);
     return false;
   }
 
   std::string url = releases_url(game);
   std::string substring = asset_substring(game, platform);
   if (url.empty()) {
-    status_.post("Invalid release key: " + release_key, MSG_ERROR);
+    m_status.post("Invalid release key: " + release_key, MSG_ERROR);
     return false;
   }
   if (substring.empty()) {
     // An empty substring would match every asset.
-    status_.post("There are no builds of this game for this platform.",
-                 MSG_WARN);
+    m_status.post("There are no builds of this game for this platform.",
+                  MSG_WARN);
     return false;
   }
 
-  status_.post("Fetching the list of releases for " + game + "...");
-  http_.apply_proxy_settings(settings_, false);
+  m_status.post("Fetching the list of releases for " + game + "...");
+  m_http.apply_proxy_settings(m_settings, false);
   url += "?per_page=" +
-         std::to_string(settings_.get_int("num_releases_to_request"));
+         std::to_string(m_settings.get_int("num_releases_to_request"));
 
   HttpResponse response;
   std::vector<std::string> headers;
   headers.push_back("Accept: application/vnd.github+json");
-  if (!http_.get(url, headers, response)) {
-    status_.post("Could not retrieve the list of releases.", MSG_WARN);
+  if (!m_http.get(url, headers, response)) {
+    m_status.post("Could not retrieve the list of releases.", MSG_WARN);
     return false;
   }
 
   std::vector<Release> list;
   std::string error;
   if (!parse_builds(response.body, substring,
-                    settings_.get_bool("shorten_release_names"), list, error)) {
-    status_.post("Could not get the list of releases (HTTP " +
-                     std::to_string(response.code) + "): " + error,
-                 MSG_WARN);
+                    m_settings.get_bool("shorten_release_names"), list,
+                    error)) {
+    m_status.post("Could not get the list of releases (HTTP " +
+                      std::to_string(response.code) + "): " + error,
+                  MSG_WARN);
     return false;
   }
 
   if (list.empty()) {
-    status_.post("The response contained no usable releases.", MSG_WARN);
+    m_status.post("The response contained no usable releases.", MSG_WARN);
     return false;
   }
 
-  status_.post("Got " + std::to_string(list.size()) + " releases.");
-  std::lock_guard<std::mutex> lock(mutex_);
-  releases_[release_key] = list;
+  m_status.post("Got " + std::to_string(list.size()) + " releases.");
+  std::lock_guard<std::mutex> lock(m_mutex);
+  m_releases[release_key] = list;
   return true;
 }
 
 std::vector<Release> ReleaseManager::get(const std::string& release_key) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::lock_guard<std::mutex> lock(m_mutex);
   std::map<std::string, std::vector<Release> >::const_iterator it =
-      releases_.find(release_key);
-  if (it == releases_.end()) return std::vector<Release>();
+      m_releases.find(release_key);
+  if (it == m_releases.end()) return std::vector<Release>();
   return it->second;
 }
 
-void ReleaseManager::cancel() { http_.cancel(); }
+void ReleaseManager::cancel() { m_http.cancel(); }

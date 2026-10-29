@@ -54,88 +54,89 @@ static std::uint64_t total_of(const std::vector<TrashItem>& items) {
 }
 
 TabTrash::TabTrash(AppContext& ctx, TaskRunner& runner, QWidget& parent)
-    : ctx_(ctx), runner_(runner), parent_(parent), updating_(false) {
+    : m_ctx(ctx), m_runner(runner), m_parent(parent), m_updating(false) {
   build_ui();
 }
 
 void TabTrash::build_ui() {
   QVBoxLayout* outer = new QVBoxLayout(this);
   outer->setContentsMargins(12, 12, 12, 12);
-  content_ = new QWidget();
-  outer->addWidget(content_, 1);
+  m_content = new QWidget();
+  outer->addWidget(m_content, 1);
 
-  QVBoxLayout* content = new QVBoxLayout(content_);
+  QVBoxLayout* content = new QVBoxLayout(m_content);
   content->setContentsMargins(0, 0, 0, 0);
   content->setSpacing(8);
-  summary_label_ = new QLabel();
-  summary_label_->setTextFormat(Qt::RichText);
-  summary_label_->setWordWrap(true);
-  content->addWidget(summary_label_);
+  m_summary_label = new QLabel();
+  m_summary_label->setTextFormat(Qt::RichText);
+  m_summary_label->setWordWrap(true);
+  content->addWidget(m_summary_label);
 
-  list_ = new QTreeWidget();
-  list_->setColumnCount(NUM_COLUMNS);
-  list_->setHeaderHidden(true);
-  list_->setRootIsDecorated(false);
-  list_->setSelectionMode(QAbstractItemView::SingleSelection);
-  list_->header()->setStretchLastSection(false);
-  list_->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
-  list_->header()->setSectionResizeMode(COL_NAME, QHeaderView::Stretch);
-  content->addWidget(list_, 1);
+  m_list = new QTreeWidget();
+  m_list->setColumnCount(NUM_COLUMNS);
+  m_list->setHeaderHidden(true);
+  m_list->setRootIsDecorated(false);
+  m_list->setSelectionMode(QAbstractItemView::SingleSelection);
+  m_list->header()->setStretchLastSection(false);
+  m_list->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
+  m_list->header()->setSectionResizeMode(COL_NAME, QHeaderView::Stretch);
+  content->addWidget(m_list, 1);
 
   // Not equal widths: five buttons the width of "Delete Permanently" make the
   // window too wide.
   QHBoxLayout* buttons = new QHBoxLayout();
   buttons->setSpacing(6);
-  restore_button_ = new QPushButton("Restore");
-  restore_button_->setToolTip("Put the selected item back where it came from.");
-  delete_button_ = new QPushButton("Delete Permanently");
-  delete_button_->setToolTip("Delete the selected item for good.");
-  empty_button_ = new QPushButton("Empty Trash");
-  empty_button_->setToolTip("Delete everything in the trash for good.");
-  free_up_button_ = new QPushButton("Free Up Space");
-  free_up_button_->setToolTip(
+  m_restore_button = new QPushButton("Restore");
+  m_restore_button->setToolTip(
+      "Put the selected item back where it came from.");
+  m_delete_button = new QPushButton("Delete Permanently");
+  m_delete_button->setToolTip("Delete the selected item for good.");
+  m_empty_button = new QPushButton("Empty Trash");
+  m_empty_button->setToolTip("Delete everything in the trash for good.");
+  m_free_up_button = new QPushButton("Free Up Space");
+  m_free_up_button->setToolTip(
       "Delete the oldest items for good until the trash is under its size "
       "limit.");
-  open_folder_button_ = new QPushButton("Open Folder");
-  open_folder_button_->setToolTip(
+  m_open_folder_button = new QPushButton("Open Folder");
+  m_open_folder_button->setToolTip(
       "Open the trash folder in your file manager.");
-  buttons->addWidget(restore_button_);
-  buttons->addWidget(delete_button_);
-  buttons->addWidget(empty_button_);
-  buttons->addWidget(free_up_button_);
-  buttons->addWidget(open_folder_button_);
+  buttons->addWidget(m_restore_button);
+  buttons->addWidget(m_delete_button);
+  buttons->addWidget(m_empty_button);
+  buttons->addWidget(m_free_up_button);
+  buttons->addWidget(m_open_folder_button);
   buttons->addStretch(1);
   content->addLayout(buttons);
 
-  info_view_ = new QTextBrowser();
-  info_view_->setWordWrapMode(
+  m_info_view = new QTextBrowser();
+  m_info_view->setWordWrapMode(
       QTextOption::WrapAtWordBoundaryOrAnywhere);  // Paths have no spaces to
                                                    // break at.
-  info_view_->setFixedHeight(90);
-  content->addWidget(info_view_);
+  m_info_view->setFixedHeight(90);
+  content->addWidget(m_info_view);
 
-  connect(list_, &QTreeWidget::itemSelectionChanged, this,
+  connect(m_list, &QTreeWidget::itemSelectionChanged, this,
           &TabTrash::on_selection_changed);
-  connect(restore_button_, &QPushButton::clicked, this,
+  connect(m_restore_button, &QPushButton::clicked, this,
           &TabTrash::on_restore_clicked);
-  connect(delete_button_, &QPushButton::clicked, this,
+  connect(m_delete_button, &QPushButton::clicked, this,
           &TabTrash::on_delete_clicked);
-  connect(empty_button_, &QPushButton::clicked, this,
+  connect(m_empty_button, &QPushButton::clicked, this,
           &TabTrash::on_empty_clicked);
-  connect(free_up_button_, &QPushButton::clicked, this,
+  connect(m_free_up_button, &QPushButton::clicked, this,
           &TabTrash::on_free_up_clicked);
-  connect(open_folder_button_, &QPushButton::clicked, this,
+  connect(m_open_folder_button, &QPushButton::clicked, this,
           &TabTrash::on_open_folder_clicked);
 }
 
 void TabTrash::refresh() {
-  items_ = ctx_.trash.list();
+  m_items = m_ctx.trash.list();
 
-  updating_ = true;
-  list_->clear();
-  for (size_t i = 0; i < items_.size(); ++i) {
-    const TrashItem& item = items_[i];
-    QTreeWidgetItem* row = new QTreeWidgetItem(list_);
+  m_updating = true;
+  m_list->clear();
+  for (size_t i = 0; i < m_items.size(); ++i) {
+    const TrashItem& item = m_items[i];
+    QTreeWidgetItem* row = new QTreeWidgetItem(m_list);
     row->setText(COL_KIND, qstr(kind_text(item.kind)));
     row->setText(COL_NAME, qstr(item.name));
     row->setText(COL_GAME, qstr(item.game));
@@ -146,63 +147,63 @@ void TabTrash::refresh() {
     for (int col = 0; col < NUM_COLUMNS; ++col)
       row->setToolTip(col, qstr(item.original_path));
   }
-  updating_ = false;
+  m_updating = false;
 
-  info_view_->setPlainText(NO_INFO_TEXT);
+  m_info_view->setPlainText(NO_INFO_TEXT);
   update_summary();
   update_buttons();
 }
 
 void TabTrash::update_summary() {
-  std::uint64_t total = total_of(items_);
+  std::uint64_t total = total_of(m_items);
   std::uint64_t limit =
-      (std::uint64_t)std::max(0, ctx_.settings.get_int("trash_max_size_mb")) *
+      (std::uint64_t)std::max(0, m_ctx.settings.get_int("trash_max_size_mb")) *
       1024 * 1024;
 
   std::string plain;
-  if (items_.empty())
+  if (m_items.empty())
     plain = "The trash is empty.";
   else
-    plain = std::to_string(items_.size()) +
-            (items_.size() == 1 ? " item, " : " items, ") + size_text(total) +
+    plain = std::to_string(m_items.size()) +
+            (m_items.size() == 1 ? " item, " : " items, ") + size_text(total) +
             " of " + size_text(limit) + ".";
   QString text = escape(plain);
   if (total > limit)
     text +=
         " <b>Over the size limit:</b> use Free Up Space, or change the limit "
         "in Settings.";
-  if (!ctx_.settings.get_bool("use_trash"))
+  if (!m_ctx.settings.get_bool("use_trash"))
     text +=
         "<br><b>Moving deleted things to the trash is turned off</b> in "
         "Settings, so deleting is permanent.";
-  summary_label_->setText(text);
+  m_summary_label->setText(text);
 }
 
 int TabTrash::selected_item() {
-  int row = selected_row(list_);
-  if (row < 0 || (size_t)row >= items_.size()) return -1;
+  int row = selected_row(m_list);
+  if (row < 0 || (size_t)row >= m_items.size()) return -1;
   return row;
 }
 
 void TabTrash::update_buttons() {
   bool have = (selected_item() >= 0);
-  restore_button_->setEnabled(have);
-  delete_button_->setEnabled(have);
-  empty_button_->setEnabled(!items_.empty());
-  free_up_button_->setEnabled(!ctx_.trash.over_limit().empty());
+  m_restore_button->setEnabled(have);
+  m_delete_button->setEnabled(have);
+  m_empty_button->setEnabled(!m_items.empty());
+  m_free_up_button->setEnabled(!m_ctx.trash.over_limit().empty());
 }
 
 void TabTrash::on_selection_changed() {
-  if (updating_) return;
+  if (m_updating) return;
   update_buttons();
 
   int index = selected_item();
   if (index < 0) {
-    info_view_->setPlainText(NO_INFO_TEXT);
+    m_info_view->setPlainText(NO_INFO_TEXT);
     return;
   }
-  const TrashItem& item = items_[index];
-  RestorePlan plan = ctx_.trash.plan_restore(item.id);
+  const TrashItem& item = m_items[index];
+  RestorePlan plan = m_ctx.trash.plan_restore(item.id);
 
   std::string restore;
   switch (plan.kind) {
@@ -227,32 +228,32 @@ void TabTrash::on_selection_changed() {
       restore = "Can't be restored: " + plan.reason;
       break;
   }
-  info_view_->setPlainText(qstr("Deleted: " + item.deleted_at.substr(0, 19) +
-                                "\nFrom: " + to_utf8(item.original_path) +
-                                "\nRestore: " + restore));
+  m_info_view->setPlainText(qstr("Deleted: " + item.deleted_at.substr(0, 19) +
+                                 "\nFrom: " + to_utf8(item.original_path) +
+                                 "\nRestore: " + restore));
 }
 
 // Runs a slow job on the worker thread, with the whole tab disabled until it is
 // done.
 void TabTrash::run_task(const std::function<void()>& work) {
-  content_->setEnabled(false);
-  bool started = runner_.run(work, [this]() {
-    content_->setEnabled(true);
+  m_content->setEnabled(false);
+  bool started = m_runner.run(work, [this]() {
+    m_content->setEnabled(true);
     refresh();
   });
-  if (!started) content_->setEnabled(true);
+  if (!started) m_content->setEnabled(true);
 }
 
 void TabTrash::on_restore_clicked() {
   int index = selected_item();
   if (index < 0) return;
-  TrashItem item = items_[index];
+  TrashItem item = m_items[index];
   std::string id = item.id;
-  RestorePlan plan = ctx_.trash.plan_restore(id);
+  RestorePlan plan = m_ctx.trash.plan_restore(id);
 
   switch (plan.kind) {
     case RestorePlan::ORIGINAL:
-      run_task([this, id]() { ctx_.trash.restore(id, false); });
+      run_task([this, id]() { m_ctx.trash.restore(id, false); });
       break;
     case RestorePlan::RENAMED: {
       if (Trash::can_choose_name(item.kind)) {
@@ -260,17 +261,17 @@ void TabTrash::on_restore_clicked() {
         std::string parent = to_utf8(plan.dest.parent_path());
         std::string suggested = to_utf8(plan.dest.filename());
         dialogs::ask_text(
-            parent_, qstr("Restore " + item.name + "?"),
+            m_parent, qstr("Restore " + item.name + "?"),
             qstr("Its old place is taken, so it goes back under another name "
                  "in\n" +
                  parent),
             qstr(suggested), "Restore",
             [this, id](const std::string& name) {
-              return ctx_.trash.check_restore_name(id, name);
+              return m_ctx.trash.check_restore_name(id, name);
             },
             [this, id](const std::string& name) {
               run_task(
-                  [this, id, name]() { ctx_.trash.restore(id, false, name); });
+                  [this, id, name]() { m_ctx.trash.restore(id, false, name); });
             });
         break;
       }
@@ -282,27 +283,27 @@ void TabTrash::on_restore_clicked() {
               : "Its old place is taken, so it goes back as\n" +
                     to_utf8(plan.dest);
       dialogs::confirm(
-          parent_, qstr("Restore " + item.name + "?"), qstr(detail), "Restore",
+          m_parent, qstr("Restore " + item.name + "?"), qstr(detail), "Restore",
           [this, id]() {
-            run_task([this, id]() { ctx_.trash.restore(id, false); });
+            run_task([this, id]() { m_ctx.trash.restore(id, false); });
           });
       break;
     }
     case RestorePlan::CONFLICT: {
-      bool use_trash = ctx_.settings.get_bool("use_trash");
+      bool use_trash = m_ctx.settings.get_bool("use_trash");
       std::string detail = plan.reason +
                            "\n\nReplacing it: " + plan.conflict_name + " " +
                            dialogs::removal_text(use_trash) + ", then " +
                            item.name + " is restored.";
       dialogs::confirm(
-          parent_, qstr("Replace " + plan.conflict_name + "?"), qstr(detail),
+          m_parent, qstr("Replace " + plan.conflict_name + "?"), qstr(detail),
           "Replace", [this, id]() {
-            run_task([this, id]() { ctx_.trash.restore(id, true); });
+            run_task([this, id]() { m_ctx.trash.restore(id, true); });
           });
       break;
     }
     case RestorePlan::IMPOSSIBLE:
-      dialogs::tell(parent_, qstr("Can't restore " + item.name),
+      dialogs::tell(m_parent, qstr("Can't restore " + item.name),
                     qstr(plan.reason));
       break;
   }
@@ -311,53 +312,53 @@ void TabTrash::on_restore_clicked() {
 void TabTrash::on_delete_clicked() {
   int index = selected_item();
   if (index < 0) return;
-  TrashItem item = items_[index];
+  TrashItem item = m_items[index];
   std::vector<std::string> ids(1, item.id);
-  dialogs::confirm(parent_, qstr("Delete " + item.name + " for good?"),
+  dialogs::confirm(m_parent, qstr("Delete " + item.name + " for good?"),
                    qstr(kind_text(item.kind) + ": " + item.name + " (" +
                         size_text(item.size) + ")\n\nThis can't be undone."),
                    "Delete Permanently", [this, ids]() {
-                     run_task([this, ids]() { ctx_.trash.delete_items(ids); });
+                     run_task([this, ids]() { m_ctx.trash.delete_items(ids); });
                    });
 }
 
 void TabTrash::on_empty_clicked() {
-  if (items_.empty()) return;
-  dialogs::confirm(parent_, "Empty the trash?",
-                   qstr("All " + std::to_string(items_.size()) + " items (" +
-                        size_text(total_of(items_)) +
+  if (m_items.empty()) return;
+  dialogs::confirm(m_parent, "Empty the trash?",
+                   qstr("All " + std::to_string(m_items.size()) + " items (" +
+                        size_text(total_of(m_items)) +
                         ") will be deleted for good. This can't be undone."),
                    "Empty Trash",
-                   [this]() { run_task([this]() { ctx_.trash.empty(); }); });
+                   [this]() { run_task([this]() { m_ctx.trash.empty(); }); });
 }
 
 void TabTrash::on_free_up_clicked() { ask_free_up(); }
 
 void TabTrash::ask_free_up() {
-  std::vector<TrashItem> extra = ctx_.trash.over_limit();
+  std::vector<TrashItem> extra = m_ctx.trash.over_limit();
   if (extra.empty()) {
-    ctx_.status.post("The trash is not over its size limit.");
+    m_ctx.status.post("The trash is not over its size limit.");
     return;
   }
   std::vector<std::string> ids;
   for (size_t i = 0; i < extra.size(); ++i) ids.push_back(extra[i].id);
   dialogs::confirm(
-      parent_, "Delete the oldest items for good?",
+      m_parent, "Delete the oldest items for good?",
       qstr("To get the trash under its size limit, these " +
            std::to_string(extra.size()) + " items (" +
            size_text(total_of(extra)) + ") will be deleted for good:\n" +
            list_names(extra) + "\n\nThis can't be undone."),
       "Delete Permanently", [this, ids]() {
-        run_task([this, ids]() { ctx_.trash.delete_items(ids); });
+        run_task([this, ids]() { m_ctx.trash.delete_items(ids); });
       });
 }
 
 void TabTrash::on_open_folder_clicked() {
   std::error_code ec;
-  if (!std::filesystem::is_directory(ctx_.paths.trash_dir(), ec)) {
-    ctx_.status.post(
+  if (!std::filesystem::is_directory(m_ctx.paths.trash_dir(), ec)) {
+    m_ctx.status.post(
         "There is no trash folder yet: nothing has been moved to the trash.");
     return;
   }
-  dialogs::open_folder(ctx_.paths.trash_dir());
+  dialogs::open_folder(m_ctx.paths.trash_dir());
 }

@@ -30,19 +30,19 @@ class TabSettings : public QScrollArea {
   void add_row(QVBoxLayout& box, const char* caption, const char* tooltip,
                QWidget* widget, int stretch = 0);
 
-  AppContext& ctx_;
-  QWidget& parent_;
+  AppContext& m_ctx;
+  QWidget& m_parent;
   LicensesDialog*
-      licenses_dialog_;  // Made when first needed, owned by parent_.
-  bool updating_;
-  std::vector<std::pair<std::string, QCheckBox*> > checks_;
+      m_licenses_dialog;  // Made when first needed, owned by m_parent.
+  bool m_updating;
+  std::vector<std::pair<std::string, QCheckBox*> > m_checks;
 
-  QLineEdit* game_extra_args_;
-  QSpinBox* num_releases_;
-  QComboBox* proxy_option_;
-  QLineEdit* proxy_host_;
-  QSpinBox* proxy_port_;
-  QSpinBox* trash_max_size_;
+  QLineEdit* m_game_extra_args;
+  QSpinBox* m_num_releases;
+  QComboBox* m_proxy_option;
+  QLineEdit* m_proxy_host;
+  QSpinBox* m_proxy_port;
+  QSpinBox* m_trash_max_size;
 };
 
 #endif

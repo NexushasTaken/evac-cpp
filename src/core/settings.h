@@ -40,10 +40,10 @@ class Settings {
   // a type that doesn't match the default's. Null if the key is unknown.
   nlohmann::json lookup(const std::string& name);
 
-  std::filesystem::path file_;
-  Status& status_;
-  std::mutex mutex_;  // Guards current_.
-  nlohmann::json current_;
+  std::filesystem::path m_file;
+  Status& m_status;
+  std::mutex m_mutex;  // Guards m_current.
+  nlohmann::json m_current;
 };
 
 #endif

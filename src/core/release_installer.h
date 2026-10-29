@@ -35,11 +35,11 @@ class ReleaseInstaller {
   void cancel();
 
  private:
-  Settings& settings_;
-  Paths& paths_;
-  Status& status_;
-  Trash& trash_;
-  Http http_;
+  Settings& m_settings;
+  Paths& m_paths;
+  Status& m_status;
+  Trash& m_trash;
+  Http m_http;
 };
 
 #endif

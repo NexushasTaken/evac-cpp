@@ -22,7 +22,10 @@ static QLabel* make_section_heading(const QString& text) {
 }
 
 TabSettings::TabSettings(AppContext& ctx, QWidget& parent)
-    : ctx_(ctx), parent_(parent), licenses_dialog_(nullptr), updating_(false) {
+    : m_ctx(ctx),
+      m_parent(parent),
+      m_licenses_dialog(nullptr),
+      m_updating(false) {
   build_ui();
   load_from_settings();
 }
@@ -33,12 +36,12 @@ QCheckBox* TabSettings::add_check(QVBoxLayout& box, const char* caption,
   check->setToolTip(tooltip);
   std::string setting = key;
   connect(check, &QCheckBox::toggled, this, [this, setting](bool active) {
-    if (updating_) return;
-    ctx_.settings.set_bool(setting, active);
-    ctx_.settings.save();
+    if (m_updating) return;
+    m_ctx.settings.set_bool(setting, active);
+    m_ctx.settings.save();
   });
   box.addWidget(check);
-  checks_.push_back(std::make_pair(setting, check));
+  m_checks.push_back(std::make_pair(setting, check));
   return check;
 }
 
@@ -75,20 +78,20 @@ void TabSettings::build_ui() {
       "still close.",
       "keep_open_after_starting_game");
 
-  game_extra_args_ = new QLineEdit();
-  game_extra_args_->setPlaceholderText("none");
-  connect(game_extra_args_, &QLineEdit::textChanged, this,
+  m_game_extra_args = new QLineEdit();
+  m_game_extra_args->setPlaceholderText("none");
+  connect(m_game_extra_args, &QLineEdit::textChanged, this,
           [this](const QString& text) {
-            if (updating_) return;
-            ctx_.settings.set_string("game_extra_args", str(text));
-            ctx_.settings.save();
+            if (m_updating) return;
+            m_ctx.settings.set_string("game_extra_args", str(text));
+            m_ctx.settings.save();
           });
   add_row(
       *box, "Extra command-line parameters:",
       "Added to the game's command line when starting it.\n"
       "Separate them with spaces; use quotes for a value with spaces in it.\n"
       "The launcher already passes --userdir, and --world for Resume.",
-      game_extra_args_, 1);
+      m_game_extra_args, 1);
   add_check(*box, "Allow \"updating\" to the same build as installed",
             "Allow starting the update procedure even when the "
             "selected\nrelease is the same as currently installed.",
@@ -106,17 +109,17 @@ void TabSettings::build_ui() {
             "installed, or none at all.",
             "always_show_installs");
 
-  num_releases_ = new QSpinBox();
-  num_releases_->setRange(1, 100);
-  connect(num_releases_, &QSpinBox::valueChanged, this, [this](int value) {
-    if (updating_) return;
-    ctx_.settings.set_int("num_releases_to_request", value);
-    ctx_.settings.save();
+  m_num_releases = new QSpinBox();
+  m_num_releases->setRange(1, 100);
+  connect(m_num_releases, &QSpinBox::valueChanged, this, [this](int value) {
+    if (m_updating) return;
+    m_ctx.settings.set_int("num_releases_to_request", value);
+    m_ctx.settings.save();
   });
   add_row(*box, "Number of releases to request:",
           "How many latest releases will be requested\nfrom GitHub after "
           "starting the launcher,\nchoosing the game or clicking Refresh.",
-          num_releases_);
+          m_num_releases);
 
   box->addWidget(make_section_heading("Mods"));
   add_check(
@@ -141,42 +144,42 @@ void TabSettings::build_ui() {
             "inside cache folder.",
             "ignore_cache");
 
-  proxy_option_ = new QComboBox();
-  proxy_option_->addItem("Disabled");
-  proxy_option_->addItem("Enabled");
-  proxy_option_->addItem("For Downloading Only");
-  connect(proxy_option_, &QComboBox::currentIndexChanged, this,
+  m_proxy_option = new QComboBox();
+  m_proxy_option->addItem("Disabled");
+  m_proxy_option->addItem("Enabled");
+  m_proxy_option->addItem("For Downloading Only");
+  connect(m_proxy_option, &QComboBox::currentIndexChanged, this,
           [this](int index) {
-            if (updating_ || index < 0 || index >= NUM_PROXY_OPTIONS) return;
-            ctx_.settings.set_string("proxy_option", PROXY_OPTIONS[index]);
-            ctx_.settings.save();
+            if (m_updating || index < 0 || index >= NUM_PROXY_OPTIONS) return;
+            m_ctx.settings.set_string("proxy_option", PROXY_OPTIONS[index]);
+            m_ctx.settings.save();
           });
   add_row(*box, "Proxy server:",
           "Disabled - Do not use proxy\nEnabled - Use proxy on all occasions "
           "(e.g. requesting releases)\n"
           "For Downloading Only - Use proxy only when downloading",
-          proxy_option_);
+          m_proxy_option);
 
-  proxy_host_ = new QLineEdit();
-  proxy_host_->setPlaceholderText("host");
-  connect(proxy_host_, &QLineEdit::textChanged, this,
+  m_proxy_host = new QLineEdit();
+  m_proxy_host->setPlaceholderText("host");
+  connect(m_proxy_host, &QLineEdit::textChanged, this,
           [this](const QString& text) {
-            if (updating_) return;
-            ctx_.settings.set_string("proxy_host", str(text));
-            ctx_.settings.save();
+            if (m_updating) return;
+            m_ctx.settings.set_string("proxy_host", str(text));
+            m_ctx.settings.save();
           });
   add_row(*box, "Proxy host:", "Configure a proxy server for downloading.",
-          proxy_host_);
+          m_proxy_host);
 
-  proxy_port_ = new QSpinBox();
-  proxy_port_->setRange(0, 65535);
-  connect(proxy_port_, &QSpinBox::valueChanged, this, [this](int value) {
-    if (updating_) return;
-    ctx_.settings.set_int("proxy_port", value);
-    ctx_.settings.save();
+  m_proxy_port = new QSpinBox();
+  m_proxy_port->setRange(0, 65535);
+  connect(m_proxy_port, &QSpinBox::valueChanged, this, [this](int value) {
+    if (m_updating) return;
+    m_ctx.settings.set_int("proxy_port", value);
+    m_ctx.settings.save();
   });
   add_row(*box, "Proxy port:", "Configure a proxy server for downloading.",
-          proxy_port_);
+          m_proxy_port);
 
   box->addWidget(make_section_heading("Trash"));
   add_check(*box, "Move deleted things to the trash",
@@ -184,19 +187,19 @@ void TabSettings::build_ui() {
             "saves\ngo to the Trash tab, where they can be restored.\n"
             "When turned off, deleting is permanent.",
             "use_trash");
-  trash_max_size_ = new QSpinBox();
-  trash_max_size_->setRange(0, 1048576);
-  trash_max_size_->setSingleStep(256);
-  connect(trash_max_size_, &QSpinBox::valueChanged, this, [this](int value) {
-    if (updating_) return;
-    ctx_.settings.set_int("trash_max_size_mb", value);
-    ctx_.settings.save();
+  m_trash_max_size = new QSpinBox();
+  m_trash_max_size->setRange(0, 1048576);
+  m_trash_max_size->setSingleStep(256);
+  connect(m_trash_max_size, &QSpinBox::valueChanged, this, [this](int value) {
+    if (m_updating) return;
+    m_ctx.settings.set_int("trash_max_size_mb", value);
+    m_ctx.settings.save();
   });
   add_row(*box, "Trash size limit (MiB):",
           "When the trash gets bigger than this, the launcher tells you,\nand "
           "Free Up Space on the Trash tab deletes the oldest items.\n"
           "Nothing is deleted without asking.",
-          trash_max_size_);
+          m_trash_max_size);
   add_check(*box, "Offer to delete the oldest items when over the limit",
             "When the trash gets over its size limit, ask right away whether "
             "to\ndelete the oldest items for good, "
@@ -213,11 +216,11 @@ void TabSettings::build_ui() {
       new QLabel("<a href=\"#\">View opensource licenses</a>");
   licenses_link->setTextFormat(Qt::RichText);
   connect(licenses_link, &QLabel::linkActivated, this, [this]() {
-    if (!licenses_dialog_)
-      licenses_dialog_ = new LicensesDialog(parent_, ctx_.paths.data_dir());
-    licenses_dialog_->show();
-    licenses_dialog_->raise();
-    licenses_dialog_->activateWindow();
+    if (!m_licenses_dialog)
+      m_licenses_dialog = new LicensesDialog(m_parent, m_ctx.paths.data_dir());
+    m_licenses_dialog->show();
+    m_licenses_dialog->raise();
+    m_licenses_dialog->activateWindow();
   });
   box->addWidget(licenses_link);
 
@@ -230,24 +233,25 @@ void TabSettings::build_ui() {
 }
 
 void TabSettings::load_from_settings() {
-  updating_ = true;
+  m_updating = true;
 
-  for (size_t i = 0; i < checks_.size(); ++i)
-    checks_[i].second->setChecked(ctx_.settings.get_bool(checks_[i].first));
+  for (size_t i = 0; i < m_checks.size(); ++i)
+    m_checks[i].second->setChecked(m_ctx.settings.get_bool(m_checks[i].first));
 
-  game_extra_args_->setText(qstr(ctx_.settings.get_string("game_extra_args")));
-  num_releases_->setValue(ctx_.settings.get_int("num_releases_to_request"));
+  m_game_extra_args->setText(
+      qstr(m_ctx.settings.get_string("game_extra_args")));
+  m_num_releases->setValue(m_ctx.settings.get_int("num_releases_to_request"));
 
-  std::string option = ctx_.settings.get_string("proxy_option");
+  std::string option = m_ctx.settings.get_string("proxy_option");
   int selected = 0;
   for (int i = 0; i < NUM_PROXY_OPTIONS; ++i) {
     if (option == PROXY_OPTIONS[i]) selected = i;
   }
-  proxy_option_->setCurrentIndex(selected);
+  m_proxy_option->setCurrentIndex(selected);
 
-  proxy_host_->setText(qstr(ctx_.settings.get_string("proxy_host")));
-  proxy_port_->setValue(ctx_.settings.get_int("proxy_port"));
-  trash_max_size_->setValue(ctx_.settings.get_int("trash_max_size_mb"));
+  m_proxy_host->setText(qstr(m_ctx.settings.get_string("proxy_host")));
+  m_proxy_port->setValue(m_ctx.settings.get_int("proxy_port"));
+  m_trash_max_size->setValue(m_ctx.settings.get_int("trash_max_size_mb"));
 
-  updating_ = false;
+  m_updating = false;
 }

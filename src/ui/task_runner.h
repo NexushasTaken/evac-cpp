@@ -21,7 +21,7 @@ class TaskRunner : public QObject {
   bool run(const std::function<void()>& work,
            const std::function<void()>& done);
 
-  bool busy() const { return busy_; }
+  bool busy() const { return m_busy; }
 
   // Waits for the running job to end, without calling its done function.
   void wait();
@@ -33,10 +33,10 @@ class TaskRunner : public QObject {
  private:
   void on_finished();
 
-  Status& status_;
-  std::thread thread_;
-  std::function<void()> done_;
-  std::atomic<bool> busy_;
+  Status& m_status;
+  std::thread m_thread;
+  std::function<void()> m_done;
+  std::atomic<bool> m_busy;
 };
 
 #endif

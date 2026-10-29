@@ -64,10 +64,10 @@ class Http {
                                      long delta_msecs, double delta_bytes);
 
  private:
-  Status& status_;
-  std::string proxy_host_;
-  int proxy_port_ = 0;
-  std::atomic<bool> cancel_;
+  Status& m_status;
+  std::string m_proxy_host;
+  int m_proxy_port = 0;
+  std::atomic<bool> m_cancel;
 };
 
 #endif

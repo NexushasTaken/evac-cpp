@@ -43,10 +43,10 @@ class BackupManager {
   bool delete_backup(const std::string& backup_name);
 
  private:
-  Settings& settings_;
-  Paths& paths_;
-  Status& status_;
-  Trash& trash_;
+  Settings& m_settings;
+  Paths& m_paths;
+  Status& m_status;
+  Trash& m_trash;
 };
 
 #endif
