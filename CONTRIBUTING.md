@@ -8,6 +8,9 @@ Thanks for helping! Bug reports, fixes and features are all welcome.
   agree on it before you put in the work.
 - Build and test: see [Building](README.md#building) and [Tests](README.md#tests) in the README. Run
   `ctest --preset conan-debug` before sending.
+- Format your changes with [`.clang-format`](.clang-format) before committing: stage them, then run
+  `git clang-format`. It formats only the lines you changed, then `git add` the result. Most editors
+  (clangd, VS Code, Qt Creator) pick up `.clang-format` on their own.
 - Keep a pull request to one topic.
 
 ## Commits
