@@ -144,7 +144,7 @@ void TabSoundpacks::refresh_installed() {
                           "\nFolder: " + folder));
     if (pack.is_stock)
       item->setForeground(
-          dim_brush(m_installed_list));  // Greyed out, like in the original.
+          dim_brush(m_installed_list));  // Grayed out, like in the original.
   }
   m_updating = false;
 

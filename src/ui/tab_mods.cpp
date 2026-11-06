@@ -38,7 +38,7 @@ static std::string to_text_list(const nlohmann::json& value) {
   return result;
 }
 
-// A list with the name, and the reason it is greyed (if it is) on the right.
+// A list with the name, and the reason it is grayed (if it is) on the right.
 static QTreeWidget* make_mod_list() {
   QTreeWidget* list = new QTreeWidget();
   list->setColumnCount(2);
@@ -207,7 +207,7 @@ void TabMods::fill_list(QTreeWidget* list, const std::vector<ModRow>& rows,
     item->setText(0, qstr(rows[i].name));
     item->setText(1, qstr(rows[i].badge));
     item->setForeground(1, dim);
-    if (rows[i].greyed) item->setForeground(0, dim);
+    if (rows[i].grayed) item->setForeground(0, dim);
     item->setToolTip(0, qstr("Location: " + rows[i].location));
     item->setToolTip(1, item->toolTip(0));
   }
@@ -254,8 +254,8 @@ void TabMods::reload_installed() {
     if (show_obsolete && status == MOD_STOCK_OBSOLETE)
       row.name += " [obsolete]";
     row.location = to_utf8(it->second.location);
-    row.greyed = it->second.is_stock;
-    if (row.greyed) row.badge = "stock";
+    row.grayed = it->second.is_stock;
+    if (row.grayed) row.badge = "stock";
     m_installed_rows.push_back(row);
   }
   std::sort(m_installed_rows.begin(), m_installed_rows.end(),
@@ -293,8 +293,8 @@ void TabMods::reload_available() {
     row.id = it->first;
     row.name = it->second.name;
     row.location = to_utf8(it->second.location);
-    row.greyed = !installable;
-    if (row.greyed) row.badge = "installed";
+    row.grayed = !installable;
+    if (row.grayed) row.badge = "installed";
     m_available_rows.push_back(row);
   }
   std::sort(m_available_rows.begin(), m_available_rows.end(),
@@ -360,7 +360,7 @@ void TabMods::on_installed_selection_changed() {
   bool can_delete = false;
   for (std::set<int>::const_iterator it = now.begin(); it != now.end(); ++it) {
     if (*it >= 0 && (size_t)*it < m_installed_rows.size() &&
-        !m_installed_rows[*it].greyed)
+        !m_installed_rows[*it].grayed)
       can_delete = true;
   }
   m_delete_button->setEnabled(can_delete);
@@ -422,7 +422,7 @@ void TabMods::on_delete_clicked() {
   for (std::set<int>::const_iterator it = selection.begin();
        it != selection.end(); ++it) {
     if (*it < 0 || (size_t)*it >= m_installed_rows.size()) continue;
-    if (m_installed_rows[*it].greyed)
+    if (m_installed_rows[*it].grayed)
       ++skipped;
     else
       ids.push_back(m_installed_rows[*it].id);

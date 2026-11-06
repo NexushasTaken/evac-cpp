@@ -33,8 +33,8 @@ class TabMods : public QWidget {
     std::string id;
     std::string name;
     std::string location;
-    bool greyed;
-    std::string badge;  // Why the row is greyed, shown next to the name.
+    bool grayed;
+    std::string badge;  // Why the row is grayed, shown next to the name.
   };
 
   void build_ui();

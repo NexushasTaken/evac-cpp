@@ -145,8 +145,8 @@ backup that does not contain it.
    "Courtland no longer exists. Delete its snapshots too? [Cancel] [Move to Trash]".
    Move to Trash moves the repo to the in-app trash, so it can still be recovered from the Trash tab.
 2. On Cancel, the repo is marked as kept (for example `git config evac.keep true` in the repo,
-   so the mark travels with it) and the tab does not ask again. The world stays in the list, greyed
-   out, labelled `deleted`. Its snapshots can be viewed, and **Restore snapshot** recreates the world
+   so the mark travels with it) and the tab does not ask again. The world stays in the list, grayed
+   out, labeled `deleted`. Its snapshots can be viewed, and **Restore snapshot** recreates the world
    folder (create the folder before `git restore`). **Delete snapshots…** in the `⋮` menu
    moves the repo to the trash, with confirmation. Until then, the repo can be deleted from a file
    manager.
@@ -197,7 +197,7 @@ The two tabs never touch each other's files: zip restore cannot break the repos 
 
 - **Worlds list** (`QTreeWidget`): every folder in `save/` plus kept repos of worlds that no longer
   exist. Status from `git status --porcelain`: `● changed`, `no snapshots` (no repo yet), `deleted`
-  (greyed out), or nothing when the world matches its last snapshot. A list rather than a dropdown,
+  (grayed out), or nothing when the world matches its last snapshot. A list rather than a dropdown,
   so it is visible which worlds need a snapshot.
 - **Snapshot list:** the selected world's history, newest first, date and name per row.
 - **Details:** name, full date, number of changed files, description.

@@ -269,7 +269,7 @@ bool Http::download_file(const std::string& url, const fs::path& target_dir,
 
   if (!error.empty()) {
     if (m_cancel)
-      m_status.post("Download of " + target_filename + " was cancelled",
+      m_status.post("Download of " + target_filename + " was canceled",
                     MSG_WARN);
     else
       m_status.post("Download of " + target_filename + " failed: " + error,

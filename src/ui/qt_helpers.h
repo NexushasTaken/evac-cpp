@@ -34,7 +34,7 @@ QLabel* make_heading(const QString& text);
 // The row of the first selected item, or -1.
 int selected_row(QAbstractItemView* view);
 
-// The text color of disabled widgets, for list rows that should look greyed
+// The text color of disabled widgets, for list rows that should look grayed
 // out but stay selectable.
 QBrush dim_brush(QWidget* widget);
 
