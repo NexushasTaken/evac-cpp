@@ -203,7 +203,7 @@ bool zip(const fs::path& parent, const std::string& dir_to_zip,
 
     struct archive_entry* e = archive_entry_new();
     // Zip wants "/" separators, and a trailing one for a directory.
-    fs::path rel = to_path(fs::relative(p, base).generic_u8string());
+    fs::path rel = to_path(fs::relative(p, base));
     if (is_dir) rel += "/";
     set_entry_path(e, rel);
     archive_entry_set_perm(e, (unsigned)st.permissions() & 07777);

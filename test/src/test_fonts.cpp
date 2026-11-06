@@ -1,3 +1,4 @@
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
 #include <fstream>
@@ -77,7 +78,7 @@ TEST_CASE("bundled font info is valid and the files exist") {
     REQUIRE(!font.description.empty());
   }
   REQUIRE(f.fonts.available_fonts()[2].name == "Hack");
-  REQUIRE(f.fonts.available_fonts()[2].height == 1.2);
+  REQUIRE(f.fonts.available_fonts()[2].height == Catch::Approx(1.2));
 }
 
 TEST_CASE("missing config files are detected") {

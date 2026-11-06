@@ -2,18 +2,22 @@ from conan import ConanFile
 from conan.tools.cmake import cmake_layout
 
 
-class EvacConan(ConanFile):
+class Recipe(ConanFile):
     name = "evac"
     settings = "os", "compiler", "build_type", "arch"
-    generators = "CMakeToolchain", "CMakeDeps"
+    generators = "CMakeToolchain", "CMakeDeps", "VirtualRunEnv"
 
-    # gtkmm-4.0 is not on Conan Center, so it comes from the system
-    # (found with pkg-config in CMakeLists.txt).
+    def layout(self):
+        self.folders.generators = "conan"
+
     def requirements(self):
+        self.requires("fmt/11.1.3")
         self.requires("cpr/1.14.2")
         self.requires("nlohmann_json/3.11.3")
         self.requires("libarchive/3.7.9")
         self.requires("spdlog/1.15.1")
+
+    def build_requirements(self):
         self.test_requires("catch2/3.8.0")
 
     def configure(self):
@@ -23,6 +27,3 @@ class EvacConan(ConanFile):
         # Requests run on worker threads, where curl must not use signals
         # (CURLOPT_NOSIGNAL).
         self.options["cpr"].signal = False
-
-    def layout(self):
-        cmake_layout(self)

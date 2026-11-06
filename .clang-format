@@ -375,4 +375,3 @@ WhitespaceSensitiveMacros:
   - STRINGIZE
 WrapNamespaceBodyWithEmptyLines: Leave
 ...
-

@@ -1,0 +1,99 @@
+## Building
+
+You need:
+
+- a C++17 compiler (GCC or Clang), CMake 3.23 or newer
+- [Conan](https://conan.io) 2
+- Qt 6.5 or newer (the Widgets module), for example `qt6-base` on Arch, `qt6-base-dev` on Debian/Ubuntu or
+  `qt6-qtbase-devel` on Fedora. (It comes from your system: building Qt with Conan takes a long time.)
+
+The other libraries (cpr and libcurl, libarchive, nlohmann_json, spdlog, Catch2) are fetched and built by Conan.
+
+```sh
+# Once per machine, if you have never used Conan:
+conan profile detect
+
+# Get and build the dependencies. The first time this builds OpenSSL and friends from source
+# and takes a while (Conan caches the result).
+conan install . --build=missing -s build_type=Debug -s compiler.cppstd=17
+
+# Build.
+cmake --preset conan-debug
+cmake --build --preset conan-debug
+```
+
+For an optimized build use `-s build_type=Release` in the `conan install` line and the `conan-release` presets.
+The binary ends up in `build/Debug/` (or `build/Release/`), and the build copies `data/` next to it.
+
+Configuring also writes `compile_commands.json` into the build folder. The `.clangd` file in the project root
+points clangd at `build/Debug`; change it if you work in the Release build.
+
+## Running
+
+```sh
+build/Debug/evac
+```
+
+The Snapshots tab needs [git](https://git-scm.com) 2.23 or newer, installed with your package manager (`git` on
+Arch, Debian/Ubuntu and Fedora). Everything else works without it; without git the Snapshots tab says so and
+stays disabled.
+
+The launcher follows the XDG base directory spec:
+
+| What                                                        | Where                                      |
+|-------------------------------------------------------------|--------------------------------------------|
+| `evac_settings.json`                                        | `$XDG_CONFIG_HOME/evac` (`~/.config/evac`) |
+| Games: a folder per game (`dda/`, `bn/`, ...) with the installs, user data, mod repository and save backups | `$XDG_DATA_HOME/evac` (`~/.local/share/evac`) |
+| Downloaded archives                                         | `$XDG_CACHE_HOME/evac` (`~/.cache/evac`)   |
+
+**Portable mode:** if an `evac_settings.json` sits next to the executable, the launcher keeps everything in
+that folder instead, like the original (`cache/` and the game folders next to it). To go back to the XDG
+folders, move or delete that file. The `data/` folder (bundled fonts, licenses) always has to be next to the
+executable for now.
+
+If you used an earlier build that kept its files next to the executable, move them by hand, for example:
+
+```sh
+mkdir -p ~/.config/evac ~/.local/share/evac ~/.cache/evac
+cd build/Debug
+mv catapult_settings.json ~/.config/evac/evac_settings.json
+for f in */game*/catapult_install_info.json; do mv "$f" "${f%/*}/evac_install_info.json"; done
+mv dda bn eod tish tlg ~/.local/share/evac/   # only the ones that exist
+mv cache/* ~/.cache/evac/                     # optional, they can be downloaded again
+```
+
+If you used a build from before the rename to Evac (catapult-cpp), the launcher's own folders were called
+`catapult` instead of `evac`: `~/.config/catapult`, `~/.local/share/catapult`, `~/.cache/catapult`, and a
+`catapult/` folder (backups, snapshots) inside each userdata folder. Rename them to `evac`, change any paths in
+the settings file that point into the old folders, and in each snapshot repository that was marked as kept, run
+`git config evac.keep true`. The files were renamed too: `catapult_settings.json` is now `evac_settings.json`,
+and each game install's `catapult_install_info.json` is now `evac_install_info.json`. Without that file an
+install is not recognized.
+
+## Tests
+
+```sh
+ctest --preset conan-debug
+# or, for the details:
+build/Debug/core_tests
+```
+
+The tests cover the core library (everything except the Qt interface) and need no network access: downloads
+are tested with `file://` URLs and archives built on the fly. The snapshot tests need git 2.23 or newer. Two extra tests are skipped unless you point them
+at a server:
+
+```sh
+EVAC_TEST_HTTPS_URL=https://api.github.com/zen build/Debug/core_tests "[network]"
+```
+
+## Layout
+
+```
+src/core/   Everything that does not need a window (settings, paths, downloads, installs, mods, ...).
+src/ui/     The Qt Widgets interface: one file pair per tab, and a worker thread helper.
+tests/      Catch2 tests for src/core.
+data/       Files that ship with the launcher: bundled fonts and license texts.
+```
+
+Slow operations (downloads, installs, backups) run on a worker thread, one at a time, and the tab that started
+them is disabled until they finish.

@@ -1,21 +1,23 @@
-cmake_minimum_required(VERSION 3.23)
-project(evac CXX)
+cmake_minimum_required(VERSION 3.14)
 
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)  # For clangd.
+include(cmake/prelude.cmake)
 
-find_package(cpr REQUIRED)
-find_package(nlohmann_json REQUIRED)
-find_package(LibArchive REQUIRED)
-find_package(spdlog REQUIRED)
-find_package(Catch2 REQUIRED)
+project(
+    evac-cpp
+    VERSION 0.1.0
+    DESCRIPTION "Evac: Cataclysm Launcher"
+    HOMEPAGE_URL "https://example.com/"
+    LANGUAGES CXX
+)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets)
+include(cmake/project-is-top-level.cmake)
+include(cmake/variables.cmake)
 
-# Core library: no Qt in here.
-add_library(evac_core STATIC
+# ---- Declare library ----
+
+add_library(
+    evac-cpp_lib
+    OBJECT
     src/core/version.cpp
     src/core/process.cpp
     src/core/status.cpp
@@ -40,20 +42,54 @@ add_library(evac_core STATIC
     src/core/tips.cpp
     src/core/window_state.cpp
     src/core/licenses.cpp
-    src/core/trash.cpp)
-# The OS-specific parts (see src/core/platform.h and process.h).
-if(WIN32)
-    target_sources(evac_core PRIVATE src/core/platform_windows.cpp src/core/process_windows.cpp)
-else()
-    target_sources(evac_core PRIVATE src/core/platform_posix.cpp src/core/process_posix.cpp)
-endif()
-target_compile_definitions(evac_core PRIVATE EVAC_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
-target_include_directories(evac_core PUBLIC src)
-target_link_libraries(evac_core PUBLIC
-    cpr::cpr nlohmann_json::nlohmann_json LibArchive::LibArchive spdlog::spdlog)
+    src/core/trash.cpp
+)
 
-# The UI. moc (AUTOMOC) generates the code for classes with Q_OBJECT.
-add_executable(evac
+if(WIN32)
+    target_sources(
+        evac-cpp_lib
+        PRIVATE src/core/platform_windows.cpp src/core/process_windows.cpp
+    )
+else()
+    target_sources(
+        evac-cpp_lib
+        PRIVATE src/core/platform_posix.cpp src/core/process_posix.cpp
+    )
+endif()
+
+target_compile_definitions(
+    evac-cpp_lib
+    PRIVATE EVAC_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data"
+)
+target_include_directories(
+    evac-cpp_lib
+    ${warning_guard}
+    PUBLIC "\$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>"
+)
+
+target_compile_features(evac-cpp_lib PUBLIC cxx_std_17)
+
+find_package(fmt REQUIRED)
+find_package(cpr REQUIRED)
+find_package(nlohmann_json REQUIRED)
+find_package(LibArchive REQUIRED)
+find_package(spdlog REQUIRED)
+find_package(Catch2 REQUIRED)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets)
+target_link_libraries(
+    evac-cpp_lib
+    PUBLIC
+        fmt::fmt
+        cpr::cpr
+        nlohmann_json::nlohmann_json
+        LibArchive::LibArchive
+        spdlog::spdlog
+)
+
+# ---- Declare executable ----
+
+add_executable(
+    evac-cpp_exe
     src/main.cpp
     src/ui/qt_helpers.cpp
     src/ui/main_window.cpp
@@ -70,30 +106,42 @@ add_executable(evac
     src/ui/download_prompt.cpp
     src/ui/licenses_dialog.cpp
     src/ui/log_view.cpp
-    src/ui/task_runner.cpp)
-set_target_properties(evac PROPERTIES AUTOMOC ON)
-target_link_libraries(evac PRIVATE evac_core Qt6::Widgets)
+    src/ui/task_runner.cpp
+)
+add_executable(evac-cpp::exe ALIAS evac-cpp_exe)
 
-# The bundled data (fonts, ...) goes next to the executable.
-add_custom_command(TARGET evac POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/data $<TARGET_FILE_DIR:evac>/data)
+set_target_properties(evac-cpp_exe PROPERTIES AUTOMOC ON)
+set_property(TARGET evac-cpp_exe PROPERTY OUTPUT_NAME evac-cpp)
 
-enable_testing()
-add_executable(core_tests
-    tests/test_version.cpp
-    tests/test_status.cpp
-    tests/test_settings_paths.cpp
-    tests/test_fs_archive.cpp
-    tests/test_http.cpp
-    tests/test_releases.cpp
-    tests/test_fonts.cpp
-    tests/test_soundpacks.cpp
-    tests/test_mods.cpp
-    tests/test_backups.cpp
-    tests/test_snapshots.cpp
-    tests/test_extras.cpp
-    tests/test_trash.cpp
-    tests/test_launcher.cpp
-    tests/test_platform.cpp)
-target_link_libraries(core_tests PRIVATE evac_core Catch2::Catch2WithMain)
-add_test(NAME core_tests COMMAND core_tests)
+target_compile_features(evac-cpp_exe PRIVATE cxx_std_17)
+
+target_link_libraries(evac-cpp_exe PRIVATE evac-cpp_lib Qt6::Widgets)
+
+# ---- Install rules ----
+
+if(NOT CMAKE_SKIP_INSTALL_RULES)
+    include(cmake/install-rules.cmake)
+endif()
+
+# ---- Custom commands ----
+
+add_custom_command(
+    TARGET evac-cpp_exe
+    POST_BUILD
+    COMMAND
+        ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/data
+        $<TARGET_FILE_DIR:evac-cpp_exe>/data
+)
+
+# ---- Developer mode ----
+
+if(NOT evac-cpp_DEVELOPER_MODE)
+    return()
+elseif(NOT PROJECT_IS_TOP_LEVEL)
+    message(
+        AUTHOR_WARNING
+        "Developer mode is intended for developers of evac-cpp"
+    )
+endif()
+
+include(cmake/dev-mode.cmake)

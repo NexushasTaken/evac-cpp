@@ -1,0 +1,18 @@
+---
+# Enable ALL the things! Except not really
+# misc-non-private-member-variables-in-classes: the options don't do anything
+# modernize-use-nodiscard: too aggressive, attribute is situationally useful
+Checks: "*,\
+  -google-readability-todo,\
+  -altera-*,\
+  -fuchsia-*,\
+  fuchsia-multiple-inheritance,\
+  -llvm-header-guard,\
+  -llvm-include-order,\
+  -llvmlibc-*,\
+  -modernize-use-nodiscard,\
+  -misc-non-private-member-variables-in-classes,\
+  -modernize-use-trailing-return-type,\
+  -llvm-prefer-static-over-anonymous-namespace"
+WarningsAsErrors: ''
+...

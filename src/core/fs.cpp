@@ -8,7 +8,7 @@ namespace fs = std::filesystem;
 
 fs::path to_path(const std::string& utf8) { return fs::u8path(utf8); }
 
-std::string to_utf8(const fs::path& path) { return path.u8string(); }
+std::string to_utf8(const fs::path& path) { return path; }
 
 namespace fs_helper {
 
@@ -47,7 +47,7 @@ std::vector<std::string> list_dir(const fs::path& path, bool recursive,
   }
   for (; it != fs::recursive_directory_iterator(); it.increment(ec)) {
     if (ec) break;
-    std::string rel = fs::relative(it->path(), base).generic_u8string();
+    std::string rel = fs::relative(it->path(), base);
     if (!use_filter || std::regex_search(rel, filter)) result.push_back(rel);
     if (!recursive) it.disable_recursion_pending();
   }
