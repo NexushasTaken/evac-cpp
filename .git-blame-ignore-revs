@@ -9,3 +9,6 @@
 
 # chore: run spell-fix
 f1bd1969cab14e791c1b784f77436440b6ef529e
+
+# refactor(core): resolve most static analysis warnings
+b748127eae1c85be49b9278d0f869580bccddfec
