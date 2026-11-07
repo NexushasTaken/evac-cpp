@@ -62,6 +62,30 @@ static void set_entry_hardlink(struct archive_entry* e, const fs::path& path) {
 }
 #endif
 
+static bool copy_data_blocks(struct archive* in, struct archive* out,
+                             std::string& error) {
+  const void* buff = nullptr;
+  size_t size = 0;
+  la_int64_t offset = 0;
+
+  while (true) {
+    int r = archive_read_data_block(in, &buff, &size, &offset);
+    if (r == ARCHIVE_EOF) {
+      return true;
+    }
+    if (r < ARCHIVE_WARN) {
+      error = (archive_error_string(in) != nullptr) ? archive_error_string(in)
+                                                    : "read error";
+      return false;
+    }
+    if (archive_write_data_block(out, buff, size, offset) < ARCHIVE_WARN) {
+      error = (archive_error_string(out) != nullptr) ? archive_error_string(out)
+                                                     : "write error";
+      return false;
+    }
+  }
+}
+
 bool extract(const fs::path& archive_path, const fs::path& dest_dir,
              Status& status) {
   std::error_code ec;
@@ -121,28 +145,7 @@ bool extract(const fs::path& archive_path, const fs::path& dest_dir,
       break;
     }
 
-    const void* buff = nullptr;
-    size_t size = 0;
-    la_int64_t offset = 0;
-    while (true) {
-      r = archive_read_data_block(in, &buff, &size, &offset);
-      if (r == ARCHIVE_EOF) {
-        break;
-      }
-      if (r < ARCHIVE_WARN) {
-        ok = false;
-        error = (archive_error_string(in) != nullptr) ? archive_error_string(in)
-                                                      : "read error";
-        break;
-      }
-      if (archive_write_data_block(out, buff, size, offset) < ARCHIVE_WARN) {
-        ok = false;
-        error = (archive_error_string(out) != nullptr)
-                    ? archive_error_string(out)
-                    : "write error";
-        break;
-      }
-    }
+    ok = copy_data_blocks(in, out, error);
     if (ok) {
       archive_write_finish_entry(out);
     }
