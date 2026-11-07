@@ -16,10 +16,10 @@ static std::vector<std::string> executable_names() {
   std::vector<std::string> names;
   std::string os = platform::os_name();
   if (os == "linux") {
-    names.push_back("cataclysm-launcher");
+    names.emplace_back("cataclysm-launcher");
   } else if (os == "win") {
-    names.push_back("cataclysm-tiles.exe");
-    names.push_back("cataclysm-bn-tiles.exe");
+    names.emplace_back("cataclysm-tiles.exe");
+    names.emplace_back("cataclysm-bn-tiles.exe");
   }
   return names;
 }
@@ -32,9 +32,11 @@ bool split_command_line(const std::string& text,
       false;  // Separate from word.empty(), so that '' gives an empty word.
   size_t i = 0;
   while (i < text.size()) {
-    char c = text[i];
+    char c = text.at(i);
     if (c == ' ' || c == '\t' || c == '\n') {
-      if (in_word) words.push_back(word);
+      if (in_word) {
+        words.push_back(word);
+      }
       word.clear();
       in_word = false;
       ++i;
@@ -49,11 +51,12 @@ bool split_command_line(const std::string& text,
       i = end + 1;
     } else if (c == '"') {
       ++i;
-      while (i < text.size() && text[i] != '"') {
-        if (text[i] == '\\' && i + 1 < text.size() &&
-            (text[i + 1] == '"' || text[i + 1] == '\\'))
+      while (i < text.size() && text.at(i) != '"') {
+        if (text.at(i) == '\\' && i + 1 < text.size() &&
+            (text.at(i + 1) == '"' || text.at(i + 1) == '\\')) {
           ++i;
-        word += text[i];
+        }
+        word += text.at(i);
         ++i;
       }
       if (i >= text.size()) {
@@ -63,7 +66,7 @@ bool split_command_line(const std::string& text,
       in_word = true;
       ++i;
     } else if (c == '\\' && i + 1 < text.size()) {
-      word += text[i + 1];
+      word += text.at(i + 1);
       in_word = true;
       i += 2;
     } else {
@@ -72,7 +75,9 @@ bool split_command_line(const std::string& text,
       ++i;
     }
   }
-  if (in_word) words.push_back(word);
+  if (in_word) {
+    words.push_back(word);
+  }
   return true;
 }
 
@@ -85,11 +90,13 @@ bool GameLauncher::has_last_world() {
 
 std::string GameLauncher::last_world() {
   nlohmann::json info;
-  if (!load_json_file(m_paths.config() / "lastworld.json", info, m_status))
+  if (!load_json_file(m_paths.config() / "lastworld.json", info, m_status)) {
     return "";
+  }
   if (!info.is_object() || !info.contains("world_name") ||
-      !info["world_name"].is_string())
+      !info["world_name"].is_string()) {
     return "";
+  }
   return info["world_name"].get<std::string>();
 }
 
@@ -108,12 +115,13 @@ bool GameLauncher::start(const std::string& world) {
   }
   fs::path executable;
   for (size_t i = 0; i < names.size() && executable.empty(); ++i) {
-    if (platform::is_executable_file(game_dir / names[i]))
-      executable = game_dir / names[i];
+    if (platform::is_executable_file(game_dir / names.at(i))) {
+      executable = game_dir / names.at(i);
+    }
   }
   if (executable.empty()) {
     m_status.post("Cannot start the game, no executable found: " +
-                      to_utf8(game_dir / names[0]),
+                      to_utf8(game_dir / names.at(0)),
                   MSG_ERROR);
     return false;
   }
@@ -130,10 +138,10 @@ bool GameLauncher::start(const std::string& world) {
   }
 
   std::vector<std::string> args;
-  args.push_back("--userdir");
+  args.emplace_back("--userdir");
   args.push_back(userdata);
   if (!world.empty()) {
-    args.push_back("--world");
+    args.emplace_back("--world");
     args.push_back(world);
   }
   args.insert(args.end(), extra_args.begin(), extra_args.end());

@@ -53,7 +53,7 @@ static QString state_text(const WorldInfo& world) {
 // A list with a text column that takes the room and an other one that fits its
 // content.
 static QTreeWidget* make_two_column_list(int stretch_column) {
-  QTreeWidget* list = new QTreeWidget();
+  auto* list = new QTreeWidget();
   list->setColumnCount(2);
   list->setHeaderHidden(true);
   list->setRootIsDecorated(false);
@@ -65,7 +65,7 @@ static QTreeWidget* make_two_column_list(int stretch_column) {
 }
 
 static QFrame* make_separator() {
-  QFrame* separator = new QFrame();
+  auto* separator = new QFrame();
   separator->setFrameShape(QFrame::HLine);
   separator->setFrameShadow(QFrame::Sunken);
   return separator;
@@ -77,7 +77,7 @@ TabSnapshots::TabSnapshots(AppContext& ctx, TaskRunner& runner, QWidget& parent)
 }
 
 void TabSnapshots::build_ui() {
-  QVBoxLayout* outer = new QVBoxLayout(this);
+  auto* outer = new QVBoxLayout(this);
   outer->setContentsMargins(12, 12, 12, 12);
   m_hint_label = make_label("");
   m_hint_label->setWordWrap(true);
@@ -87,18 +87,18 @@ void TabSnapshots::build_ui() {
   m_content = new QWidget();
   outer->addWidget(m_content, 1);
 
-  QVBoxLayout* content = new QVBoxLayout(m_content);
+  auto* content = new QVBoxLayout(m_content);
   content->setContentsMargins(0, 0, 0, 0);
   content->setSpacing(8);
 
   // Draggable, so long world names can be shown in full.
-  QSplitter* columns = new QSplitter(Qt::Horizontal);
+  auto* columns = new QSplitter(Qt::Horizontal);
   columns->setChildrenCollapsible(false);
   content->addWidget(columns, 1);
 
   // Left: the worlds.
-  QWidget* left = new QWidget();
-  QVBoxLayout* left_box = new QVBoxLayout(left);
+  auto* left = new QWidget();
+  auto* left_box = new QVBoxLayout(left);
   left_box->setContentsMargins(0, 0, 6, 0);
   left_box->setSpacing(6);
   left_box->addWidget(make_label("Worlds"));
@@ -108,15 +108,15 @@ void TabSnapshots::build_ui() {
   columns->addWidget(left);
 
   // Right: the snapshots of the selected world.
-  QWidget* right = new QWidget();
-  QVBoxLayout* right_box = new QVBoxLayout(right);
+  auto* right = new QWidget();
+  auto* right_box = new QVBoxLayout(right);
   right_box->setContentsMargins(6, 0, 0, 0);
   right_box->setSpacing(6);
   m_snapshots_title = make_label("");
   m_snapshots_title->setMinimumWidth(
       1);  // Long world names don't make the column wider.
   // Rarely needed actions on the selected world's snapshots.
-  QMenu* menu = new QMenu(this);
+  auto* menu = new QMenu(this);
   menu->setToolTipsVisible(true);
   m_export_action = menu->addAction("Export snapshots\xe2\x80\xa6");
   m_export_action->setToolTip(
@@ -134,12 +134,12 @@ void TabSnapshots::build_ui() {
   m_delete_action = menu->addAction("Delete snapshots\xe2\x80\xa6");
   m_delete_action->setToolTip(
       "For a world that no longer exists: remove its snapshots too.");
-  QToolButton* menu_button = new QToolButton();
+  auto* menu_button = new QToolButton();
   set_icon(menu_button, "view-more-symbolic", "\xe2\x80\xa6");
   menu_button->setToolTip("More actions");
   menu_button->setPopupMode(QToolButton::InstantPopup);
   menu_button->setMenu(menu);
-  QHBoxLayout* title_row = new QHBoxLayout();
+  auto* title_row = new QHBoxLayout();
   title_row->setSpacing(6);
   title_row->addWidget(m_snapshots_title, 1);
   title_row->addWidget(menu_button);
@@ -147,7 +147,7 @@ void TabSnapshots::build_ui() {
   m_snapshots_list = make_two_column_list(1);
   right_box->addWidget(m_snapshots_list, 1);
 
-  QHBoxLayout* buttons = new QHBoxLayout();
+  auto* buttons = new QHBoxLayout();
   buttons->setSpacing(6);
   m_restore_button = new QPushButton("Restore snapshot");
   m_restore_button->setToolTip(
@@ -181,7 +181,7 @@ void TabSnapshots::build_ui() {
   m_description_entry = new QLineEdit();
   m_description_entry->setPlaceholderText("Optional");
   form->addWidget(m_description_entry, 1, 1);
-  QHBoxLayout* take_row = new QHBoxLayout();
+  auto* take_row = new QHBoxLayout();
   take_row->setSpacing(6);
   m_take_button = new QPushButton("Take snapshot");
   m_take_button->setToolTip("Take a snapshot of the selected world.");
@@ -196,7 +196,7 @@ void TabSnapshots::build_ui() {
 
   // Footer: size and the command to use the repository from a terminal.
   content->addWidget(make_separator());
-  QHBoxLayout* footer = new QHBoxLayout();
+  auto* footer = new QHBoxLayout();
   footer->setSpacing(12);
   m_footer_label = make_label("");
   m_command_entry = new QLineEdit();
@@ -256,7 +256,7 @@ void TabSnapshots::show_unavailable(const QString& message) {
 void TabSnapshots::refresh() {
   std::string game = m_ctx.settings.get_string("game");
   Paths::InstallsSummary installs = m_ctx.paths.installs_summary();
-  if (installs.find(game) == installs.end()) {
+  if (!installs.contains(game)) {
     show_unavailable("Install the game first (on the Game tab).");
     return;
   }
@@ -289,7 +289,9 @@ void TabSnapshots::reload() {
         fill_worlds(*loaded);
         ask_about_deleted_worlds();
       });
-  if (!started) m_content->setEnabled(true);
+  if (!started) {
+    m_content->setEnabled(true);
+  }
 }
 
 void TabSnapshots::fill_worlds(const std::vector<WorldInfo>& worlds) {
@@ -301,17 +303,24 @@ void TabSnapshots::fill_worlds(const std::vector<WorldInfo>& worlds) {
   int reselect = -1;
   for (size_t i = 0; i < m_worlds.size(); ++i) {
     const WorldInfo& world = m_worlds[i];
-    QTreeWidgetItem* row = new QTreeWidgetItem(m_worlds_list);
+    auto* row = new QTreeWidgetItem(m_worlds_list);
     row->setText(0, qstr(world.name));
     row->setText(1, state_text(world));
     row->setForeground(1, dim);
-    if (world.state == WorldInfo::DELETED) row->setForeground(0, dim);
+    if (world.state == WorldInfo::DELETED) {
+      row->setForeground(0, dim);
+    }
     row->setToolTip(0, qstr(world.name));
-    if (world.name == m_selected_name) reselect = (int)i;
+    if (world.name == m_selected_name) {
+      reselect = static_cast<int>(i);
+    }
   }
-  if (reselect < 0 && !m_worlds.empty()) reselect = 0;
-  if (reselect >= 0)
+  if (reselect < 0 && !m_worlds.empty()) {
+    reselect = 0;
+  }
+  if (reselect >= 0) {
     m_worlds_list->setCurrentItem(m_worlds_list->topLevelItem(reselect));
+  }
   m_updating = false;
 
   on_world_selected();
@@ -319,54 +328,61 @@ void TabSnapshots::fill_worlds(const std::vector<WorldInfo>& worlds) {
 
 const WorldInfo* TabSnapshots::selected_world() {
   int row = selected_row(m_worlds_list);
-  if (row < 0 || (size_t)row >= m_worlds.size()) return nullptr;
+  if (row < 0 || static_cast<size_t>(row) >= m_worlds.size()) {
+    return nullptr;
+  }
   return &m_worlds[row];
 }
 
 const Snapshot* TabSnapshots::selected_snapshot() {
   int row = selected_row(m_snapshots_list);
-  if (row < 0 || (size_t)row >= m_snapshots.size()) return nullptr;
+  if (row < 0 || static_cast<size_t>(row) >= m_snapshots.size()) {
+    return nullptr;
+  }
   return &m_snapshots[row];
 }
 
 void TabSnapshots::on_world_selected() {
-  if (m_updating) return;
+  if (m_updating) {
+    return;
+  }
   const WorldInfo* world = selected_world();
-  m_selected_name = world ? world->name : "";
+  m_selected_name = (world != nullptr) ? world->name : "";
   fill_snapshots();
 }
 
 // Reading one world's history is quick, so this stays on the main thread.
 void TabSnapshots::fill_snapshots() {
   const WorldInfo* world = selected_world();
-  m_snapshots = world ? m_ctx.snapshots.list_snapshots(world->name)
-                      : std::vector<Snapshot>();
+  m_snapshots = (world != nullptr) ? m_ctx.snapshots.list_snapshots(world->name)
+                                   : std::vector<Snapshot>();
 
   m_updating = true;
   m_snapshots_list->clear();
   QBrush dim = dim_brush(m_snapshots_list);
-  for (size_t i = 0; i < m_snapshots.size(); ++i) {
-    QTreeWidgetItem* row = new QTreeWidgetItem(m_snapshots_list);
-    row->setText(0, format_time(m_snapshots[i].time, "MMM dd HH:mm"));
+  for (auto& m_snapshot : m_snapshots) {
+    auto* row = new QTreeWidgetItem(m_snapshots_list);
+    row->setText(0, format_time(m_snapshot.time, "MMM dd HH:mm"));
     row->setForeground(0, dim);
-    row->setText(1, qstr(m_snapshots[i].name));
+    row->setText(1, qstr(m_snapshot.name));
   }
   m_updating = false;
 
-  if (!world) {
+  if (world == nullptr) {
     m_snapshots_title->setText(m_worlds.empty() ? "There are no worlds yet."
                                                 : "Select a world.");
     m_footer_label->setText("");
     m_command_entry->setText("");
   } else {
     m_snapshots_title->setText(qstr("Snapshots of " + world->name));
-    if (m_snapshots.empty())
+    if (m_snapshots.empty()) {
       m_footer_label->setText("No snapshots yet");
-    else
+    } else {
       m_footer_label->setText(
           qstr(std::to_string(m_snapshots.size()) +
                (m_snapshots.size() == 1 ? " snapshot, " : " snapshots, ")) +
           format_size(m_ctx.snapshots.history_size(world->name)));
+    }
     m_command_entry->setText(qstr(m_ctx.snapshots.git_command(world->name)));
     m_command_entry->setCursorPosition(0);
     m_command_entry->setToolTip(m_command_entry->text());
@@ -376,7 +392,9 @@ void TabSnapshots::fill_snapshots() {
 }
 
 void TabSnapshots::on_snapshot_selected() {
-  if (m_updating) return;
+  if (m_updating) {
+    return;
+  }
   update_details();
   update_buttons();
 }
@@ -384,37 +402,42 @@ void TabSnapshots::on_snapshot_selected() {
 void TabSnapshots::update_details() {
   const WorldInfo* world = selected_world();
   const Snapshot* snap = selected_snapshot();
-  if (!world || !snap) {
+  if ((world == nullptr) || (snap == nullptr)) {
     m_details_view->setPlainText(NO_DETAILS_TEXT);
     return;
   }
   int files = m_ctx.snapshots.changed_files(world->name, snap->hash);
   QString line = format_time(snap->time, "MMM dd yyyy, HH:mm");
-  if (files >= 0)
+  if (files >= 0) {
     line += qstr(" \xc2\xb7 " + std::to_string(files) +
                  (files == 1 ? " file changed" : " files changed"));
+  }
   QString text = "<b>" + escape(snap->name) + "</b><br>" + line.toHtmlEscaped();
-  if (!snap->description.empty())
+  if (!snap->description.empty()) {
     text += "<br><br>" + escape(snap->description);
+  }
   m_details_view->setHtml(text);
 }
 
 void TabSnapshots::update_buttons() {
   const WorldInfo* world = selected_world();
-  bool deleted = world && world->state == WorldInfo::DELETED;
+  bool deleted = (world != nullptr) && world->state == WorldInfo::DELETED;
   bool has_name = !m_name_entry->text().isEmpty();
   bool any_world = false;
-  for (size_t i = 0; i < m_worlds.size(); ++i)
-    any_world = any_world || m_worlds[i].state != WorldInfo::DELETED;
+  for (auto& m_world : m_worlds) {
+    any_world = any_world || m_world.state != WorldInfo::DELETED;
+  }
 
-  m_restore_button->setEnabled(world && selected_snapshot());
-  m_discard_button->setEnabled(world && world->state == WorldInfo::CHANGED);
-  m_take_button->setEnabled(world && !deleted && has_name);
+  m_restore_button->setEnabled((world != nullptr) &&
+                               (selected_snapshot() != nullptr));
+  m_discard_button->setEnabled((world != nullptr) &&
+                               world->state == WorldInfo::CHANGED);
+  m_take_button->setEnabled((world != nullptr) && !deleted && has_name);
   m_take_all_button->setEnabled(any_world && has_name);
   m_copy_button->setEnabled(world != nullptr);
-  m_export_action->setEnabled(world && !m_snapshots.empty());
-  m_start_fresh_action->setEnabled(world && !deleted && !m_snapshots.empty() &&
-                                   has_name);
+  m_export_action->setEnabled((world != nullptr) && !m_snapshots.empty());
+  m_start_fresh_action->setEnabled((world != nullptr) && !deleted &&
+                                   !m_snapshots.empty() && has_name);
   m_delete_action->setEnabled(deleted);
 }
 
@@ -422,11 +445,11 @@ void TabSnapshots::update_buttons() {
 // backup) while its snapshots stayed. Asks once per world: keep them or trash
 // them.
 void TabSnapshots::ask_about_deleted_worlds() {
-  for (size_t i = 0; i < m_worlds.size(); ++i) {
-    const WorldInfo& world = m_worlds[i];
-    if (world.state != WorldInfo::DELETED || world.kept ||
-        m_asked.count(world.name))
+  for (const auto& world : m_worlds) {
+    if (m_asked.contains(world.name) || world.state != WorldInfo::DELETED ||
+        world.kept) {
       continue;
+    }
 
     std::string name = world.name;
     m_asked.insert(name);
@@ -435,11 +458,10 @@ void TabSnapshots::ask_about_deleted_worlds() {
     buttons << "Cancel" << qstr(dialogs::removal_button(use_trash));
     dialogs::ask(
         m_parent, qstr(name + " no longer exists"),
-        qstr("Delete its snapshots too? They " +
-             dialogs::removal_text(use_trash) +
-             ".\n\nCancel keeps them: the world stays in the list as deleted, "
-             "and restoring one of its "
-             "snapshots brings it back."),
+        qstr(std::format("Delete its snapshots too? They {}.\n\nCancel keeps "
+                         "them: the world stays in the list as deleted, and "
+                         "restoring one of its snapshots brings it back.",
+                         dialogs::removal_text(use_trash))),
         buttons, [this, name](int choice) {
           if (choice == 1) {
             run_task(
@@ -462,13 +484,17 @@ void TabSnapshots::run_task(const std::function<void()>& work) {
     m_content->setEnabled(true);
     reload();
   });
-  if (!started) m_content->setEnabled(true);
+  if (!started) {
+    m_content->setEnabled(true);
+  }
 }
 
 // Says so in a dialog, instead of failing with a git error.
 bool TabSnapshots::check_writable() {
   std::string reason;
-  if (m_ctx.snapshots.can_write(reason)) return true;
+  if (m_ctx.snapshots.can_write(reason)) {
+    return true;
+  }
   dialogs::tell(m_parent, "Can't change the saves", qstr(reason));
   return false;
 }
@@ -476,9 +502,10 @@ bool TabSnapshots::check_writable() {
 void TabSnapshots::on_take_clicked() {
   const WorldInfo* world = selected_world();
   std::string name = str(m_name_entry->text());
-  if (!world || world->state == WorldInfo::DELETED || name.empty() ||
-      !check_writable())
+  if ((world == nullptr) || world->state == WorldInfo::DELETED ||
+      name.empty() || !check_writable()) {
     return;
+  }
   std::string world_name = world->name;
   std::string description = str(m_description_entry->text());
   run_task([this, world_name, name, description]() {
@@ -488,7 +515,9 @@ void TabSnapshots::on_take_clicked() {
 
 void TabSnapshots::on_take_all_clicked() {
   std::string name = str(m_name_entry->text());
-  if (name.empty() || !check_writable()) return;
+  if (name.empty() || !check_writable()) {
+    return;
+  }
   std::string description = str(m_description_entry->text());
   run_task([this, name, description]() {
     m_ctx.snapshots.take_snapshot_all(name, description);
@@ -498,7 +527,9 @@ void TabSnapshots::on_take_all_clicked() {
 void TabSnapshots::on_restore_clicked() {
   const WorldInfo* world = selected_world();
   const Snapshot* snap = selected_snapshot();
-  if (!world || !snap || !check_writable()) return;
+  if ((world == nullptr) || (snap == nullptr) || !check_writable()) {
+    return;
+  }
   std::string world_name = world->name;
   std::string hash = snap->hash;
 
@@ -521,7 +552,10 @@ void TabSnapshots::on_restore_clicked() {
 
 void TabSnapshots::on_discard_clicked() {
   const WorldInfo* world = selected_world();
-  if (!world || world->state != WorldInfo::CHANGED || !check_writable()) return;
+  if ((world == nullptr) || world->state != WorldInfo::CHANGED ||
+      !check_writable()) {
+    return;
+  }
   std::string world_name = world->name;
   std::string last =
       m_snapshots.empty() ? "" : " \"" + m_snapshots[0].name + "\"";
@@ -539,7 +573,9 @@ void TabSnapshots::on_discard_clicked() {
 
 void TabSnapshots::on_copy_clicked() {
   const WorldInfo* world = selected_world();
-  if (!world) return;
+  if (world == nullptr) {
+    return;
+  }
   QGuiApplication::clipboard()->setText(
       qstr(m_ctx.snapshots.git_command(world->name)));
   m_ctx.status.post("Copied the git command for " + world->name + ".");
@@ -547,13 +583,17 @@ void TabSnapshots::on_copy_clicked() {
 
 void TabSnapshots::on_export_clicked() {
   const WorldInfo* world = selected_world();
-  if (!world || m_snapshots.empty()) return;
+  if ((world == nullptr) || m_snapshots.empty()) {
+    return;
+  }
   std::string world_name = world->name;
   // The file dialog asks before replacing an existing file.
   QString file = QFileDialog::getSaveFileName(
       &m_parent, qstr("Export the snapshots of " + world_name),
       qstr(world_name + ".bundle"), BUNDLE_FILTER);
-  if (file.isEmpty()) return;
+  if (file.isEmpty()) {
+    return;
+  }
   std::filesystem::path path = to_path(str(file));
   run_task([this, world_name, path]() {
     m_ctx.snapshots.export_snapshots(world_name, path);
@@ -563,7 +603,9 @@ void TabSnapshots::on_export_clicked() {
 void TabSnapshots::on_import_clicked() {
   QString file = QFileDialog::getOpenFileName(&m_parent, "Import snapshots",
                                               QString(), BUNDLE_FILTER);
-  if (file.isEmpty()) return;
+  if (file.isEmpty()) {
+    return;
+  }
   std::filesystem::path path = to_path(str(file));
   std::string world = SnapshotManager::bundle_world_name(path);
   std::string problem = m_ctx.snapshots.check_import_name(world);
@@ -584,7 +626,9 @@ void TabSnapshots::on_import_clicked() {
 
 void TabSnapshots::import_bundle(const std::filesystem::path& path,
                                  const std::string& world) {
-  if (!check_writable()) return;
+  if (!check_writable()) {
+    return;
+  }
   m_selected_name = world;  // Shown once the reload is done.
   run_task(
       [this, path, world]() { m_ctx.snapshots.import_snapshots(path, world); });
@@ -593,9 +637,10 @@ void TabSnapshots::import_bundle(const std::filesystem::path& path,
 void TabSnapshots::on_start_fresh_clicked() {
   const WorldInfo* world = selected_world();
   std::string name = str(m_name_entry->text());
-  if (!world || world->state == WorldInfo::DELETED || m_snapshots.empty() ||
-      name.empty() || !check_writable())
+  if ((world == nullptr) || world->state == WorldInfo::DELETED ||
+      m_snapshots.empty() || name.empty() || !check_writable()) {
     return;
+  }
   std::string world_name = world->name;
   std::string description = str(m_description_entry->text());
   std::string count = std::to_string(m_snapshots.size()) +
@@ -603,12 +648,11 @@ void TabSnapshots::on_start_fresh_clicked() {
   bool use_trash = m_ctx.settings.get_bool("use_trash");
   dialogs::confirm(
       m_parent, qstr("Start fresh with " + world_name + "?"),
-      qstr("Its " + count + " (" +
-           str(format_size(m_ctx.snapshots.history_size(world_name))) + ") " +
-           dialogs::removal_text(use_trash) +
-           ". A new history starts with one snapshot of the world "
-           "as it is now, \"" +
-           name + "\". The world itself is not changed."),
+      qstr(std::format(
+          "Its {} ({}) {}. A new history starts with one snapshot of the world "
+          "as it is now, \"{}\". The world itself is not changed.",
+          count, str(format_size(m_ctx.snapshots.history_size(world_name))),
+          dialogs::removal_text(use_trash), name)),
       "Start Fresh", [this, world_name, name, description]() {
         run_task([this, world_name, name, description]() {
           m_ctx.snapshots.start_fresh(world_name, name, description);
@@ -618,16 +662,19 @@ void TabSnapshots::on_start_fresh_clicked() {
 
 void TabSnapshots::on_delete_clicked() {
   const WorldInfo* world = selected_world();
-  if (!world || world->state != WorldInfo::DELETED) return;
+  if ((world == nullptr) || world->state != WorldInfo::DELETED) {
+    return;
+  }
   std::string world_name = world->name;
   std::string count = std::to_string(m_snapshots.size()) +
                       (m_snapshots.size() == 1 ? " snapshot" : " snapshots");
   bool use_trash = m_ctx.settings.get_bool("use_trash");
   dialogs::confirm(
       m_parent, qstr("Delete the snapshots of " + world_name + "?"),
-      qstr(world_name + " no longer exists. Its " + count + " (" +
-           str(format_size(m_ctx.snapshots.history_size(world_name))) + ") " +
-           dialogs::removal_text(use_trash) + "."),
+      qstr(std::format(
+          "{} no longer exists. Its {} ({}) {}.", world_name, count,
+          str(format_size(m_ctx.snapshots.history_size(world_name))),
+          dialogs::removal_text(use_trash))),
       qstr(dialogs::removal_button(use_trash)), [this, world_name]() {
         run_task([this, world_name]() {
           m_ctx.snapshots.delete_snapshots(world_name);

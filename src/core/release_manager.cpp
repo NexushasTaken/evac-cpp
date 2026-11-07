@@ -12,37 +12,48 @@ std::string ReleaseManager::make_key(const std::string& game,
 ReleaseManager::ReleaseManager(Settings& settings, Status& status)
     : m_settings(settings), m_status(status), m_http(status) {}
 
-std::string ReleaseManager::releases_url(const std::string& game) {
-  if (game == "dda")
+std::string_view ReleaseManager::releases_url(const std::string& game) {
+  if (game == "dda") {
     return "https://api.github.com/repos/CleverRaven/Cataclysm-DDA/releases";
-  if (game == "bn")
+  }
+  if (game == "bn") {
     return "https://api.github.com/repos/cataclysmbn/Cataclysm-BN/releases";
-  if (game == "eod")
+  }
+  if (game == "eod") {
     return "https://api.github.com/repos/AtomicFox556/Cataclysm-EOD/releases";
-  if (game == "tish")
+  }
+  if (game == "tish") {
     return "https://api.github.com/repos/Cataclysm-TISH-team/Cataclysm-TISH/"
            "releases";
-  if (game == "tlg")
+  }
+  if (game == "tlg") {
     return "https://api.github.com/repos/Cataclysm-TLG/Cataclysm-TLG/releases";
+  }
   return "";
 }
 
-std::string ReleaseManager::asset_substring(const std::string& game,
-                                            const std::string& platform) {
-  if (platform != "linux" && platform != "win")
+std::string_view ReleaseManager::asset_substring(const std::string& game,
+                                                 const std::string& platform) {
+  if (platform != "linux" && platform != "win") {
     return "";  // No builds the launcher can install (macOS ones are .dmg).
+  }
   bool lin = (platform == "linux");
-  if (game == "dda")
+  if (game == "dda") {
     return lin ? "cdda-linux-with-graphics-and-sounds-x64"
                : "cdda-windows-with-graphics-and-sounds-x64";
-  if (game == "bn")
+  }
+  if (game == "bn") {
     return lin ? "cbn-linux-tiles-x64" : "cbn-windows-tiles-x64";
-  if (game == "eod")
+  }
+  if (game == "eod") {
     return lin ? "eod-linux-tiles-x64" : "eod-windows-tiles-x64";
-  if (game == "tish")
+  }
+  if (game == "tish") {
     return lin ? "tish-linux-tiles-x64" : "tish-windows-tiles-x64";
-  if (game == "tlg")
+  }
+  if (game == "tlg") {
     return lin ? "ctlg-linux-tiles-x64" : "ctlg-windows-tiles-x64";
+  }
   return "";
 }
 
@@ -71,11 +82,11 @@ bool ReleaseManager::parse_builds(const std::string& body,
   }
 
   result.clear();
-  for (size_t i = 0; i < json.size(); ++i) {
-    const nlohmann::json& rec = json[i];
+  for (const auto& rec : json) {
     if (!rec.is_object() || !rec.contains("name") || !rec["name"].is_string() ||
-        !rec.contains("assets") || !rec["assets"].is_array())
+        !rec.contains("assets") || !rec["assets"].is_array()) {
       continue;
+    }
 
     Release r;
     r.name = rec["name"].get<std::string>();
@@ -86,19 +97,22 @@ bool ReleaseManager::parse_builds(const std::string& body,
 
     // If several assets match, the last one wins (like in the original).
     const nlohmann::json& assets = rec["assets"];
-    for (size_t a = 0; a < assets.size(); ++a) {
-      if (!assets[a].contains("name") || !assets[a]["name"].is_string() ||
-          !assets[a].contains("browser_download_url") ||
-          !assets[a]["browser_download_url"].is_string())
+    for (const auto& asset : assets) {
+      if (!asset.contains("name") || !asset["name"].is_string() ||
+          !asset.contains("browser_download_url") ||
+          !asset["browser_download_url"].is_string()) {
         continue;
-      std::string asset_name = assets[a]["name"].get<std::string>();
+      }
+      std::string asset_name = asset["name"].get<std::string>();
       if (asset_name.find(asset_substring) != std::string::npos) {
-        r.url = assets[a]["browser_download_url"].get<std::string>();
+        r.url = asset["browser_download_url"].get<std::string>();
         r.filename = asset_name;
       }
     }
 
-    if (!r.url.empty()) result.push_back(r);
+    if (!r.url.empty()) {
+      result.push_back(r);
+    }
   }
   return true;
 }
@@ -115,7 +129,7 @@ bool ReleaseManager::fetch(const std::string& release_key) {
 
   if (channel == "stable") {
     std::vector<Release> list = stable_releases(game, platform);
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_releases[release_key] = list;
     return true;
   }
@@ -124,8 +138,8 @@ bool ReleaseManager::fetch(const std::string& release_key) {
     return false;
   }
 
-  std::string url = releases_url(game);
-  std::string substring = asset_substring(game, platform);
+  std::string url{releases_url(game)};
+  std::string substring{asset_substring(game, platform)};
   if (url.empty()) {
     m_status.post("Invalid release key: " + release_key, MSG_ERROR);
     return false;
@@ -144,7 +158,7 @@ bool ReleaseManager::fetch(const std::string& release_key) {
 
   HttpResponse response;
   std::vector<std::string> headers;
-  headers.push_back("Accept: application/vnd.github+json");
+  headers.emplace_back("Accept: application/vnd.github+json");
   if (!m_http.get(url, headers, response)) {
     m_status.post("Could not retrieve the list of releases.", MSG_WARN);
     return false;
@@ -167,16 +181,17 @@ bool ReleaseManager::fetch(const std::string& release_key) {
   }
 
   m_status.post("Got " + std::to_string(list.size()) + " releases.");
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::scoped_lock lock(m_mutex);
   m_releases[release_key] = list;
   return true;
 }
 
 std::vector<Release> ReleaseManager::get(const std::string& release_key) {
-  std::lock_guard<std::mutex> lock(m_mutex);
-  std::map<std::string, std::vector<Release> >::const_iterator it =
-      m_releases.find(release_key);
-  if (it == m_releases.end()) return std::vector<Release>();
+  std::scoped_lock lock(m_mutex);
+  auto it = m_releases.find(release_key);
+  if (it == m_releases.end()) {
+    return {};
+  }
   return it->second;
 }
 

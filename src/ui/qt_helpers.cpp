@@ -25,12 +25,12 @@ QString escape(const std::string& utf8) {
 
 QString format_size(std::uint64_t bytes, bool iec) {
   return QLocale().formattedDataSize(
-      (qint64)bytes, 1,
+      static_cast<qint64>(bytes), 1,
       iec ? QLocale::DataSizeIecFormat : QLocale::DataSizeSIFormat);
 }
 
 QLabel* make_label(const QString& text) {
-  QLabel* label = new QLabel(text);
+  auto* label = new QLabel(text);
   label->setTextFormat(Qt::PlainText);
   label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
   return label;
@@ -45,11 +45,17 @@ QLabel* make_heading(const QString& text) {
 }
 
 int selected_row(QAbstractItemView* view) {
-  if (!view->selectionModel()) return -1;
+  if (view->selectionModel() == nullptr) {
+    return -1;
+  }
   QModelIndexList rows = view->selectionModel()->selectedRows();
-  if (rows.isEmpty()) return -1;
-  int first = rows[0].row();
-  for (int i = 1; i < rows.size(); ++i) first = std::min(first, rows[i].row());
+  if (rows.isEmpty()) {
+    return -1;
+  }
+  int first = rows.at(0).row();
+  for (int i = 1; i < rows.size(); ++i) {
+    first = std::min(first, rows.at(i).row());
+  }
   return first;
 }
 
@@ -60,8 +66,9 @@ QBrush dim_brush(QWidget* widget) {
 void set_icon(QAbstractButton* button, const char* theme_name,
               const QString& fallback_text) {
   QIcon icon = QIcon::fromTheme(theme_name);
-  if (icon.isNull())
+  if (icon.isNull()) {
     button->setText(fallback_text);
-  else
+  } else {
     button->setIcon(icon);
+  }
 }

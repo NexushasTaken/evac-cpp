@@ -78,8 +78,10 @@ const std::vector<GameInfo>& all_games() {
 
 const GameInfo& find_game(const std::string& key) {
   const std::vector<GameInfo>& games = all_games();
-  for (size_t i = 0; i < games.size(); ++i) {
-    if (games[i].key == key) return games[i];
+  for (const auto& game : games) {
+    if (game.key == key) {
+      return game;
+    }
   }
   return games[0];
 }

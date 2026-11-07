@@ -13,6 +13,7 @@ Checks: "*,\
   -modernize-use-nodiscard,\
   -misc-non-private-member-variables-in-classes,\
   -modernize-use-trailing-return-type,\
-  -llvm-prefer-static-over-anonymous-namespace"
+  -misc-use-anonymous-namespace,\
+  -readability-identifier-length"
 WarningsAsErrors: ''
 ...

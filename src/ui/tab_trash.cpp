@@ -22,12 +22,24 @@ static const size_t MAX_LISTED_NAMES = 10;  // In confirmations that list items.
 enum { COL_KIND, COL_NAME, COL_GAME, COL_WHEN, COL_SIZE, NUM_COLUMNS };
 
 static std::string kind_text(const std::string& kind) {
-  if (kind == "soundpack") return "Soundpack";
-  if (kind == "mod") return "Mod";
-  if (kind == "backup") return "Backup";
-  if (kind == "install") return "Game install";
-  if (kind == "saves") return "Saves";
-  if (kind == "snapshots") return "Snapshots";
+  if (kind == "soundpack") {
+    return "Soundpack";
+  }
+  if (kind == "mod") {
+    return "Mod";
+  }
+  if (kind == "backup") {
+    return "Backup";
+  }
+  if (kind == "install") {
+    return "Game install";
+  }
+  if (kind == "saves") {
+    return "Saves";
+  }
+  if (kind == "snapshots") {
+    return "Snapshots";
+  }
   return kind;
 }
 
@@ -38,18 +50,22 @@ static std::string size_text(std::uint64_t bytes) {
 // "Name (12 MB)" lines, at most MAX_LISTED_NAMES of them.
 static std::string list_names(const std::vector<TrashItem>& items) {
   std::string text;
-  for (size_t i = 0; i < items.size() && i < MAX_LISTED_NAMES; ++i)
+  for (size_t i = 0; i < items.size() && i < MAX_LISTED_NAMES; ++i) {
     text += "\n" + kind_text(items[i].kind) + ": " + items[i].name + " (" +
             size_text(items[i].size) + ")";
-  if (items.size() > MAX_LISTED_NAMES)
+  }
+  if (items.size() > MAX_LISTED_NAMES) {
     text += "\n... and " + std::to_string(items.size() - MAX_LISTED_NAMES) +
             " more";
+  }
   return text;
 }
 
 static std::uint64_t total_of(const std::vector<TrashItem>& items) {
   std::uint64_t total = 0;
-  for (size_t i = 0; i < items.size(); ++i) total += items[i].size;
+  for (const auto& item : items) {
+    total += item.size;
+  }
   return total;
 }
 
@@ -59,12 +75,12 @@ TabTrash::TabTrash(AppContext& ctx, TaskRunner& runner, QWidget& parent)
 }
 
 void TabTrash::build_ui() {
-  QVBoxLayout* outer = new QVBoxLayout(this);
+  auto* outer = new QVBoxLayout(this);
   outer->setContentsMargins(12, 12, 12, 12);
   m_content = new QWidget();
   outer->addWidget(m_content, 1);
 
-  QVBoxLayout* content = new QVBoxLayout(m_content);
+  auto* content = new QVBoxLayout(m_content);
   content->setContentsMargins(0, 0, 0, 0);
   content->setSpacing(8);
   m_summary_label = new QLabel();
@@ -84,7 +100,7 @@ void TabTrash::build_ui() {
 
   // Not equal widths: five buttons the width of "Delete Permanently" make the
   // window too wide.
-  QHBoxLayout* buttons = new QHBoxLayout();
+  auto* buttons = new QHBoxLayout();
   buttons->setSpacing(6);
   m_restore_button = new QPushButton("Restore");
   m_restore_button->setToolTip(
@@ -134,9 +150,8 @@ void TabTrash::refresh() {
 
   m_updating = true;
   m_list->clear();
-  for (size_t i = 0; i < m_items.size(); ++i) {
-    const TrashItem& item = m_items[i];
-    QTreeWidgetItem* row = new QTreeWidgetItem(m_list);
+  for (const auto& item : m_items) {
+    auto* row = new QTreeWidgetItem(m_list);
     row->setText(COL_KIND, qstr(kind_text(item.kind)));
     row->setText(COL_NAME, qstr(item.name));
     row->setText(COL_GAME, qstr(item.game));
@@ -144,8 +159,9 @@ void TabTrash::refresh() {
                  qstr(item.deleted_at.substr(0, 16)));  // To the minute.
     row->setText(COL_SIZE, qstr(size_text(item.size)));
     row->setTextAlignment(COL_SIZE, Qt::AlignRight | Qt::AlignVCenter);
-    for (int col = 0; col < NUM_COLUMNS; ++col)
+    for (int col = 0; col < NUM_COLUMNS; ++col) {
       row->setToolTip(col, qstr(item.original_path));
+    }
   }
   m_updating = false;
 
@@ -156,32 +172,37 @@ void TabTrash::refresh() {
 
 void TabTrash::update_summary() {
   std::uint64_t total = total_of(m_items);
-  std::uint64_t limit =
-      (std::uint64_t)std::max(0, m_ctx.settings.get_int("trash_max_size_mb")) *
-      1024 * 1024;
+  std::uint64_t limit = static_cast<std::uint64_t>(std::max(
+                            0, m_ctx.settings.get_int("trash_max_size_mb"))) *
+                        1024 * 1024;
 
   std::string plain;
-  if (m_items.empty())
+  if (m_items.empty()) {
     plain = "The trash is empty.";
-  else
+  } else {
     plain = std::to_string(m_items.size()) +
             (m_items.size() == 1 ? " item, " : " items, ") + size_text(total) +
             " of " + size_text(limit) + ".";
+  }
   QString text = escape(plain);
-  if (total > limit)
+  if (total > limit) {
     text +=
         " <b>Over the size limit:</b> use Free Up Space, or change the limit "
         "in Settings.";
-  if (!m_ctx.settings.get_bool("use_trash"))
+  }
+  if (!m_ctx.settings.get_bool("use_trash")) {
     text +=
         "<br><b>Moving deleted things to the trash is turned off</b> in "
         "Settings, so deleting is permanent.";
+  }
   m_summary_label->setText(text);
 }
 
 int TabTrash::selected_item() {
   int row = selected_row(m_list);
-  if (row < 0 || (size_t)row >= m_items.size()) return -1;
+  if (row < 0 || static_cast<size_t>(row) >= m_items.size()) {
+    return -1;
+  }
   return row;
 }
 
@@ -194,7 +215,9 @@ void TabTrash::update_buttons() {
 }
 
 void TabTrash::on_selection_changed() {
-  if (m_updating) return;
+  if (m_updating) {
+    return;
+  }
   update_buttons();
 
   int index = selected_item();
@@ -211,15 +234,16 @@ void TabTrash::on_selection_changed() {
       restore = "Goes back to " + to_utf8(plan.dest);
       break;
     case RestorePlan::RENAMED:
-      if (item.kind == "saves")
+      if (item.kind == "saves") {
         restore = "The worlds go back into " + to_utf8(plan.dest) +
                   ". Worlds whose names are taken get \" (restored)\" added.";
-      else
+      } else {
         restore =
             "Goes back as " + to_utf8(plan.dest) +
             ", as the old place is taken." +
             (Trash::can_choose_name(item.kind) ? " Restoring asks for the name."
                                                : "");
+      }
       break;
     case RestorePlan::CONFLICT:
       restore = plan.reason + " Restoring asks whether to replace it.";
@@ -241,12 +265,16 @@ void TabTrash::run_task(const std::function<void()>& work) {
     m_content->setEnabled(true);
     refresh();
   });
-  if (!started) m_content->setEnabled(true);
+  if (!started) {
+    m_content->setEnabled(true);
+  }
 }
 
 void TabTrash::on_restore_clicked() {
   int index = selected_item();
-  if (index < 0) return;
+  if (index < 0) {
+    return;
+  }
   TrashItem item = m_items[index];
   std::string id = item.id;
   RestorePlan plan = m_ctx.trash.plan_restore(id);
@@ -291,10 +319,9 @@ void TabTrash::on_restore_clicked() {
     }
     case RestorePlan::CONFLICT: {
       bool use_trash = m_ctx.settings.get_bool("use_trash");
-      std::string detail = plan.reason +
-                           "\n\nReplacing it: " + plan.conflict_name + " " +
-                           dialogs::removal_text(use_trash) + ", then " +
-                           item.name + " is restored.";
+      std::string detail = std::format(
+          "{}\n\nReplacing it: {} {}, then {} is restored.", plan.reason,
+          plan.conflict_name, dialogs::removal_text(use_trash), item.name);
       dialogs::confirm(
           m_parent, qstr("Replace " + plan.conflict_name + "?"), qstr(detail),
           "Replace", [this, id]() {
@@ -311,7 +338,9 @@ void TabTrash::on_restore_clicked() {
 
 void TabTrash::on_delete_clicked() {
   int index = selected_item();
-  if (index < 0) return;
+  if (index < 0) {
+    return;
+  }
   TrashItem item = m_items[index];
   std::vector<std::string> ids(1, item.id);
   dialogs::confirm(m_parent, qstr("Delete " + item.name + " for good?"),
@@ -323,13 +352,16 @@ void TabTrash::on_delete_clicked() {
 }
 
 void TabTrash::on_empty_clicked() {
-  if (m_items.empty()) return;
+  if (m_items.empty()) {
+    return;
+  }
   dialogs::confirm(m_parent, "Empty the trash?",
                    qstr("All " + std::to_string(m_items.size()) + " items (" +
                         size_text(total_of(m_items)) +
                         ") will be deleted for good. This can't be undone."),
-                   "Empty Trash",
-                   [this]() { run_task([this]() { m_ctx.trash.empty(); }); });
+                   "Empty Trash", [this]() {
+                     run_task([this]() { (void)m_ctx.trash.empty(); });
+                   });
 }
 
 void TabTrash::on_free_up_clicked() { ask_free_up(); }
@@ -341,7 +373,10 @@ void TabTrash::ask_free_up() {
     return;
   }
   std::vector<std::string> ids;
-  for (size_t i = 0; i < extra.size(); ++i) ids.push_back(extra[i].id);
+  ids.reserve(extra.size());
+  for (auto& i : extra) {
+    ids.push_back(i.id);
+  }
   dialogs::confirm(
       m_parent, "Delete the oldest items for good?",
       qstr("To get the trash under its size limit, these " +

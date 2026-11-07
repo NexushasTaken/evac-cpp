@@ -28,16 +28,19 @@ void LogView::on_message(const StatusMessage& message) {
 
 void LogView::add(const StatusMessage& message) {
   QTextCharFormat format;
-  if (message.type == MSG_WARN)
+  if (message.type == MSG_WARN) {
     format.setForeground(QColor("#c8a000"));
-  else if (message.type == MSG_ERROR)
+  } else if (message.type == MSG_ERROR) {
     format.setForeground(QColor("#d02020"));
-  else if (message.type == MSG_DEBUG)
+  } else if (message.type == MSG_DEBUG) {
     format.setForeground(QColor("#808080"));
+  }
 
   QTextCursor cursor(document());
   cursor.movePosition(QTextCursor::End);
-  if (!document()->isEmpty()) cursor.insertBlock();
+  if (!document()->isEmpty()) {
+    cursor.insertBlock();
+  }
   cursor.insertText(qstr(message.text), format);
   verticalScrollBar()->setValue(verticalScrollBar()->maximum());
 }

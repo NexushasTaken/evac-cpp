@@ -25,14 +25,20 @@ static bool name_less(const std::string& a, const std::string& b) {
 
 // Authors and maintainers are a list, but sometimes just a string.
 static std::string to_text_list(const nlohmann::json& value) {
-  if (value.is_string()) return value.get<std::string>();
+  if (value.is_string()) {
+    return value.get<std::string>();
+  }
 
   std::string result;
   if (value.is_array()) {
-    for (size_t i = 0; i < value.size(); ++i) {
-      if (!value[i].is_string()) continue;
-      if (!result.empty()) result += ", ";
-      result += value[i].get<std::string>();
+    for (const auto& i : value) {
+      if (!i.is_string()) {
+        continue;
+      }
+      if (!result.empty()) {
+        result += ", ";
+      }
+      result += i.get<std::string>();
     }
   }
   return result;
@@ -40,7 +46,7 @@ static std::string to_text_list(const nlohmann::json& value) {
 
 // A list with the name, and the reason it is grayed (if it is) on the right.
 static QTreeWidget* make_mod_list() {
-  QTreeWidget* list = new QTreeWidget();
+  auto* list = new QTreeWidget();
   list->setColumnCount(2);
   list->setHeaderHidden(true);
   list->setRootIsDecorated(false);
@@ -57,7 +63,7 @@ TabMods::TabMods(AppContext& ctx, TaskRunner& runner, QWidget& parent)
 }
 
 void TabMods::build_ui() {
-  QVBoxLayout* outer = new QVBoxLayout(this);
+  auto* outer = new QVBoxLayout(this);
   outer->setContentsMargins(12, 12, 12, 12);
   m_hint_label = make_label("");
   m_hint_label->setWordWrap(true);
@@ -67,20 +73,20 @@ void TabMods::build_ui() {
   m_content = new QWidget();
   outer->addWidget(m_content, 1);
 
-  QVBoxLayout* content = new QVBoxLayout(m_content);
+  auto* content = new QVBoxLayout(m_content);
   content->setContentsMargins(0, 0, 0, 0);
   content->setSpacing(8);
-  QHBoxLayout* columns = new QHBoxLayout();
+  auto* columns = new QHBoxLayout();
   columns->setSpacing(12);
   content->addLayout(columns, 1);
 
   // Both columns have the same structure: header, list, footer.
 
   // Installed mods.
-  QVBoxLayout* left = new QVBoxLayout();
+  auto* left = new QVBoxLayout();
   left->setSpacing(6);
   m_installed_caption = make_heading("");
-  QHBoxLayout* left_header = new QHBoxLayout();
+  auto* left_header = new QHBoxLayout();
   left_header->addWidget(m_installed_caption, 1);
   left->addLayout(left_header);
 
@@ -92,20 +98,20 @@ void TabMods::build_ui() {
   m_delete_button = new QPushButton("Delete Selected");
   m_delete_button->setToolTip(
       "Remove selected mods from your game installation.");
-  QHBoxLayout* left_footer = new QHBoxLayout();
+  auto* left_footer = new QHBoxLayout();
   left_footer->addWidget(m_show_stock_check, 1);
   left_footer->addWidget(m_delete_button);
   left->addLayout(left_footer);
   columns->addLayout(left, 1);
 
   // The local repository.
-  QVBoxLayout* right = new QVBoxLayout();
+  auto* right = new QVBoxLayout();
   right->setSpacing(6);
   m_available_caption = make_heading("");
   m_kenan_button = new QPushButton("Get Kenan Modpack");
   m_kenan_button->setToolTip(
       "Download Kenan Modpack and add its mods\nto the local repository.");
-  QHBoxLayout* right_header = new QHBoxLayout();
+  auto* right_header = new QHBoxLayout();
   right_header->addWidget(m_available_caption, 1);
   right_header->addWidget(m_kenan_button);
   right->addLayout(right_header);
@@ -123,7 +129,7 @@ void TabMods::build_ui() {
   m_add_selected_button = new QPushButton("Add Selected");
   m_add_selected_button->setToolTip(
       "Add selected mods to your game installation.");
-  QHBoxLayout* right_footer = new QHBoxLayout();
+  auto* right_footer = new QHBoxLayout();
   right_footer->addWidget(m_show_installed_check, 1);
   right_footer->addWidget(m_add_all_button);
   right_footer->addWidget(m_add_selected_button);
@@ -163,7 +169,7 @@ void TabMods::show_unavailable(const QString& message) {
 void TabMods::refresh() {
   std::string game = m_ctx.settings.get_string("game");
   Paths::InstallsSummary installs = m_ctx.paths.installs_summary();
-  if (installs.find(game) == installs.end()) {
+  if (!installs.contains(game)) {
     show_unavailable("Install the game first (on the Game tab).");
     return;
   }
@@ -178,8 +184,9 @@ void TabMods::refresh() {
 
   bool have_pack = (ModManager::modpack_for_game(game) != nullptr);
   m_kenan_button->setEnabled(have_pack);
-  if (!have_pack)
+  if (!have_pack) {
     m_kenan_button->setToolTip("There is no modpack for this game.");
+  }
 
   m_info_view->setPlainText(NO_INFO_TEXT);
   m_ctx.mods.refresh_installed();
@@ -191,8 +198,9 @@ void TabMods::refresh() {
 std::set<int> TabMods::selected_rows(QTreeWidget* list) {
   std::set<int> result;
   QList<QTreeWidgetItem*> items = list->selectedItems();
-  for (int i = 0; i < items.size(); ++i)
-    result.insert(list->indexOfTopLevelItem(items[i]));
+  for (auto& item : items) {
+    result.insert(list->indexOfTopLevelItem(item));
+  }
   return result;
 }
 
@@ -202,17 +210,19 @@ void TabMods::fill_list(QTreeWidget* list, const std::vector<ModRow>& rows,
   m_updating = true;
   list->clear();
   QBrush dim = dim_brush(list);
-  for (size_t i = 0; i < rows.size(); ++i) {
-    QTreeWidgetItem* item = new QTreeWidgetItem(list);
-    item->setText(0, qstr(rows[i].name));
-    item->setText(1, qstr(rows[i].badge));
+  for (const auto& row : rows) {
+    auto* item = new QTreeWidgetItem(list);
+    item->setText(0, qstr(row.name));
+    item->setText(1, qstr(row.badge));
     item->setForeground(1, dim);
-    if (rows[i].grayed) item->setForeground(0, dim);
-    item->setToolTip(0, qstr("Location: " + rows[i].location));
+    if (row.grayed) {
+      item->setForeground(0, dim);
+    }
+    item->setToolTip(0, qstr("Location: " + row.location));
     item->setToolTip(1, item->toolTip(0));
   }
   if (rows.empty()) {
-    QTreeWidgetItem* item = new QTreeWidgetItem(list);
+    auto* item = new QTreeWidgetItem(list);
     item->setText(0, placeholder);
     item->setForeground(0, dim);
     item->setFlags(Qt::NoItemFlags);
@@ -228,43 +238,51 @@ void TabMods::reload_installed() {
 
   m_installed_rows.clear();
   const std::map<std::string, ModEntry>& installed = m_ctx.mods.installed();
-  for (std::map<std::string, ModEntry>::const_iterator it = installed.begin();
-       it != installed.end(); ++it) {
-    ModStatus status = m_ctx.mods.mod_status(it->first);
+  for (const auto& it : installed) {
+    ModStatus status = m_ctx.mods.mod_status(it.first);
     bool show = false;
     if (status == MOD_NOT_INSTALLED || status == MOD_INSTALLED) {
       show = true;
     } else if (status == MOD_STOCK_OBSOLETE ||
                status == MOD_INSTALLED_MODIFIED_ID) {
       if (show_obsolete) {
-        if (show_stock)
+        if (show_stock) {
           show = true;
-        else
+        } else {
           ++hidden;
+        }
       }
     } else if (status == MOD_STOCK) {
       show = show_stock;
-      if (!show) ++hidden;
+      if (!show) {
+        ++hidden;
+      }
     }
 
-    if (!show) continue;
+    if (!show) {
+      continue;
+    }
     ModRow row;
-    row.id = it->first;
-    row.name = it->second.name;
-    if (show_obsolete && status == MOD_STOCK_OBSOLETE)
+    row.id = it.first;
+    row.name = it.second.name;
+    if (show_obsolete && status == MOD_STOCK_OBSOLETE) {
       row.name += " [obsolete]";
-    row.location = to_utf8(it->second.location);
-    row.grayed = it->second.is_stock;
-    if (row.grayed) row.badge = "stock";
+    }
+    row.location = to_utf8(it.second.location);
+    row.grayed = it.second.is_stock;
+    if (row.grayed) {
+      row.badge = "stock";
+    }
     m_installed_rows.push_back(row);
   }
-  std::sort(m_installed_rows.begin(), m_installed_rows.end(),
-            [](const ModRow& a, const ModRow& b) {
-              return name_less(a.name, b.name);
-            });
+  std::ranges::sort(m_installed_rows, [](const ModRow& a, const ModRow& b) {
+    return name_less(a.name, b.name);
+  });
 
   std::string caption = "Installed";
-  if (hidden > 0) caption += " (" + std::to_string(hidden) + " hidden)";
+  if (hidden > 0) {
+    caption += " (" + std::to_string(hidden) + " hidden)";
+  }
   m_installed_caption->setText(qstr(caption + ":"));
 
   fill_list(m_installed_list, m_installed_rows, "No mods installed.");
@@ -279,9 +297,8 @@ void TabMods::reload_available() {
 
   m_available_rows.clear();
   const std::map<std::string, ModEntry>& available = m_ctx.mods.available();
-  for (std::map<std::string, ModEntry>::const_iterator it = available.begin();
-       it != available.end(); ++it) {
-    ModStatus status = m_ctx.mods.mod_status(it->first);
+  for (const auto& it : available) {
+    ModStatus status = m_ctx.mods.mod_status(it.first);
     bool installable =
         (status == MOD_NOT_INSTALLED || status == MOD_STOCK_OBSOLETE);
     if (!installable && !include_installed) {
@@ -290,20 +307,23 @@ void TabMods::reload_available() {
     }
 
     ModRow row;
-    row.id = it->first;
-    row.name = it->second.name;
-    row.location = to_utf8(it->second.location);
+    row.id = it.first;
+    row.name = it.second.name;
+    row.location = to_utf8(it.second.location);
     row.grayed = !installable;
-    if (row.grayed) row.badge = "installed";
+    if (row.grayed) {
+      row.badge = "installed";
+    }
     m_available_rows.push_back(row);
   }
-  std::sort(m_available_rows.begin(), m_available_rows.end(),
-            [](const ModRow& a, const ModRow& b) {
-              return name_less(a.name, b.name);
-            });
+  std::ranges::sort(m_available_rows, [](const ModRow& a, const ModRow& b) {
+    return name_less(a.name, b.name);
+  });
 
   std::string caption = "Local repository";
-  if (hidden > 0) caption += " (" + std::to_string(hidden) + " hidden)";
+  if (hidden > 0) {
+    caption += " (" + std::to_string(hidden) + " hidden)";
+  }
   m_available_caption->setText(qstr(caption + ":"));
 
   fill_list(m_available_list, m_available_rows,
@@ -316,23 +336,29 @@ void TabMods::reload_available() {
 void TabMods::show_mod_info(const std::string& id, bool from_available) {
   const std::map<std::string, ModEntry>& mods =
       from_available ? m_ctx.mods.available() : m_ctx.mods.installed();
-  std::map<std::string, ModEntry>::const_iterator it = mods.find(id);
-  if (it == mods.end()) return;
+  auto it = mods.find(id);
+  if (it == mods.end()) {
+    return;
+  }
   const nlohmann::json& info = it->second.modinfo;
 
   QString text = "<u>Name:</u> " + escape(it->second.name);
   text += " (<u>ID:</u> " + escape(id) + ")";
-  if (info.contains("authors"))
+  if (info.contains("authors")) {
     text += "<br><u>Authors:</u> " + escape(to_text_list(info["authors"]));
-  if (info.contains("maintainers"))
+  }
+  if (info.contains("maintainers")) {
     text +=
         "<br><u>Maintainers:</u> " + escape(to_text_list(info["maintainers"]));
-  if (info.contains("category") && info["category"].is_string())
+  }
+  if (info.contains("category") && info["category"].is_string()) {
     text +=
         "<br><u>Category:</u> " + escape(info["category"].get<std::string>());
-  if (info.contains("description") && info["description"].is_string())
+  }
+  if (info.contains("description") && info["description"].is_string()) {
     text += "<br><u>Description:</u> " +
             escape(info["description"].get<std::string>());
+  }
   m_info_view->setHtml(text);
 }
 
@@ -340,63 +366,81 @@ void TabMods::show_mod_info(const std::string& id, bool from_available) {
 // change was a deselection, the last one that is still selected.
 static int pick_active(const std::set<int>& before, const std::set<int>& now) {
   int active = -1;
-  for (std::set<int>::const_iterator it = now.begin(); it != now.end(); ++it) {
-    if (before.find(*it) == before.end()) active = *it;
+  for (int it : now) {
+    if (!before.contains(it)) {
+      active = it;
+    }
   }
-  if (active < 0 && !now.empty()) active = *now.rbegin();
+  if (active < 0 && !now.empty()) {
+    active = *now.rbegin();
+  }
   return active;
 }
 
 void TabMods::on_installed_selection_changed() {
-  if (m_updating) return;
+  if (m_updating) {
+    return;
+  }
   std::set<int> now = selected_rows(m_installed_list);
   int active = pick_active(m_previous_installed_selection, now);
   m_previous_installed_selection = now;
 
-  if (active >= 0 && (size_t)active < m_installed_rows.size())
+  if (active >= 0 && static_cast<size_t>(active) < m_installed_rows.size()) {
     show_mod_info(m_installed_rows[active].id, false);
+  }
 
   // Stock mods can't be deleted, so there must be something else selected.
   bool can_delete = false;
-  for (std::set<int>::const_iterator it = now.begin(); it != now.end(); ++it) {
-    if (*it >= 0 && (size_t)*it < m_installed_rows.size() &&
-        !m_installed_rows[*it].grayed)
+  for (int it : now) {
+    if (it >= 0 && static_cast<size_t>(it) < m_installed_rows.size() &&
+        !m_installed_rows[it].grayed) {
       can_delete = true;
+    }
   }
   m_delete_button->setEnabled(can_delete);
 }
 
 void TabMods::on_available_selection_changed() {
-  if (m_updating) return;
+  if (m_updating) {
+    return;
+  }
   std::set<int> now = selected_rows(m_available_list);
   int active = pick_active(m_previous_available_selection, now);
   m_previous_available_selection = now;
 
-  if (active >= 0 && (size_t)active < m_available_rows.size())
+  if (active >= 0 && static_cast<size_t>(active) < m_available_rows.size()) {
     show_mod_info(m_available_rows[active].id, true);
+  }
 
   // As in the original launcher: adding is only possible if the selection has a
   // mod that is not installed (or is installed as an obsolete stock mod).
   bool can_add = false;
   const std::map<std::string, ModEntry>& installed = m_ctx.mods.installed();
-  for (std::set<int>::const_iterator it = now.begin(); it != now.end(); ++it) {
-    if (*it < 0 || (size_t)*it >= m_available_rows.size()) continue;
-    std::map<std::string, ModEntry>::const_iterator inst =
-        installed.find(m_available_rows[*it].id);
-    if (inst == installed.end() || inst->second.is_obsolete) can_add = true;
+  for (int it : now) {
+    if (it < 0 || static_cast<size_t>(it) >= m_available_rows.size()) {
+      continue;
+    }
+    auto inst = installed.find(m_available_rows[it].id);
+    if (inst == installed.end() || inst->second.is_obsolete) {
+      can_add = true;
+    }
   }
   m_add_selected_button->setEnabled(can_add);
 }
 
 void TabMods::on_show_stock_toggled() {
-  if (m_updating) return;
+  if (m_updating) {
+    return;
+  }
   m_ctx.settings.set_bool("show_stock_mods", m_show_stock_check->isChecked());
   m_ctx.settings.save();
   reload_installed();
 }
 
 void TabMods::on_show_installed_toggled() {
-  if (m_updating) return;
+  if (m_updating) {
+    return;
+  }
   m_ctx.settings.set_bool("show_installed_mods_in_available",
                           m_show_installed_check->isChecked());
   m_ctx.settings.save();
@@ -412,41 +456,47 @@ void TabMods::run_task(const std::function<void()>& work) {
     reload_installed();
     reload_available();
   });
-  if (!started) m_content->setEnabled(true);
+  if (!started) {
+    m_content->setEnabled(true);
+  }
 }
 
 void TabMods::on_delete_clicked() {
   std::vector<std::string> ids;
   int skipped = 0;
   std::set<int> selection = selected_rows(m_installed_list);
-  for (std::set<int>::const_iterator it = selection.begin();
-       it != selection.end(); ++it) {
-    if (*it < 0 || (size_t)*it >= m_installed_rows.size()) continue;
-    if (m_installed_rows[*it].grayed)
+  for (int it : selection) {
+    if (it < 0 || static_cast<size_t>(it) >= m_installed_rows.size()) {
+      continue;
+    }
+    if (m_installed_rows[it].grayed) {
       ++skipped;
-    else
-      ids.push_back(m_installed_rows[*it].id);
+    } else {
+      ids.push_back(m_installed_rows[it].id);
+    }
   }
 
-  if (skipped == 1)
+  if (skipped == 1) {
     m_ctx.status.post(
         "One of the selected mods is stock and cannot be deleted.");
-  else if (skipped > 1)
+  } else if (skipped > 1) {
     m_ctx.status.post(std::to_string(skipped) +
                       " of the selected mods are stock and cannot be deleted.");
-  if (ids.empty()) return;
+  }
+  if (ids.empty()) {
+    return;
+  }
 
   bool use_trash = m_ctx.settings.get_bool("use_trash");
   std::string detail;
   if (ids.size() == 1) {
-    std::map<std::string, ModEntry>::const_iterator mod =
-        m_ctx.mods.installed().find(ids[0]);
+    auto mod = m_ctx.mods.installed().find(ids[0]);
     std::string name =
         (mod != m_ctx.mods.installed().end()) ? mod->second.name : ids[0];
-    detail = "\"" + name + "\" " + dialogs::removal_text(use_trash) + ".";
+    detail = std::format("\"{}\" {}.", name, dialogs::removal_text(use_trash));
   } else {
-    detail = std::to_string(ids.size()) + " mods " +
-             dialogs::removal_text(use_trash) + ".";
+    detail = std::format("{} mods {}.", std::to_string(ids.size()),
+                         dialogs::removal_text(use_trash));
   }
   dialogs::confirm(
       m_parent, ids.size() == 1 ? "Delete the mod?" : "Delete the mods?",
@@ -461,26 +511,29 @@ void TabMods::on_add_selected_clicked() {
   int stock = 0;
 
   std::set<int> selection = selected_rows(m_available_list);
-  for (std::set<int>::const_iterator it = selection.begin();
-       it != selection.end(); ++it) {
-    if (*it < 0 || (size_t)*it >= m_available_rows.size()) continue;
-    const std::string& id = m_available_rows[*it].id;
+  for (int it : selection) {
+    if (it < 0 || static_cast<size_t>(it) >= m_available_rows.size()) {
+      continue;
+    }
+    const std::string& id = m_available_rows[it].id;
     ModStatus status = m_ctx.mods.mod_status(id);
-    if (status == MOD_STOCK)
+    if (status == MOD_STOCK) {
       ++stock;
-    else if (status == MOD_INSTALLED || status == MOD_INSTALLED_MODIFIED_ID)
+    } else if (status == MOD_INSTALLED || status == MOD_INSTALLED_MODIFIED_ID) {
       reinstall_ids.push_back(id);
-    else
+    } else {
       new_ids.push_back(id);
+    }
   }
 
-  if (stock == 1)
+  if (stock == 1) {
     m_ctx.status.post(
         "One mod already comes with the game, so it will not be installed.");
-  else if (stock > 1)
+  } else if (stock > 1) {
     m_ctx.status.post(
         std::to_string(stock) +
         " mods already come with the game, so they will not be installed.");
+  }
 
   if (reinstall_ids.empty()) {
     install_mods(new_ids, reinstall_ids);
@@ -501,19 +554,24 @@ void TabMods::on_add_selected_clicked() {
   buttons << "Cancel" << "No, skip them" << "Yes, reinstall";
   dialogs::ask(m_parent, "Reinstall mods?", qstr(detail), buttons,
                [this, new_ids, reinstall_ids](int choice) {
-                 if (choice == 2)
+                 if (choice == 2) {
                    install_mods(new_ids, reinstall_ids);
-                 else if (choice == 1)
+                 } else if (choice == 1) {
                    install_mods(new_ids, std::vector<std::string>());
+                 }
                });
 }
 
 void TabMods::install_mods(const std::vector<std::string>& new_ids,
                            const std::vector<std::string>& reinstall_ids) {
-  if (new_ids.empty() && reinstall_ids.empty()) return;
+  if (new_ids.empty() && reinstall_ids.empty()) {
+    return;
+  }
 
   run_task([this, new_ids, reinstall_ids]() {
-    if (!reinstall_ids.empty()) m_ctx.mods.delete_mods(reinstall_ids);
+    if (!reinstall_ids.empty()) {
+      m_ctx.mods.delete_mods(reinstall_ids);
+    }
 
     std::vector<std::string> all = new_ids;
     all.insert(all.end(), reinstall_ids.begin(), reinstall_ids.end());
@@ -529,7 +587,9 @@ void TabMods::on_add_all_clicked() {
 void TabMods::on_kenan_clicked() {
   const Modpack* pack =
       ModManager::modpack_for_game(m_ctx.settings.get_string("game"));
-  if (!pack) return;
+  if (pack == nullptr) {
+    return;
+  }
   Modpack copy = *pack;
 
   DownloadQuestion question;

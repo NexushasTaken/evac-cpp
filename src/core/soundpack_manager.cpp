@@ -2,7 +2,6 @@
 
 #include <filesystem>
 #include <fstream>
-#include <sstream>
 
 #include "core/archive.h"
 #include "core/fs.h"
@@ -33,34 +32,40 @@ std::vector<InstalledSoundpack> SoundpackManager::parse_sound_dir(
   std::vector<InstalledSoundpack> result;
 
   std::vector<std::string> subdirs = Paths::list_dir(sound_dir);
-  for (size_t i = 0; i < subdirs.size(); ++i) {
-    fs::path location = sound_dir / to_path(subdirs[i]);
+  for (const auto& subdir : subdirs) {
+    fs::path location = sound_dir / to_path(subdir);
     fs::path config = location / CONFIG_FILE;
     bool enabled = true;
     std::error_code ec;
     if (!fs::exists(config, ec)) {
-      if (ec)
+      if (ec) {
         continue;  // Can't look inside, so skip it like an unreadable file.
+      }
       config += DISABLED_SUFFIX;
       enabled = false;
     }
     std::ifstream f(config);
-    if (!f) continue;
+    if (!f) {
+      continue;
+    }
 
     InstalledSoundpack pack;
     pack.location = location;
     pack.enabled = enabled;
     std::string line;
     while (std::getline(f, line)) {
-      if (!line.empty() && line[line.size() - 1] == '\r')
+      if (!line.empty() && line[line.size() - 1] == '\r') {
         line.erase(line.size() - 1);
-      if (starts_with(line, NAME_PREFIX))
+      }
+      if (starts_with(line, NAME_PREFIX)) {
         pack.name = line.substr(sizeof(NAME_PREFIX) - 1);
-      else if (starts_with(line, DESC_PREFIX))
+      } else if (starts_with(line, DESC_PREFIX)) {
         pack.description = line.substr(sizeof(DESC_PREFIX) - 1);
+      }
     }
-    if (pack.name.empty())
-      pack.name = subdirs[i];  // No VIEW line: better than an empty name.
+    if (pack.name.empty()) {
+      pack.name = subdir;  // No VIEW line: better than an empty name.
+    }
     result.push_back(pack);
   }
   return result;
@@ -73,9 +78,9 @@ std::vector<InstalledSoundpack> SoundpackManager::get_installed(
   if (include_stock) {
     std::vector<InstalledSoundpack> stock =
         parse_sound_dir(m_paths.sound_stock());
-    for (size_t i = 0; i < stock.size(); ++i) {
-      stock[i].is_stock = true;
-      packs.push_back(stock[i]);
+    for (auto& i : stock) {
+      i.is_stock = true;
+      packs.push_back(i);
     }
   }
   return packs;
@@ -84,9 +89,9 @@ std::vector<InstalledSoundpack> SoundpackManager::get_installed(
 bool SoundpackManager::find_user_pack(const fs::path& location,
                                       InstalledSoundpack& out) {
   std::vector<InstalledSoundpack> packs = get_installed(false);
-  for (size_t i = 0; i < packs.size(); ++i) {
-    if (packs[i].location == location) {
-      out = packs[i];
+  for (auto& pack : packs) {
+    if (pack.location == location) {
+      out = pack;
       return true;
     }
   }
@@ -97,14 +102,20 @@ bool SoundpackManager::find_user_pack(const fs::path& location,
 
 bool SoundpackManager::delete_pack(const fs::path& location) {
   InstalledSoundpack pack;
-  if (!find_user_pack(location, pack)) return false;
+  if (!find_user_pack(location, pack)) {
+    return false;
+  }
   return m_trash.remove(pack.location, "soundpack", pack.name);
 }
 
 bool SoundpackManager::set_enabled(const fs::path& location, bool enabled) {
   InstalledSoundpack pack;
-  if (!find_user_pack(location, pack)) return false;
-  if (pack.enabled == enabled) return true;
+  if (!find_user_pack(location, pack)) {
+    return false;
+  }
+  if (pack.enabled == enabled) {
+    return true;
+  }
 
   fs::path config = pack.location / CONFIG_FILE;
   fs::path disabled = config;
@@ -158,10 +169,11 @@ bool SoundpackManager::install_pack(const SoundpackSource& pack,
     return false;
   }
 
-  if (reinstall)
+  if (reinstall) {
     m_status.post("Reinstalling soundpack \"" + pack.name + "\"...");
-  else
+  } else {
     m_status.post("Installing soundpack \"" + pack.name + "\"...");
+  }
 
   if (!from_file.empty()) {
     archive_path = from_file;
@@ -180,8 +192,9 @@ bool SoundpackManager::install_pack(const SoundpackSource& pack,
   fs::remove_all(tmp_dir, ec);
   bool extracted = archive_helper::extract(archive_path, tmp_dir, m_status);
 
-  if (!keep_archive && !m_settings.get_bool("keep_cache"))
+  if (!keep_archive && !m_settings.get_bool("keep_cache")) {
     fs::remove(archive_path, ec);
+  }
 
   fs::path source = tmp_dir / to_path(pack.internal_path);
   if (extracted && !fs::is_directory(source)) {
@@ -207,7 +220,9 @@ bool SoundpackManager::install_pack(const SoundpackSource& pack,
   bool moved =
       fs_helper::move_dir(source, sound_dir / to_path(pack.name), m_status);
   fs::remove_all(tmp_dir, ec);
-  if (!moved) return false;
+  if (!moved) {
+    return false;
+  }
 
   m_status.post("Soundpack installed.");
   return true;

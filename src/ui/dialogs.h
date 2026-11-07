@@ -35,9 +35,9 @@ void ask_text(QWidget& parent, const QString& title, const QString& detail,
               const std::function<void(const std::string&)>& done);
 
 // Wording for confirmations, depending on the "use_trash" setting.
-std::string removal_text(bool use_trash);    // "will be moved to the trash" /
-                                             // "will be deleted for good"
-std::string removal_button(bool use_trash);  // "Move to Trash" / "Delete"
+std::string_view removal_text(bool use_trash);  // "will be moved to the trash"
+                                                // / "will be deleted for good"
+std::string_view removal_button(bool use_trash);  // "Move to Trash" / "Delete"
 
 // Opens a folder in the file manager. Does nothing if it doesn't exist.
 void open_folder(const std::filesystem::path& dir);

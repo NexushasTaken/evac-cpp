@@ -41,12 +41,12 @@ class ReleaseManager {
                            std::string& error);
 
   // The GitHub API URL for the releases of a game, empty if unknown.
-  static std::string releases_url(const std::string& game);
+  static std::string_view releases_url(const std::string& game);
 
   // The part of the asset name that identifies the right build, empty if
   // unknown or if there are no builds for the platform.
-  static std::string asset_substring(const std::string& game,
-                                     const std::string& platform);
+  static std::string_view asset_substring(const std::string& game,
+                                          const std::string& platform);
 
  private:
   Settings& m_settings;

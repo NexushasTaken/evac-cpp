@@ -32,23 +32,25 @@ TabSettings::TabSettings(AppContext& ctx, QWidget& parent)
 
 QCheckBox* TabSettings::add_check(QVBoxLayout& box, const char* caption,
                                   const char* tooltip, const char* key) {
-  QCheckBox* check = new QCheckBox(caption);
+  auto* check = new QCheckBox(caption);
   check->setToolTip(tooltip);
   std::string setting = key;
   connect(check, &QCheckBox::toggled, this, [this, setting](bool active) {
-    if (m_updating) return;
+    if (m_updating) {
+      return;
+    }
     m_ctx.settings.set_bool(setting, active);
     m_ctx.settings.save();
   });
   box.addWidget(check);
-  m_checks.push_back(std::make_pair(setting, check));
+  m_checks.emplace_back(setting, check);
   return check;
 }
 
 // stretch > 0: the widget shares the width with the label.
 void TabSettings::add_row(QVBoxLayout& box, const char* caption,
                           const char* tooltip, QWidget* widget, int stretch) {
-  QHBoxLayout* row = new QHBoxLayout();
+  auto* row = new QHBoxLayout();
   row->setSpacing(8);
   QLabel* label = make_label(caption);
   label->setToolTip(tooltip);
@@ -61,8 +63,8 @@ void TabSettings::add_row(QVBoxLayout& box, const char* caption,
 void TabSettings::build_ui() {
   setWidgetResizable(true);
   setFrameShape(QFrame::NoFrame);
-  QWidget* page = new QWidget();
-  QVBoxLayout* box = new QVBoxLayout(page);
+  auto* page = new QWidget();
+  auto* box = new QVBoxLayout(page);
   box->setContentsMargins(12, 12, 12, 12);
   box->setSpacing(6);
   setWidget(page);
@@ -82,7 +84,9 @@ void TabSettings::build_ui() {
   m_game_extra_args->setPlaceholderText("none");
   connect(m_game_extra_args, &QLineEdit::textChanged, this,
           [this](const QString& text) {
-            if (m_updating) return;
+            if (m_updating) {
+              return;
+            }
             m_ctx.settings.set_string("game_extra_args", str(text));
             m_ctx.settings.save();
           });
@@ -112,7 +116,9 @@ void TabSettings::build_ui() {
   m_num_releases = new QSpinBox();
   m_num_releases->setRange(1, 100);
   connect(m_num_releases, &QSpinBox::valueChanged, this, [this](int value) {
-    if (m_updating) return;
+    if (m_updating) {
+      return;
+    }
     m_ctx.settings.set_int("num_releases_to_request", value);
     m_ctx.settings.save();
   });
@@ -191,7 +197,9 @@ void TabSettings::build_ui() {
   m_trash_max_size->setRange(0, 1048576);
   m_trash_max_size->setSingleStep(256);
   connect(m_trash_max_size, &QSpinBox::valueChanged, this, [this](int value) {
-    if (m_updating) return;
+    if (m_updating) {
+      return;
+    }
     m_ctx.settings.set_int("trash_max_size_mb", value);
     m_ctx.settings.save();
   });
@@ -212,12 +220,13 @@ void TabSettings::build_ui() {
             "troubleshooting).",
             "debug_mode");
 
-  QLabel* licenses_link =
+  auto* licenses_link =
       new QLabel("<a href=\"#\">View opensource licenses</a>");
   licenses_link->setTextFormat(Qt::RichText);
   connect(licenses_link, &QLabel::linkActivated, this, [this]() {
-    if (!m_licenses_dialog)
+    if (!m_licenses_dialog) {
       m_licenses_dialog = new LicensesDialog(m_parent, m_ctx.paths.data_dir());
+    }
     m_licenses_dialog->show();
     m_licenses_dialog->raise();
     m_licenses_dialog->activateWindow();
@@ -235,8 +244,9 @@ void TabSettings::build_ui() {
 void TabSettings::load_from_settings() {
   m_updating = true;
 
-  for (size_t i = 0; i < m_checks.size(); ++i)
-    m_checks[i].second->setChecked(m_ctx.settings.get_bool(m_checks[i].first));
+  for (auto& m_check : m_checks) {
+    m_check.second->setChecked(m_ctx.settings.get_bool(m_check.first));
+  }
 
   m_game_extra_args->setText(
       qstr(m_ctx.settings.get_string("game_extra_args")));
@@ -245,7 +255,9 @@ void TabSettings::load_from_settings() {
   std::string option = m_ctx.settings.get_string("proxy_option");
   int selected = 0;
   for (int i = 0; i < NUM_PROXY_OPTIONS; ++i) {
-    if (option == PROXY_OPTIONS[i]) selected = i;
+    if (option == PROXY_OPTIONS[i]) {
+      selected = i;
+    }
   }
   m_proxy_option->setCurrentIndex(selected);
 

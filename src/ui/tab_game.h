@@ -59,6 +59,7 @@ class TabGame : public QWidget {
   void on_delete_clicked();
   void on_installs_row_selected();
   void on_installs_row_activated(QTreeWidgetItem* row);
+  void extracted();
   void on_userdata_selected();
   void on_userdata_add_clicked();
   void on_userdata_rename_clicked();

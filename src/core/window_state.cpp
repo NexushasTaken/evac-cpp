@@ -10,12 +10,15 @@ WindowState load_window_state(Settings& settings) {
   nlohmann::json json = settings.get_json("window_state");
   if (!json.is_object() || !json.contains("size_x") ||
       !json.contains("size_y") || !json["size_x"].is_number() ||
-      !json["size_y"].is_number())
+      !json["size_y"].is_number()) {
     return state;
+  }
 
-  int width = (int)json["size_x"].get<double>();
-  int height = (int)json["size_y"].get<double>();
-  if (!sane(width) || !sane(height)) return state;
+  int width = static_cast<int>(json["size_x"].get<double>());
+  int height = static_cast<int>(json["size_y"].get<double>());
+  if (!sane(width) || !sane(height)) {
+    return state;
+  }
 
   state.valid = true;
   state.width = width;
@@ -26,7 +29,9 @@ WindowState load_window_state(Settings& settings) {
 
 void store_window_state(Settings& settings, const WindowState& state) {
   nlohmann::json json = settings.get_json("window_state");
-  if (!json.is_object()) json = nlohmann::json::object();
+  if (!json.is_object()) {
+    json = nlohmann::json::object();
+  }
 
   json["size_x"] = state.width;
   json["size_y"] = state.height;

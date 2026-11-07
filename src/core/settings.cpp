@@ -65,13 +65,14 @@ nlohmann::json Settings::defaults() {
 void Settings::load() {
   bool created = false;
   {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     if (std::filesystem::exists(m_file)) {
       nlohmann::json data;
-      if (load_json_file(m_file, data, m_status) && data.is_object())
+      if (load_json_file(m_file, data, m_status) && data.is_object()) {
         m_current = data;
-      else
+      } else {
         m_current = nlohmann::json::object();
+      }
     } else {
       m_current = defaults();
       created = true;
@@ -85,25 +86,29 @@ void Settings::load() {
 }
 
 bool Settings::save() {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::scoped_lock lock(m_mutex);
   return save_json_file(m_current, m_file, m_status);
 }
 
 nlohmann::json Settings::lookup(const std::string& name) {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::scoped_lock lock(m_mutex);
   nlohmann::json def = defaults();
   if (!def.contains(name)) {
     // Not one of ours; allow it only if it is in the file.
-    if (m_current.contains(name)) return m_current[name];
+    if (m_current.contains(name)) {
+      return m_current[name];
+    }
     m_status.post("Requested a non-existing setting: " + name, MSG_ERROR);
-    return nlohmann::json();
+    return {};
   }
 
   if (m_current.contains(name)) {
     const nlohmann::json& v = m_current[name];
     const nlohmann::json& d = def[name];
     bool same_type = (v.is_number() && d.is_number()) || (v.type() == d.type());
-    if (same_type) return v;
+    if (same_type) {
+      return v;
+    }
   }
   return def[name];
 }
@@ -133,29 +138,31 @@ nlohmann::json Settings::get_json(const std::string& name) {
 }
 
 void Settings::set_string(const std::string& name, const std::string& value) {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::scoped_lock lock(m_mutex);
   m_current[name] = value;
 }
 
 void Settings::set_bool(const std::string& name, bool value) {
   {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_current[name] = value;
   }
-  if (name == "debug_mode") m_status.set_debug_enabled(value);
+  if (name == "debug_mode") {
+    m_status.set_debug_enabled(value);
+  }
 }
 
 void Settings::set_int(const std::string& name, int value) {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::scoped_lock lock(m_mutex);
   m_current[name] = value;
 }
 
 void Settings::set_double(const std::string& name, double value) {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::scoped_lock lock(m_mutex);
   m_current[name] = value;
 }
 
 void Settings::set_json(const std::string& name, const nlohmann::json& value) {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::scoped_lock lock(m_mutex);
   m_current[name] = value;
 }

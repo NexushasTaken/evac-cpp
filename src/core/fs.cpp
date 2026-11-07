@@ -46,12 +46,18 @@ std::vector<std::string> list_dir(const fs::path& path, bool recursive,
     return result;
   }
   for (; it != fs::recursive_directory_iterator(); it.increment(ec)) {
-    if (ec) break;
+    if (ec) {
+      break;
+    }
     std::string rel = fs::relative(it->path(), base);
-    if (!use_filter || std::regex_search(rel, filter)) result.push_back(rel);
-    if (!recursive) it.disable_recursion_pending();
+    if (!use_filter || std::regex_search(rel, filter)) {
+      result.push_back(rel);
+    }
+    if (!recursive) {
+      it.disable_recursion_pending();
+    }
   }
-  std::sort(result.begin(), result.end());
+  std::ranges::sort(result);
   return result;
 }
 
@@ -80,7 +86,9 @@ static bool copy_dir_internal(const fs::path& src, const fs::path& dest,
     if (it->is_symlink()) {
       fs::copy_symlink(it->path(), target, ec);
     } else if (it->is_directory()) {
-      if (!copy_dir_internal(it->path(), target, status)) ok = false;
+      if (!copy_dir_internal(it->path(), target, status)) {
+        ok = false;
+      }
       continue;
     } else {
       fs::copy_file(it->path(), target, fs::copy_options::overwrite_existing,
@@ -99,8 +107,9 @@ static bool copy_dir_internal(const fs::path& src, const fs::path& dest,
 
 bool copy_dir(const fs::path& path, const fs::path& dest_dir, Status& status) {
   fs::path src = path;
-  if (src.filename().empty())
+  if (src.filename().empty()) {
     src = src.parent_path();  // Handle a trailing slash.
+  }
   return copy_dir_internal(src, dest_dir / src.filename(), status);
 }
 
@@ -126,7 +135,9 @@ static bool move_dir_internal(const fs::path& src, const fs::path& dest,
     fs::create_directories(dest.parent_path(), ec);
     ec.clear();
     fs::rename(src, dest, ec);
-    if (!ec) return true;
+    if (!ec) {
+      return true;
+    }
     ec.clear();  // E.g. a different filesystem. Fall through to item by item.
   }
 
@@ -142,7 +153,9 @@ static bool move_dir_internal(const fs::path& src, const fs::path& dest,
   for (; !ec && it != fs::directory_iterator(); it.increment(ec)) {
     fs::path target = dest / it->path().filename();
     if (it->is_directory() && !it->is_symlink()) {
-      if (!move_dir_internal(it->path(), target, status)) ok = false;
+      if (!move_dir_internal(it->path(), target, status)) {
+        ok = false;
+      }
       continue;
     }
 
@@ -150,12 +163,15 @@ static bool move_dir_internal(const fs::path& src, const fs::path& dest,
     fs::rename(it->path(), target, move_ec);
     if (move_ec) {
       // Cross-device: copy, then remove the original.
-      if (it->is_symlink())
+      if (it->is_symlink()) {
         fs::copy_symlink(it->path(), target, move_ec);
-      else
+      } else {
         fs::copy_file(it->path(), target, fs::copy_options::overwrite_existing,
                       move_ec);
-      if (!move_ec) fs::remove(it->path(), move_ec);
+      }
+      if (!move_ec) {
+        fs::remove(it->path(), move_ec);
+      }
     }
     if (move_ec) {
       status.post("Failed to move " + to_utf8(it->path().filename()) + ": " +

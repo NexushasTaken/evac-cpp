@@ -27,7 +27,7 @@ TabBackups::TabBackups(AppContext& ctx, TaskRunner& runner, QWidget& parent)
 }
 
 void TabBackups::build_ui() {
-  QVBoxLayout* outer = new QVBoxLayout(this);
+  auto* outer = new QVBoxLayout(this);
   outer->setContentsMargins(12, 12, 12, 12);
   m_hint_label = make_label("");
   m_hint_label->setWordWrap(true);
@@ -36,7 +36,7 @@ void TabBackups::build_ui() {
   m_content = new QWidget();
   outer->addWidget(m_content, 1);
 
-  QVBoxLayout* content = new QVBoxLayout(m_content);
+  auto* content = new QVBoxLayout(m_content);
   content->setContentsMargins(0, 0, 0, 0);
   content->setSpacing(8);
   content->addWidget(make_label("Save directory backups:"));
@@ -44,7 +44,7 @@ void TabBackups::build_ui() {
   m_list->setSelectionMode(QAbstractItemView::SingleSelection);
   content->addWidget(m_list, 1);
 
-  QHBoxLayout* buttons = new QHBoxLayout();
+  auto* buttons = new QHBoxLayout();
   buttons->setSpacing(6);
   m_restore_button = new QPushButton("Restore");
   m_restore_button->setToolTip(
@@ -62,12 +62,12 @@ void TabBackups::build_ui() {
   m_info_view->setFixedHeight(90);
   content->addWidget(m_info_view);
 
-  QFrame* separator = new QFrame();
+  auto* separator = new QFrame();
   separator->setFrameShape(QFrame::HLine);
   separator->setFrameShadow(QFrame::Sunken);
   content->addWidget(separator);
   content->addWidget(make_label("Manual backup"));
-  QHBoxLayout* create_row = new QHBoxLayout();
+  auto* create_row = new QHBoxLayout();
   create_row->setSpacing(6);
   create_row->addWidget(make_label("Name:"));
   m_name_entry = new QLineEdit();
@@ -105,7 +105,7 @@ void TabBackups::show_unavailable(const QString& message) {
 void TabBackups::refresh() {
   std::string game = m_ctx.settings.get_string("game");
   Paths::InstallsSummary installs = m_ctx.paths.installs_summary();
-  if (installs.find(game) == installs.end()) {
+  if (!installs.contains(game)) {
     show_unavailable("Install the game first (on the Game tab).");
     return;
   }
@@ -123,8 +123,9 @@ void TabBackups::reload_list() {
 
   m_updating = true;
   m_list->clear();
-  for (size_t i = 0; i < m_backups.size(); ++i)
-    m_list->addItem(qstr(m_backups[i].name));
+  for (auto& m_backup : m_backups) {
+    m_list->addItem(qstr(m_backup.name));
+  }
   m_updating = false;
 
   m_info_view->setPlainText(NO_INFO_TEXT);
@@ -133,7 +134,9 @@ void TabBackups::reload_list() {
 
 int TabBackups::selected_backup() {
   int row = selected_row(m_list);
-  if (row < 0 || (size_t)row >= m_backups.size()) return -1;
+  if (row < 0 || static_cast<size_t>(row) >= m_backups.size()) {
+    return -1;
+  }
   return row;
 }
 
@@ -146,7 +149,9 @@ void TabBackups::update_buttons() {
 }
 
 void TabBackups::on_selection_changed() {
-  if (m_updating) return;
+  if (m_updating) {
+    return;
+  }
   update_buttons();
 
   int index = selected_backup();
@@ -155,10 +160,11 @@ void TabBackups::on_selection_changed() {
     return;
   }
 
-  const BackupSummary& backup = m_backups[index];
+  const BackupSummary& backup = m_backups.at(index);
   std::string worlds;
-  for (size_t i = 0; i < backup.worlds.size(); ++i)
-    worlds += (i > 0 ? ", " : "") + backup.worlds[i];
+  for (size_t i = 0; i < backup.worlds.size(); ++i) {
+    worlds += (i > 0 ? ", " : "") + backup.worlds.at(i);
+  }
 
   QString url = QUrl::fromLocalFile(qstr(backup.path)).toString();
   QString text = "<u>Location:</u><br><a href=\"" + url.toHtmlEscaped() +
@@ -184,19 +190,25 @@ void TabBackups::run_task(const std::function<void()>& work) {
     m_content->setEnabled(true);
     reload_list();
   });
-  if (!started) m_content->setEnabled(true);
+  if (!started) {
+    m_content->setEnabled(true);
+  }
 }
 
 void TabBackups::on_create_clicked() {
   std::string name = str(m_name_entry->text());
-  if (!BackupManager::is_valid_backup_name(name)) return;
+  if (!BackupManager::is_valid_backup_name(name)) {
+    return;
+  }
   run_task([this, name]() { m_ctx.backups.backup_current(name); });
 }
 
 void TabBackups::on_restore_clicked() {
   int index = selected_backup();
-  if (index < 0) return;
-  std::string name = m_backups[index].name;
+  if (index < 0) {
+    return;
+  }
+  std::string name = m_backups.at(index).name;
 
   // Running git status on every world can take a while, so the worlds with
   // changes not in a snapshot are found on the worker thread.
@@ -205,13 +217,17 @@ void TabBackups::on_restore_clicked() {
   m_content->setEnabled(false);
   bool started = m_runner.run(
       [this, changed]() {
-        if (git::available()) *changed = m_ctx.snapshots.worlds_with_changes();
+        if (git::available()) {
+          *changed = m_ctx.snapshots.worlds_with_changes();
+        }
       },
       [this, changed, name]() {
         m_content->setEnabled(true);
         confirm_restore(name, *changed);
       });
-  if (!started) m_content->setEnabled(true);
+  if (!started) {
+    m_content->setEnabled(true);
+  }
 }
 
 void TabBackups::confirm_restore(const std::string& name,
@@ -226,9 +242,10 @@ void TabBackups::confirm_restore(const std::string& name,
                        "want to keep them.";
   if (!changed.empty()) {
     std::string worlds;
-    for (size_t i = 0; i < changed.size(); ++i)
+    for (size_t i = 0; i < changed.size(); ++i) {
       worlds += (i == 0 ? "" : (i + 1 == changed.size() ? " and " : ", ")) +
-                changed[i];
+                changed.at(i);
+    }
     detail += "\n\n" + worlds + (changed.size() == 1 ? " has" : " have") +
               " changes not in a snapshot. Take a snapshot on the Snapshots "
               "tab first to keep them there.";
@@ -241,13 +258,15 @@ void TabBackups::confirm_restore(const std::string& name,
 
 void TabBackups::on_delete_clicked() {
   int index = selected_backup();
-  if (index < 0) return;
-  std::string name = m_backups[index].name;
+  if (index < 0) {
+    return;
+  }
+  std::string name = m_backups.at(index).name;
   bool use_trash = m_ctx.settings.get_bool("use_trash");
   dialogs::confirm(
       m_parent, "Delete the backup?",
-      qstr("The backup \"" + name + "\" " + dialogs::removal_text(use_trash) +
-           "."),
+      qstr(std::format("The backup \"{}\" {}.", name,
+                       dialogs::removal_text(use_trash))),
       qstr(dialogs::removal_button(use_trash)), [this, name]() {
         run_task([this, name]() { m_ctx.backups.delete_backup(name); });
       });

@@ -46,8 +46,8 @@ struct UserdataFolder {
 class Paths {
  public:
   // game name -> (install name -> install directory)
-  typedef std::map<std::string, std::map<std::string, std::filesystem::path> >
-      InstallsSummary;
+  using InstallsSummary =
+      std::map<std::string_view, std::map<std::string, std::filesystem::path> >;
 
   Paths(const Locations& locations, Settings& settings, Status& status);
   // Portable layout in root (handy for tests).

@@ -22,8 +22,9 @@ static std::string install_name(const fs::path& dir, Status& status) {
   nlohmann::json info;
   fs::path info_file = dir / INFO_FILENAME;
   if (fs::exists(info_file) && load_json_file(info_file, info, status) &&
-      info.is_object() && info.contains("name") && info["name"].is_string())
+      info.is_object() && info.contains("name") && info["name"].is_string()) {
     return info["name"].get<std::string>();
+  }
   return to_utf8(dir.filename());
 }
 
@@ -31,10 +32,11 @@ void ReleaseInstaller::cancel() { m_http.cancel(); }
 
 bool ReleaseInstaller::install_release(const Release& release,
                                        const fs::path& update_in) {
-  if (!update_in.empty())
+  if (!update_in.empty()) {
     m_status.post("Updating to " + release.name + "...");
-  else
+  } else {
     m_status.post("Installing " + release.name + "...");
+  }
 
   fs::path cache_dir = m_paths.cache_dir();
   fs::path archive_path = cache_dir / to_path(release.filename);
@@ -42,8 +44,9 @@ bool ReleaseInstaller::install_release(const Release& release,
 
   if (m_settings.get_bool("ignore_cache") || !fs::exists(archive_path)) {
     m_http.apply_proxy_settings(m_settings, true);
-    if (!m_http.download_file(release.url, cache_dir, release.filename))
+    if (!m_http.download_file(release.url, cache_dir, release.filename)) {
       return false;
+    }
   }
 
   // Always extract into an empty directory, so that the one directory inside it
@@ -52,7 +55,9 @@ bool ReleaseInstaller::install_release(const Release& release,
   fs::remove_all(tmp_dir, ec);
 
   bool extracted = archive_helper::extract(archive_path, tmp_dir, m_status);
-  if (!m_settings.get_bool("keep_cache")) fs::remove(archive_path, ec);
+  if (!m_settings.get_bool("keep_cache")) {
+    fs::remove(archive_path, ec);
+  }
   if (!extracted) {
     fs::remove_all(tmp_dir, ec);
     return false;
@@ -63,21 +68,26 @@ bool ReleaseInstaller::install_release(const Release& release,
     m_status.post("The archive did not contain a game directory.", MSG_ERROR);
     return false;
   }
-  fs::path extracted_root = tmp_dir / to_path(extracted_items[0]);
+  fs::path extracted_root = tmp_dir / to_path(extracted_items.at(0));
 
-  if (!create_info_file(extracted_root, release.name, m_status)) return false;
+  if (!create_info_file(extracted_root, release.name, m_status)) {
+    return false;
+  }
 
   fs::path target_dir;
   if (!update_in.empty()) {
     target_dir = update_in;
     if (!m_trash.remove(target_dir, "install",
-                        install_name(target_dir, m_status)))
+                        install_name(target_dir, m_status))) {
       return false;
+    }
   } else {
     target_dir = m_paths.next_install_dir();
   }
 
-  if (!fs_helper::move_dir(extracted_root, target_dir, m_status)) return false;
+  if (!fs_helper::move_dir(extracted_root, target_dir, m_status)) {
+    return false;
+  }
 
   if (!update_in.empty()) {
     m_settings.set_string("active_install_" + m_settings.get_string("game"),
@@ -94,8 +104,8 @@ bool ReleaseInstaller::remove_release_by_name(const std::string& release_name) {
   Paths::InstallsSummary installs = m_paths.installs_summary();
   std::string game = m_settings.get_string("game");
 
-  Paths::InstallsSummary::const_iterator g = installs.find(game);
-  if (g == installs.end() || g->second.find(release_name) == g->second.end()) {
+  auto g = installs.find(game);
+  if (g == installs.end() || !g->second.contains(release_name)) {
     m_status.post("Attempted to remove release \"" + release_name +
                       "\", but could not find it on disk.",
                   MSG_ERROR);
@@ -104,8 +114,9 @@ bool ReleaseInstaller::remove_release_by_name(const std::string& release_name) {
 
   m_status.post("Removing " + release_name + "...");
   if (!m_trash.remove(g->second.find(release_name)->second, "install",
-                      release_name))
+                      release_name)) {
     return false;
+  }
   m_status.post("Removal finished.");
   return true;
 }
@@ -115,17 +126,21 @@ std::vector<fs::path> ReleaseInstaller::check_game_dir_for_userdata(
   std::vector<fs::path> result;
 
   Paths::InstallsSummary installs = m_paths.installs_summary();
-  Paths::InstallsSummary::const_iterator g =
-      installs.find(m_settings.get_string("game"));
-  if (g == installs.end() || g->second.find(release_name) == g->second.end())
+  auto g = installs.find(m_settings.get_string("game"));
+  if (g == installs.end() || !g->second.contains(release_name)) {
     return result;
+  }
 
   fs::path game_path = g->second.find(release_name)->second;
-  const char* const subdirs[] = {"config", "font", "graveyard", "memorial",
-                                 "mods",   "save", "sound",     "templates"};
-  for (size_t i = 0; i < sizeof(subdirs) / sizeof(subdirs[0]); ++i) {
-    fs::path full = game_path / subdirs[i];
-    if (fs::is_directory(full) && !fs::is_empty(full)) result.push_back(full);
+  const std::array<std::string, 8> subdirs = {
+      "config", "font", "graveyard", "memorial",
+      "mods",   "save", "sound",     "templates",
+  };
+  for (const auto& subdir : subdirs) {
+    fs::path full = game_path / subdir;
+    if (fs::is_directory(full) && !fs::is_empty(full)) {
+      result.push_back(full);
+    }
   }
   return result;
 }

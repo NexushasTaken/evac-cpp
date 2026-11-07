@@ -3,6 +3,8 @@
 #include <archive.h>
 #include <archive_entry.h>
 
+#include <array>
+#include <climits>
 #include <ctime>
 #include <filesystem>
 #include <fstream>
@@ -41,7 +43,7 @@ static void set_entry_hardlink(struct archive_entry* e, const fs::path& path) {
 }
 #else
 static int open_for_reading(struct archive* a, const fs::path& file) {
-  return archive_read_open_filename(a, file.c_str(), 65536);
+  return archive_read_open_filename(a, file.c_str(), USHRT_MAX);
 }
 static int open_for_writing(struct archive* a, const fs::path& file) {
   return archive_write_open_filename(a, file.c_str());
@@ -88,74 +90,88 @@ bool extract(const fs::path& archive_path, const fs::path& dest_dir,
 
   if (open_for_reading(in, archive_path) != ARCHIVE_OK) {
     ok = false;
-    error = archive_error_string(in) ? archive_error_string(in)
-                                     : "cannot open archive";
+    error = (archive_error_string(in) != nullptr) ? archive_error_string(in)
+                                                  : "cannot open archive";
   }
 
   struct archive_entry* entry = nullptr;
   while (ok) {
     int r = archive_read_next_header(in, &entry);
-    if (r == ARCHIVE_EOF) break;
+    if (r == ARCHIVE_EOF) {
+      break;
+    }
     if (r < ARCHIVE_WARN) {
       ok = false;
-      error =
-          archive_error_string(in) ? archive_error_string(in) : "read error";
+      error = (archive_error_string(in) != nullptr) ? archive_error_string(in)
+                                                    : "read error";
       break;
     }
 
     set_entry_path(entry, dest_dir / entry_path(entry));
 
     // Hard links point inside the archive, so they need the same prefix too.
-    if (entry_hardlink(entry))
+    if (entry_hardlink(entry) != nullptr) {
       set_entry_hardlink(entry, dest_dir / entry_hardlink(entry));
+    }
 
     if (archive_write_header(out, entry) < ARCHIVE_WARN) {
       ok = false;
-      error =
-          archive_error_string(out) ? archive_error_string(out) : "write error";
+      error = (archive_error_string(out) != nullptr) ? archive_error_string(out)
+                                                     : "write error";
       break;
     }
 
-    const void* buff;
-    size_t size;
-    la_int64_t offset;
+    const void* buff = nullptr;
+    size_t size = 0;
+    la_int64_t offset = 0;
     while (true) {
       r = archive_read_data_block(in, &buff, &size, &offset);
-      if (r == ARCHIVE_EOF) break;
+      if (r == ARCHIVE_EOF) {
+        break;
+      }
       if (r < ARCHIVE_WARN) {
         ok = false;
-        error =
-            archive_error_string(in) ? archive_error_string(in) : "read error";
+        error = (archive_error_string(in) != nullptr) ? archive_error_string(in)
+                                                      : "read error";
         break;
       }
       if (archive_write_data_block(out, buff, size, offset) < ARCHIVE_WARN) {
         ok = false;
-        error = archive_error_string(out) ? archive_error_string(out)
-                                          : "write error";
+        error = (archive_error_string(out) != nullptr)
+                    ? archive_error_string(out)
+                    : "write error";
         break;
       }
     }
-    if (ok) archive_write_finish_entry(out);
+    if (ok) {
+      archive_write_finish_entry(out);
+    }
   }
 
   archive_read_free(in);
   archive_write_free(out);
 
-  if (!ok)
+  if (!ok) {
     status.post(
         "Extraction of " + file_name_of(archive_path) + " failed: " + error,
         MSG_ERROR);
+  }
   return ok;
 }
 
 static bool add_file_data(struct archive* a, const fs::path& path) {
   std::ifstream f(path, std::ios::binary);
-  if (!f) return false;
-  char buf[65536];
+  if (!f) {
+    return false;
+  }
+  std::array<char, USHRT_MAX> buf{};
   while (f) {
-    f.read(buf, sizeof(buf));
+    f.read(buf.data(), sizeof(buf));
     std::streamsize n = f.gcount();
-    if (n > 0 && archive_write_data(a, buf, (size_t)n) < 0) return false;
+    if (n > 0 &&
+        0 > archive_write_data(a, buf.data(), static_cast<size_t>(n))) {
+      return false;
+    }
   }
   return true;
 }
@@ -192,41 +208,47 @@ bool zip(const fs::path& parent, const std::string& dir_to_zip,
   std::vector<fs::path> items;
   items.push_back(root);
   fs::recursive_directory_iterator it(root, ec);
-  for (; !ec && it != fs::recursive_directory_iterator(); it.increment(ec))
+  for (; !ec && it != fs::recursive_directory_iterator(); it.increment(ec)) {
     items.push_back(it->path());
+  }
 
   for (size_t i = 0; i < items.size() && ok; ++i) {
-    const fs::path& p = items[i];
+    const fs::path& p = items.at(i);
     fs::file_status st = fs::symlink_status(p, ec);
-    if (fs::is_symlink(st)) continue;
+    if (fs::is_symlink(st)) {
+      continue;
+    }
     bool is_dir = fs::is_directory(st);
 
     struct archive_entry* e = archive_entry_new();
     // Zip wants "/" separators, and a trailing one for a directory.
     fs::path rel = to_path(fs::relative(p, base));
-    if (is_dir) rel += "/";
+    if (is_dir) {
+      rel += "/";
+    }
     set_entry_path(e, rel);
-    archive_entry_set_perm(e, (unsigned)st.permissions() & 07777);
+    archive_entry_set_perm(e, static_cast<unsigned>(st.permissions()) & 07777);
     archive_entry_set_mtime(e, std::time(nullptr), 0);
     if (is_dir) {
       archive_entry_set_filetype(e, AE_IFDIR);
       archive_entry_set_size(e, 0);
     } else {
       archive_entry_set_filetype(e, AE_IFREG);
-      archive_entry_set_size(e, (la_int64_t)fs::file_size(p, ec));
+      archive_entry_set_size(e, static_cast<la_int64_t>(fs::file_size(p, ec)));
     }
 
-    if (archive_write_header(a, e) != ARCHIVE_OK)
+    if (archive_write_header(a, e) != ARCHIVE_OK ||
+        (!is_dir && !add_file_data(a, p))) {
       ok = false;
-    else if (!is_dir && !add_file_data(a, p))
-      ok = false;
+    }
     archive_entry_free(e);
   }
 
-  if (!ok)
+  if (!ok) {
     status.post("Failed to write " + file_name_of(dest_zip) + ": " +
                     archive_error_string(a),
                 MSG_ERROR);
+  }
 
   archive_write_close(a);
   archive_write_free(a);

@@ -1,8 +1,8 @@
 #ifndef EVAC_VERSION_H
 #define EVAC_VERSION_H
 
-#include <string>
+#include <string_view>
 
-std::string evac_version();
+std::string_view evac_version();
 
 #endif

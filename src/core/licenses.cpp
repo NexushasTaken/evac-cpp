@@ -1,5 +1,6 @@
 #include "core/licenses.h"
 
+#include <format>
 #include <fstream>
 #include <sstream>
 
@@ -7,13 +8,15 @@
 
 static std::string read_text(const std::filesystem::path& path) {
   std::ifstream f(path);
-  if (!f) return "(Could not read " + to_utf8(path) + ")";
+  if (!f) {
+    return "(Could not read " + to_utf8(path) + ")";
+  }
   std::stringstream ss;
   ss << f.rdbuf();
   return ss.str();
 }
 
-static const char LIBRARIES_TEXT[] =
+static const std::string_view LIBRARIES_TEXT =
     "Evac uses these open source libraries. Each one is distributed under its "
     "own license; "
     "see the project's website for the full text.\n\n"
@@ -45,17 +48,19 @@ std::vector<LicenseSection> load_license_sections(
   s.text = LIBRARIES_TEXT;
   sections.push_back(s);
 
-  static const char* const fonts[][2] = {
-      {"Fantasque Sans Mono", "FantasqueSansMono"},
-      {"Hack", "Hack"},
-      {"Inconsolata LGC", "Inconsolata-LGC"},
-      {"PT Mono", "PT_Mono"},
-      {"Ubuntu Mono", "UbuntuMono"},
+  static constexpr std::array<std::array<std::string_view, 2>, 5> fonts = {
+      {
+          {"Fantasque Sans Mono", "FantasqueSansMono"},
+          {"Hack", "Hack"},
+          {"Inconsolata LGC", "Inconsolata-LGC"},
+          {"PT Mono", "PT_Mono"},
+          {"Ubuntu Mono", "UbuntuMono"},
+      },
   };
-  for (size_t i = 0; i < sizeof(fonts) / sizeof(fonts[0]); ++i) {
-    s.heading = std::string("Font: ") + fonts[i][0];
+  for (auto font : fonts) {
+    s.heading = std::format("Font: {}", font.at(0));
     s.text = read_text(data_dir / "fonts" / "licenses" /
-                       to_path(std::string(fonts[i][1]) + ".txt"));
+                       to_path(std::string(font.at(1)) + ".txt"));
     sections.push_back(s);
   }
   return sections;

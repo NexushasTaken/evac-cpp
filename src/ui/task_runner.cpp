@@ -8,7 +8,9 @@ TaskRunner::~TaskRunner() { wait(); }
 
 bool TaskRunner::run(const std::function<void()>& work,
                      const std::function<void()>& done) {
-  if (m_busy) return false;
+  if (m_busy) {
+    return false;
+  }
 
   m_busy = true;
   m_done = done;
@@ -27,17 +29,23 @@ bool TaskRunner::run(const std::function<void()>& work,
 }
 
 void TaskRunner::on_finished() {
-  if (m_thread.joinable()) m_thread.join();
+  if (m_thread.joinable()) {
+    m_thread.join();
+  }
   m_busy = false;
 
   std::function<void()> done = m_done;
   m_done = nullptr;
-  if (done) done();
+  if (done) {
+    done();
+  }
   emit finished();
 }
 
 void TaskRunner::wait() {
-  if (m_thread.joinable()) m_thread.join();
+  if (m_thread.joinable()) {
+    m_thread.join();
+  }
   m_busy = false;
   m_done = nullptr;
 }

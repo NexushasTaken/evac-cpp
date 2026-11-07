@@ -30,9 +30,10 @@ MainWindow::MainWindow(AppContext& ctx)
   WindowState saved = load_window_state(ctx.settings);
   resize(saved.valid ? saved.width : DEFAULT_WIDTH,
          saved.valid ? saved.height : DEFAULT_HEIGHT);
-  if (saved.valid && saved.maximized)
+  if (saved.valid && saved.maximized) {
     setWindowState(
         Qt::WindowMaximized);  // Takes effect when the window is shown.
+  }
 
   m_tab_game = new TabGame(ctx, m_runner, *this);
   m_tab_mods = new TabMods(ctx, m_runner, *this);
@@ -54,8 +55,8 @@ MainWindow::MainWindow(AppContext& ctx)
   m_tabs->addTab(m_tab_trash, "Trash");
   m_tabs->addTab(m_tab_settings, "Settings");
 
-  QWidget* central = new QWidget();
-  QVBoxLayout* layout = new QVBoxLayout(central);
+  auto* central = new QWidget();
+  auto* layout = new QVBoxLayout(central);
   layout->addWidget(m_tabs, 1);
   layout->addWidget(m_log_view);
   setCentralWidget(central);
@@ -66,9 +67,10 @@ MainWindow::MainWindow(AppContext& ctx)
           &MainWindow::on_task_finished);
 
   m_ctx.status.post("Welcome to Evac!");
-  if (m_ctx.settings.get_bool("print_tips_of_the_day"))
+  if (m_ctx.settings.get_bool("print_tips_of_the_day")) {
     m_ctx.status.post("Tip of the day: " +
-                      pick_tip((unsigned long)std::time(nullptr)));
+                      pick_tip(static_cast<unsigned long>(std::time(nullptr))));
+  }
   m_tab_game->start();
 }
 
@@ -103,7 +105,9 @@ void MainWindow::on_switch_page(int index) {
 
 void MainWindow::on_task_finished() {
   check_trash_limit();
-  if (!m_page_refresh_pending) return;
+  if (!m_page_refresh_pending) {
+    return;
+  }
   m_page_refresh_pending = false;
   show_page(m_tabs->currentWidget());
 }
@@ -115,37 +119,41 @@ void MainWindow::check_trash_limit() {
   std::uint64_t total = m_ctx.trash.total_size();
   bool grew = (total > m_trash_size_seen);
   m_trash_size_seen = total;
-  if (!grew || m_ctx.trash.over_limit().empty()) return;
+  if (!grew || m_ctx.trash.over_limit().empty()) {
+    return;
+  }
 
-  if (m_ctx.settings.get_bool("trash_auto_prune"))
+  if (m_ctx.settings.get_bool("trash_auto_prune")) {
     m_tab_trash->ask_free_up();
-  else
+  } else {
     m_ctx.status.post(
         "The trash is over its size limit (" + str(format_size(total, true)) +
             "). Use Free Up Space on the Trash tab, or change the "
             "limit in Settings.",
         MSG_WARN);
+  }
 }
 
 // Tabs read the game's files when they are shown, as these can change at any
 // time.
 void MainWindow::show_page(QWidget* page) {
-  if (page == m_tab_game)
+  if (page == m_tab_game) {
     m_tab_game->apply_settings();
-  else if (page == m_tab_mods)
+  } else if (page == m_tab_mods) {
     m_tab_mods->refresh();
-  else if (page == m_tab_soundpacks)
+  } else if (page == m_tab_soundpacks) {
     m_tab_soundpacks->refresh();
-  else if (page == m_tab_fonts)
+  } else if (page == m_tab_fonts) {
     m_tab_fonts->refresh();
-  else if (page == m_tab_snapshots)
+  } else if (page == m_tab_snapshots) {
     m_tab_snapshots->refresh();
-  else if (page == m_tab_backups)
+  } else if (page == m_tab_backups) {
     m_tab_backups->refresh();
-  else if (page == m_tab_trash)
+  } else if (page == m_tab_trash) {
     m_tab_trash->refresh();
-  else if (page == m_tab_settings)
+  } else if (page == m_tab_settings) {
     m_tab_settings->load_from_settings();
+  }
 }
 
 // A maximized window keeps the size it had before, so that un-maximizing it

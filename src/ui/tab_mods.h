@@ -50,6 +50,7 @@ class TabMods : public QWidget {
 
   void on_installed_selection_changed();
   void on_available_selection_changed();
+  void extracted();
   void on_show_stock_toggled();
   void on_show_installed_toggled();
   void on_delete_clicked();

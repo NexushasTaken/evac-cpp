@@ -22,16 +22,24 @@
 #include "ui/qt_helpers.h"
 
 // Same order as FontManager::font_fields().
-static const char* const FIELD_CAPTIONS[] = {"Game UI", "Menus", "Map",
-                                             "Overmap"};
+static const char* const FIELD_CAPTIONS[] = {
+    "Game UI",
+    "Menus",
+    "Map",
+    "Overmap",
+};
 static const char* const FIELD_TOOLTIPS[] = {
     "The classic game interface: the sidebar, messages and most screens.",
     "The newer menus (drawn with ImGui). They use the game UI font size.",
     "The game world, when not using tiles.",
-    "The world map view, a.k.a. the overmap."};
+    "The world map view, a.k.a. the overmap.",
+};
 // The font lists with their own sizes in options.json; the menus use the UI's.
-static const char* const SIZE_FIELDS[] = {"typeface", "map_typeface",
-                                          "overmap_typeface"};
+static const char* const SIZE_FIELDS[] = {
+    "typeface",
+    "map_typeface",
+    "overmap_typeface",
+};
 
 static QLabel* make_section_heading(const QString& text) {
   QLabel* label = make_heading(text);
@@ -40,7 +48,7 @@ static QLabel* make_section_heading(const QString& text) {
 }
 
 static QFrame* make_separator() {
-  QFrame* separator = new QFrame();
+  auto* separator = new QFrame();
   separator->setFrameShape(QFrame::HLine);
   separator->setFrameShadow(QFrame::Sunken);
   return separator;
@@ -48,7 +56,7 @@ static QFrame* make_separator() {
 
 static QSpinBox* make_spin(int value, int min, int max,
                            const QString& tooltip) {
-  QSpinBox* spin = new QSpinBox();
+  auto* spin = new QSpinBox();
   spin->setRange(min, max);
   spin->setValue(value);
   spin->setToolTip(tooltip);
@@ -61,7 +69,7 @@ TabFonts::TabFonts(AppContext& ctx, QWidget& parent)
 }
 
 void TabFonts::build_ui() {
-  QVBoxLayout* outer = new QVBoxLayout(this);
+  auto* outer = new QVBoxLayout(this);
   outer->setContentsMargins(12, 12, 12, 12);
 
   m_hint_label = make_label("");
@@ -75,8 +83,8 @@ void TabFonts::build_ui() {
   m_scroller->setWidgetResizable(true);
   m_scroller->setFrameShape(QFrame::NoFrame);
   m_scroller->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-  QWidget* page = new QWidget();
-  QVBoxLayout* content = new QVBoxLayout(page);
+  auto* page = new QWidget();
+  auto* content = new QVBoxLayout(page);
   content->setContentsMargins(0, 0, 12, 0);  // Room for the scrollbar.
   content->setSpacing(8);
   m_scroller->setWidget(page);
@@ -111,7 +119,7 @@ void TabFonts::build_ui() {
   m_set_overmap_button->setToolTip(FIELD_TOOLTIPS[3]);
   m_set_all_button = new QPushButton("Set for All");
   m_set_all_button->setToolTip("Use the selected font for everything.");
-  QHBoxLayout* set_row = new QHBoxLayout();
+  auto* set_row = new QHBoxLayout();
   set_row->setSpacing(8);
   set_row->addWidget(m_set_ui_button, 1);
   set_row->addWidget(m_set_menus_button, 1);
@@ -131,7 +139,9 @@ void TabFonts::build_ui() {
   content->addWidget(lists_hint);
 
   m_field_dropdown = new QComboBox();
-  for (int i = 0; i < 4; ++i) m_field_dropdown->addItem(FIELD_CAPTIONS[i]);
+  for (const auto* i : FIELD_CAPTIONS) {
+    m_field_dropdown->addItem(i);
+  }
   content->addWidget(m_field_dropdown, 0, Qt::AlignLeft);
   m_missing_field_label =
       make_label("This version of the game has no font list for this.");
@@ -149,7 +159,7 @@ void TabFonts::build_ui() {
       "Take the selected font out of this list. The font file stays.");
   m_reset_button = new QPushButton("Reset All Fonts...");
   m_reset_button->setToolTip("Set all font lists back to the game's defaults.");
-  QHBoxLayout* entry_row = new QHBoxLayout();
+  auto* entry_row = new QHBoxLayout();
   entry_row->setSpacing(8);
   entry_row->addWidget(m_move_up_button);
   entry_row->addWidget(m_move_down_button);
@@ -181,7 +191,9 @@ void TabFonts::build_ui() {
           [this, fields]() { on_set_font(fields); });
   connect(m_reset_button, &QPushButton::clicked, this, &TabFonts::on_reset);
   connect(m_field_dropdown, &QComboBox::currentIndexChanged, this, [this]() {
-    if (!m_updating) show_entries();
+    if (!m_updating) {
+      show_entries();
+    }
   });
   connect(m_entries_list, &QListWidget::itemSelectionChanged, this,
           &TabFonts::update_entry_buttons);
@@ -194,7 +206,7 @@ void TabFonts::build_ui() {
 }
 
 void TabFonts::build_sizes(QVBoxLayout& box) {
-  QGridLayout* grid = new QGridLayout();
+  auto* grid = new QGridLayout();
   grid->setVerticalSpacing(6);
   grid->setHorizontalSpacing(12);
   grid->addWidget(make_label("Size"), 0, 1);
@@ -258,7 +270,7 @@ void TabFonts::show_unavailable(const QString& message) {
 void TabFonts::refresh() {
   std::string game = m_ctx.settings.get_string("game");
   Paths::InstallsSummary installs = m_ctx.paths.installs_summary();
-  if (installs.find(game) == installs.end()) {
+  if (!installs.contains(game)) {
     show_unavailable("Install the game first (on the Game tab).");
     return;
   }
@@ -313,9 +325,10 @@ void TabFonts::refresh() {
   m_blending_check->setChecked(blending == "true" || blending == "True");
   bool has_ascii = m_ctx.fonts.has_game_option("USE_DRAW_ASCII_LINES_ROUTINE");
   m_ascii_check->setVisible(has_ascii);
-  if (has_ascii)
+  if (has_ascii) {
     m_ascii_check->setChecked(
         m_ctx.fonts.get_game_option("USE_DRAW_ASCII_LINES_ROUTINE") == "true");
+  }
   m_updating = false;
   on_manual_toggled();
 }
@@ -324,36 +337,43 @@ void TabFonts::fill_fonts_list(int select) {
   m_updating = true;
   m_fonts_list->clear();
   const std::vector<FontInfo>& fonts = m_ctx.fonts.available_fonts();
-  for (size_t i = 0; i < fonts.size(); ++i) {
-    QListWidgetItem* item = new QListWidgetItem(
-        qstr(fonts[i].bundled ? fonts[i].name
-                              : fonts[i].name + "  (added from a file)"),
+  for (const auto& font : fonts) {
+    auto* item = new QListWidgetItem(
+        qstr(font.bundled ? font.name : font.name + "  (added from a file)"),
         m_fonts_list);
-    item->setToolTip(qstr(fonts[i].file));
+    item->setToolTip(qstr(font.file));
   }
-  if (select >= 0) m_fonts_list->setCurrentRow(select);
+  if (select >= 0) {
+    m_fonts_list->setCurrentRow(select);
+  }
   m_updating = false;
   on_font_selected();
 }
 
 int TabFonts::selected_font_index() {
   int row = selected_row(m_fonts_list);
-  if (row < 0 || (size_t)row >= m_ctx.fonts.available_fonts().size()) return -1;
+  if (row < 0 ||
+      static_cast<size_t>(row) >= m_ctx.fonts.available_fonts().size()) {
+    return -1;
+  }
   return row;
 }
 
 void TabFonts::update_preview() {
   int index = selected_font_index();
-  if (index < 0)
+  if (index < 0) {
     m_preview->show_font(std::filesystem::path(), 0);
-  else
+  } else {
     m_preview->show_font(
         m_ctx.fonts.font_file_path(m_ctx.fonts.available_fonts()[index]),
         m_size_spins[0]->value());
+  }
 }
 
 void TabFonts::on_font_selected() {
-  if (m_updating) return;
+  if (m_updating) {
+    return;
+  }
   int index = selected_font_index();
   bool have = (index >= 0);
   const std::vector<std::string>& fields = FontManager::font_fields();
@@ -373,13 +393,17 @@ void TabFonts::on_add_font_file() {
   QString file = QFileDialog::getOpenFileName(
       &m_parent, "Choose a font file", QString(),
       "Fonts (.ttf, .otf, .ttc) (*.ttf *.otf *.ttc *.TTF *.OTF *.TTC)");
-  if (!file.isEmpty()) add_font_file(str(file));
+  if (!file.isEmpty()) {
+    add_font_file(str(file));
+  }
 }
 
 void TabFonts::add_font_file(const std::string& path) {
   std::function<void()> add = [this, path]() {
     int index = m_ctx.fonts.add_font_file(to_path(path));
-    if (index >= 0) fill_fonts_list(index);
+    if (index >= 0) {
+      fill_fonts_list(index);
+    }
   };
   if (!m_ctx.fonts.add_would_replace(to_path(path))) {
     add();
@@ -394,21 +418,26 @@ void TabFonts::add_font_file(const std::string& path) {
 
 void TabFonts::on_set_font(const std::vector<std::string>& fields) {
   int index = selected_font_index();
-  if (index < 0) return;
+  if (index < 0) {
+    return;
+  }
   const std::string& name = m_ctx.fonts.available_fonts()[index].name;
 
   std::vector<std::string> present;
   const std::vector<std::string>& all = FontManager::font_fields();
-  for (size_t i = 0; i < fields.size(); ++i) {
-    if (!m_ctx.fonts.has_font_field(fields[i])) continue;
-    present.push_back(fields[i]);
-    size_t caption = std::find(all.begin(), all.end(), fields[i]) - all.begin();
+  for (const auto& field : fields) {
+    if (!m_ctx.fonts.has_font_field(field)) {
+      continue;
+    }
+    present.push_back(field);
+    size_t caption = std::ranges::find(all, field) - all.begin();
     m_ctx.status.post("Setting " + name + " as the " + FIELD_CAPTIONS[caption] +
                       " font.");
   }
 
-  if (m_ctx.fonts.set_font((size_t)index, present))
+  if (m_ctx.fonts.set_font(static_cast<size_t>(index), present)) {
     on_save();  // The width and height may depend on the font.
+  }
   show_entries();
 }
 
@@ -418,7 +447,9 @@ void TabFonts::on_reset() {
                    "antialiasing, are set back to the "
                    "game's defaults. The sizes are kept.",
                    "Reset", [this]() {
-                     if (m_ctx.fonts.reset_font()) on_save();
+                     if (m_ctx.fonts.reset_font()) {
+                       on_save();
+                     }
                      show_entries();
                    });
 }
@@ -426,8 +457,9 @@ void TabFonts::on_reset() {
 std::string TabFonts::current_field() {
   int selected = m_field_dropdown->currentIndex();
   const std::vector<std::string>& fields = FontManager::font_fields();
-  return (selected >= 0 && (size_t)selected < fields.size()) ? fields[selected]
-                                                             : fields[0];
+  return (selected >= 0 && static_cast<size_t>(selected) < fields.size())
+             ? fields[selected]
+             : fields[0];
 }
 
 // Each row is a small widget of its own: the name, the hinting and the
@@ -444,8 +476,8 @@ void TabFonts::show_entries() {
   const std::vector<std::string>& modes = FontManager::hinting_modes();
   for (size_t i = 0; i < m_entries.size(); ++i) {
     const FontEntry& entry = m_entries[i];
-    QWidget* row = new QWidget();
-    QHBoxLayout* layout = new QHBoxLayout(row);
+    auto* row = new QWidget();
+    auto* layout = new QHBoxLayout(row);
     layout->setContentsMargins(4, 4, 4, 4);
     layout->setSpacing(12);
 
@@ -455,12 +487,13 @@ void TabFonts::show_entries() {
     layout->addWidget(label, 1);
 
     layout->addWidget(make_label("Hinting:"));
-    QComboBox* hinting = new QComboBox();
-    for (size_t m = 0; m < modes.size(); ++m) hinting->addItem(qstr(modes[m]));
-    std::vector<std::string>::const_iterator mode =
-        std::find(modes.begin(), modes.end(), entry.hinting);
+    auto* hinting = new QComboBox();
+    for (const auto& mode : modes) {
+      hinting->addItem(qstr(mode));
+    }
+    auto mode = std::ranges::find(modes, entry.hinting);
     if (mode != modes.end()) {
-      hinting->setCurrentIndex((int)(mode - modes.begin()));
+      hinting->setCurrentIndex(static_cast<int>(mode - modes.begin()));
       hinting->setToolTip(
           "How glyphs are fitted to the pixel grid. Bitmap is sharp and "
           "pixelated.");
@@ -474,7 +507,7 @@ void TabFonts::show_entries() {
     }
     layout->addWidget(hinting);
 
-    QCheckBox* antialiasing = new QCheckBox("Antialiasing");
+    auto* antialiasing = new QCheckBox("Antialiasing");
     antialiasing->setChecked(entry.antialiasing);
     layout->addWidget(antialiasing);
 
@@ -487,7 +520,7 @@ void TabFonts::show_entries() {
               on_entry_style_changed(i, hinting, antialiasing);
             });
 
-    QListWidgetItem* item = new QListWidgetItem(m_entries_list);
+    auto* item = new QListWidgetItem(m_entries_list);
     item->setSizeHint(row->sizeHint());
     m_entries_list->setItemWidget(item, row);
   }
@@ -497,24 +530,28 @@ void TabFonts::show_entries() {
 
 int TabFonts::selected_entry() {
   int row = selected_row(m_entries_list);
-  if (row < 0 || (size_t)row >= m_entries.size()) return -1;
+  if (row < 0 || static_cast<size_t>(row) >= m_entries.size()) {
+    return -1;
+  }
   return row;
 }
 
 void TabFonts::update_entry_buttons() {
   int index = selected_entry();
   m_move_up_button->setEnabled(index > 0);
-  m_move_down_button->setEnabled(index >= 0 &&
-                                 (size_t)index + 1 < m_entries.size());
+  m_move_down_button->setEnabled(index >= 0 && static_cast<size_t>(index) + 1 <
+                                                   m_entries.size());
   m_remove_button->setEnabled(index >= 0);
 }
 
 void TabFonts::on_entry_style_changed(size_t index, QComboBox* hinting,
                                       QCheckBox* antialiasing) {
-  if (m_updating || index >= m_entries.size()) return;
+  if (m_updating || index >= m_entries.size()) {
+    return;
+  }
   const std::vector<std::string>& modes = FontManager::hinting_modes();
   int mode = hinting->currentIndex();
-  bool known = (mode >= 0 && (size_t)mode < modes.size());
+  bool known = (mode >= 0 && static_cast<size_t>(mode) < modes.size());
   // An entry without hinting gets the game's default with its first setting.
   std::string hinting_mode = known ? modes[mode] : std::string("Default");
 
@@ -536,9 +573,12 @@ void TabFonts::on_entry_style_changed(size_t index, QComboBox* hinting,
 
 void TabFonts::on_move_entry(int offset) {
   int index = selected_entry();
-  if (index < 0) return;
-  bool moved = m_ctx.fonts.move_entry(current_field(), (size_t)index,
-                                      m_entries[index].path, offset);
+  if (index < 0) {
+    return;
+  }
+  bool moved =
+      m_ctx.fonts.move_entry(current_field(), static_cast<size_t>(index),
+                             m_entries[index].path, offset);
   show_entries();
   if (moved) {
     m_entries_list->setCurrentRow(index + offset);
@@ -548,7 +588,9 @@ void TabFonts::on_move_entry(int offset) {
 
 void TabFonts::on_remove_entry() {
   int index = selected_entry();
-  if (index < 0) return;
+  if (index < 0) {
+    return;
+  }
   std::string field = current_field();
   std::string path = m_entries[index].path;
   std::string name = to_utf8(to_path(path).stem());
@@ -558,14 +600,18 @@ void TabFonts::on_remove_entry() {
       "and antialiasing. "
       "The font file itself stays.",
       "Remove", [this, field, index, path]() {
-        if (m_ctx.fonts.remove_entry(field, (size_t)index, path) && index == 0)
+        if (m_ctx.fonts.remove_entry(field, static_cast<size_t>(index), path) &&
+            index == 0) {
           on_save();  // The width and height may depend on the first font.
+        }
         show_entries();
       });
 }
 
 void TabFonts::on_size_changed() {
-  if (m_updating) return;
+  if (m_updating) {
+    return;
+  }
   if (!m_manual_check->isChecked()) {
     for (int i = 0; i < 3; ++i) {
       FontDims dims =
@@ -578,7 +624,9 @@ void TabFonts::on_size_changed() {
 }
 
 void TabFonts::on_manual_toggled() {
-  if (m_updating) return;
+  if (m_updating) {
+    return;
+  }
   bool manual = m_manual_check->isChecked();
   for (int i = 0; i < 3; ++i) {
     m_width_spins[i]->setEnabled(manual);

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <filesystem>
+#include <format>
 
 #include "core/archive.h"
 #include "core/fs.h"
@@ -10,10 +11,13 @@
 namespace fs = std::filesystem;
 
 static bool ends_with_zip(const std::string& name) {
-  if (name.size() < 4) return false;
+  if (name.size() < 4) {
+    return false;
+  }
   std::string end = name.substr(name.size() - 4);
-  for (size_t i = 0; i < end.size(); ++i)
-    end[i] = (char)std::tolower((unsigned char)end[i]);
+  for (char& i : end) {
+    i = static_cast<char>(std::tolower(i));
+  }
   return end == ".zip";
 }
 
@@ -22,19 +26,21 @@ BackupManager::BackupManager(Settings& settings, Paths& paths, Status& status,
     : m_settings(settings), m_paths(paths), m_status(status), m_trash(trash) {}
 
 bool BackupManager::is_valid_backup_name(const std::string& name) {
-  if (name.empty()) return false;
-  if (name.find_first_of(":/\\?*\"|%<>") != std::string::npos) return false;
+  if (name.empty()) {
+    return false;
+  }
+  if (name.find_first_of(":/\\?*\"|%<>") != std::string::npos) {
+    return false;
+  }
   // No leading or trailing whitespace.
-  return !isspace((unsigned char)name[0]) &&
-         !isspace((unsigned char)name[name.size() - 1]);
+  return (isspace(name.at(0)) == 0) && (isspace(name.at(name.size() - 1)) == 0);
 }
 
 std::string BackupManager::default_backup_name(const std::tm& time) {
-  char buf[48];
-  std::snprintf(buf, sizeof(buf), "Manual_%02d-%02d-%02d_%02d-%02d",
-                (time.tm_year + 1900) % 100, time.tm_mon + 1, time.tm_mday,
-                time.tm_hour, time.tm_min);
-  return buf;
+  auto result = std::format("Manual_{:02}-{:02}-{:02}_{:02}-{:02}",
+                            (time.tm_year + 1900) % 100, time.tm_mon + 1,
+                            time.tm_mday, time.tm_hour, time.tm_min);
+  return result;
 }
 
 std::vector<BackupSummary> BackupManager::list() {
@@ -42,20 +48,21 @@ std::vector<BackupSummary> BackupManager::list() {
   m_paths.move_old_backups();
 
   std::vector<std::string> names = Paths::list_dir(m_paths.save_backups());
-  for (size_t i = 0; i < names.size(); ++i) {
+  for (const auto& name : names) {
     BackupSummary summary;
-    summary.name = names[i];
-    summary.path = m_paths.save_backups() / to_path(names[i]);
+    summary.name = name;
+    summary.path = m_paths.save_backups() / to_path(name);
 
     // One .zip per world.
     std::error_code ec;
     for (fs::directory_iterator it(summary.path, ec);
          !ec && it != fs::directory_iterator(); it.increment(ec)) {
       std::string file = to_utf8(it->path().filename());
-      if (ends_with_zip(file))
+      if (ends_with_zip(file)) {
         summary.worlds.push_back(file.substr(0, file.size() - 4));
+      }
     }
-    std::sort(summary.worlds.begin(), summary.worlds.end());
+    std::ranges::sort(summary.worlds);
     result.push_back(summary);
   }
   return result;
@@ -92,9 +99,8 @@ bool BackupManager::backup_current(const std::string& backup_name) {
     return false;
   }
 
-  for (size_t i = 0; i < worlds.size(); ++i) {
-    if (!archive_helper::zip(saves, worlds[i],
-                             dest_dir / to_path(worlds[i] + ".zip"),
+  for (const auto& world : worlds) {
+    if (!archive_helper::zip(saves, world, dest_dir / to_path(world + ".zip"),
                              m_status)) {
       // Don't leave a backup that is missing worlds.
       fs::remove_all(dest_dir, ec);
@@ -117,8 +123,9 @@ bool BackupManager::restore(const std::string& backup_name) {
   std::error_code ec;
   for (fs::directory_iterator it(source_dir, ec);
        !ec && it != fs::directory_iterator(); it.increment(ec)) {
-    if (ends_with_zip(to_utf8(it->path().filename())))
+    if (ends_with_zip(to_utf8(it->path().filename()))) {
       zips.push_back(it->path());
+    }
   }
   if (zips.empty()) {
     m_status.post("Backup \"" + backup_name + "\" has no worlds in it.",
@@ -132,8 +139,8 @@ bool BackupManager::restore(const std::string& backup_name) {
   fs::path stage = m_paths.tmp_dir() / "restore";
   fs::remove_all(stage, ec);
   fs::create_directories(stage, ec);
-  for (size_t i = 0; i < zips.size(); ++i) {
-    if (!archive_helper::extract(zips[i], stage, m_status)) {
+  for (const auto& zip : zips) {
+    if (!archive_helper::extract(zip, stage, m_status)) {
       fs::remove_all(stage, ec);
       m_status.post("The current saves were not changed.", MSG_WARN);
       return false;
@@ -150,7 +157,9 @@ bool BackupManager::restore(const std::string& backup_name) {
   fs::create_directories(saves.parent_path(), ec);
   bool moved = fs_helper::move_dir(stage, saves, m_status);
   fs::remove_all(stage, ec);
-  if (!moved) return false;
+  if (!moved) {
+    return false;
+  }
 
   m_status.post("Backup restored.");
   return true;
@@ -164,7 +173,9 @@ bool BackupManager::delete_backup(const std::string& backup_name) {
   }
 
   m_status.post("Deleting backup \"" + backup_name + "\"...");
-  if (!m_trash.remove(target, "backup", backup_name)) return false;
+  if (!m_trash.remove(target, "backup", backup_name)) {
+    return false;
+  }
   m_status.post("Backup deleted.");
   return true;
 }
