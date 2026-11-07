@@ -227,7 +227,8 @@ bool zip(const fs::path& parent, const std::string& dir_to_zip,
       rel += "/";
     }
     set_entry_path(e, rel);
-    archive_entry_set_perm(e, static_cast<unsigned>(st.permissions()) & 07777);
+    mode_t mode = S_ISUID | S_ISGID | S_ISVTX | S_IRWXU | S_IRWXG | S_IRWXO;
+    archive_entry_set_perm(e, static_cast<unsigned>(st.permissions()) & mode);
     archive_entry_set_mtime(e, std::time(nullptr), 0);
     if (is_dir) {
       archive_entry_set_filetype(e, AE_IFDIR);
