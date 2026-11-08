@@ -64,6 +64,7 @@ find_package(nlohmann_json REQUIRED)
 find_package(LibArchive REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(Boost REQUIRED)
+find_package(zoe REQUIRED)
 target_link_libraries(
     evac-cpp_lib
     PUBLIC
@@ -73,6 +74,7 @@ target_link_libraries(
         LibArchive::LibArchive
         spdlog::spdlog
         Boost::process
+        zoe::zoe
 )
 
 # ---- Declare executable ----

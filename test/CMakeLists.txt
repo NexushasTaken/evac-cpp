@@ -6,6 +6,7 @@ project(evac-cppTests LANGUAGES CXX)
 
 # ---- Dependencies ----
 
+find_package(httplib REQUIRED)
 find_package(Catch2 REQUIRED)
 include(Catch)
 
@@ -29,7 +30,7 @@ add_executable(
     src/test_launcher.cpp
     src/test_platform.cpp
 )
-target_link_libraries(evac-cpp_test PRIVATE evac-cpp_lib Catch2::Catch2WithMain)
+target_link_libraries(evac-cpp_test PRIVATE evac-cpp_lib Catch2::Catch2WithMain httplib::httplib)
 target_compile_features(evac-cpp_test PRIVATE cxx_std_17)
 
 catch_discover_tests(evac-cpp_test)

@@ -2,6 +2,7 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <tuple>
 
 #include "core/archive.h"
 #include "core/fs.h"
@@ -9,6 +10,7 @@
 #include "core/mod_manager.h"
 #include "core/paths.h"
 #include "core/settings.h"
+#include "test_server.h"
 
 namespace fs = std::filesystem;
 
@@ -220,23 +222,25 @@ TEST_CASE("the modified ID keeps the rest of the mod's modinfo.json") {
 }
 
 // A zip that looks like the Kenan modpack archives.
-static fs::path make_modpack_zip(ModFixture& f, const std::string& marker) {
+static std::tuple<fs::path, std::string> make_modpack_zip(
+    ModFixture& f, const std::string& marker) {
   write_file(f.dir / "zipsrc/Pack-master/Sub/High/ModA/modinfo.json",
              modinfo("a", "Mod A", ", \"description\": \"" + marker + "\""));
   write_file(f.dir / "zipsrc/Pack-master/Sub/High/ModB/modinfo.json",
              modinfo("b", "Mod B"));
   write_file(f.dir / "zipsrc/Pack-master/Sub/Archived/OldMod/modinfo.json",
              modinfo("old", "Old Mod"));
-  fs::path zip = f.dir / (marker + ".zip");
+  std::string path = (marker + ".zip");
+  fs::path zip = f.dir / path;
   REQUIRE(archive_helper::zip(f.dir / "zipsrc", "Pack-master", zip, f.status));
   fs::remove_all(f.dir / "zipsrc");
-  return zip;
+  return std::make_tuple(zip, path);
 }
 
-static Modpack test_modpack(const fs::path& zip) {
+static Modpack test_modpack(const TestServer& server, const std::string& path) {
   Modpack pack;
   pack.name = "Test Pack";
-  pack.url = "file://" + to_utf8(zip);
+  pack.url = server.url("/" + path);
   pack.filename = "test-pack.zip";
   pack.internal_paths.push_back("Pack-master/Sub/High");
   pack.archived_path = "Pack-master/Sub/Archived";
@@ -247,7 +251,11 @@ TEST_CASE("retrieving a modpack fills the repository") {
   ModFixture f("mods_pack");
   write_file(f.paths.mod_repo() / "Stale/modinfo.json",
              modinfo("stale", "Stale Mod"));
-  Modpack pack = test_modpack(make_modpack_zip(f, "first"));
+  TestServer server(f.dir);
+  server.start();
+
+  auto [_, path] = make_modpack_zip(f, "first");
+  Modpack pack = test_modpack(server, path);
 
   REQUIRE(f.mods.retrieve_modpack(pack));
   REQUIRE(f.mods.available().size() == 2);
@@ -268,13 +276,16 @@ TEST_CASE("a bad modpack leaves the repository alone") {
   ModFixture f("mods_pack_bad");
   write_file(f.paths.mod_repo() / "Keep/modinfo.json",
              modinfo("keep", "Keep Me"));
+  TestServer server(f.dir);
+  server.start();
 
   // The download fails.
-  Modpack pack = test_modpack(f.dir / "does-not-exist.zip");
+  Modpack pack = test_modpack(server, "does-not-exist.zip");
   REQUIRE(!f.mods.retrieve_modpack(pack));
 
   // The archive is fine, but not what we expect.
-  Modpack wrong = test_modpack(make_modpack_zip(f, "second"));
+  auto [zip, path] = make_modpack_zip(f, "second");
+  Modpack wrong = test_modpack(server, path);
   wrong.internal_paths[0] = "Pack-master/Elsewhere";
   REQUIRE(!f.mods.retrieve_modpack(wrong));
 

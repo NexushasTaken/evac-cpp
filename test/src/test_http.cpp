@@ -7,17 +7,18 @@
 #include "core/http.h"
 
 TEST_CASE("progress string") {
-  REQUIRE(Http::format_progress(512 * 1024, 1024 * 1024, 2000, 512 * 1024) ==
-          "Download progress: 512.0 KB (50.0%) at 256 KB/s");
-  REQUIRE(
-      Http::format_progress(10.0 * 1024 * 1024, 0, 1000, 5.0 * 1024 * 1024) ==
-      "Download progress: 10.0 MB at 5.0 MB/s");
+  REQUIRE(Http::format_progress({512L * 1024, 1024L * 1024,
+                                 Http::calc_bps(2000L, 512.0 * 1024.0)}) ==
+          "Download progress: 512.00 KiB (50.00%) at 256.00 KiB/s");
+  REQUIRE(Http::format_progress(
+              {10L * 1024 * 1024, 0, Http::calc_bps(1000, 5 * 1024 * 1024)}) ==
+          "Download progress: 10.00 MiB at 5.00 MiB/s");
 }
 
 TEST_CASE("size string") {
-  REQUIRE(Http::format_size(512 * 1024) == "512.0 KB");
-  REQUIRE(Http::format_size(137811281) == "131.4 MB");
-  REQUIRE(Http::format_size(3LL * 1024 * 1024 * 1024) == "3.0 GB");
+  REQUIRE(Http::format_size(512 * 1024) == "512.00 KiB");
+  REQUIRE(Http::format_size(137811281) == "131.43 MiB");
+  REQUIRE(Http::format_size(3LL * 1024 * 1024 * 1024) == "3.00 GiB");
 }
 
 TEST_CASE(
@@ -39,7 +40,7 @@ TEST_CASE(
   // The URL is never contacted while the archive is in the cache.
   REQUIRE(http.describe_download(settings, dir.string(),
                                  "http://127.0.0.1:1/game.zip", "game.zip") ==
-          "Nothing to download: game.zip is already in the cache (2.0 KB).");
+          "Nothing to download: game.zip is already in the cache (2.00 KiB).");
 
   std::filesystem::remove_all(dir);
 }

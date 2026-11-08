@@ -1,6 +1,8 @@
 #ifndef EVAC_HTTP_H
 #define EVAC_HTTP_H
 
+#include <zoe/zoe.h>
+
 #include <atomic>
 #include <filesystem>
 #include <string>
@@ -10,8 +12,19 @@
 #include "core/status.h"
 
 struct HttpResponse {
-  long code = 0;  // HTTP status code, 0 if the request never got an answer.
+  int code = 0;  // HTTP status code, 0 if the request never got an answer.
   std::string body;
+};
+
+struct Progress {
+  int64_t downloaded;
+  int64_t total;
+  double bps;
+};
+
+struct Proxy {
+  std::string_view host;
+  int port;
 };
 
 // HTTP client on top of cpr (which wraps libcurl). Calls block until done, so
@@ -44,7 +57,7 @@ class Http {
   // Size in bytes of the file at url, from a HEAD request, or -1 if the
   // server does not say (GitHub's branch archives, for one) or cannot be
   // reached.
-  long long remote_size(const std::string& url);
+  int64_t remote_size(const std::string& url);
 
   // A line for the confirmation before downloading url to
   // cache_dir/filename: the download size, or that the cached archive is
@@ -56,14 +69,13 @@ class Http {
 
   void cancel();
 
-  // "1.2 GB", "34.5 MB", "12.0 KB".
-  static std::string format_size(long long bytes);
-
-  // Exposed for tests.
-  static std::string format_progress(double downloaded, double total,
-                                     long delta_msecs, double delta_bytes);
+  static double calc_bps(int64_t delta_msecs, double delta_bytes);
+  // "1.20 GiB", "34.50 MiB", "12.00 KiB".
+  static std::string format_size(double bytes);
+  static std::string format_progress(Progress progress);
 
  private:
+  zoe::Zoe m_zoe;
   Status& m_status;
   std::string m_proxy_host;
   int m_proxy_port = 0;

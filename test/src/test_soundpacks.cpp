@@ -2,6 +2,7 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <tuple>
 
 #ifndef _WIN32
 #include <unistd.h>
@@ -13,6 +14,7 @@
 #include "core/paths.h"
 #include "core/settings.h"
 #include "core/soundpack_manager.h"
+#include "test_server.h"
 
 namespace fs = std::filesystem;
 
@@ -47,15 +49,16 @@ struct SoundFixture {
 
   // Makes a zip like the real soundpack archives: a directory with a
   // soundpack.txt in it.
-  fs::path make_pack_zip(const std::string& dir_in_zip,
-                         const std::string& marker) {
+  std::tuple<fs::path, std::string> make_pack_zip(const std::string& dir_in_zip,
+                                                  const std::string& marker) {
     write_file(dir / "zipsrc" / dir_in_zip / "soundpack.txt",
                "VIEW: Test Pack\nDESCRIPTION: " + marker + "\n");
     write_file(dir / "zipsrc" / dir_in_zip / "sfx/boom.ogg", marker);
-    fs::path zip = dir / (marker + ".zip");
+    std::string path = (marker + ".zip");
+    fs::path zip = dir / path;
     REQUIRE(archive_helper::zip(dir / "zipsrc", dir_in_zip, zip, status));
     fs::remove_all(dir / "zipsrc");
-    return zip;
+    return std::make_tuple(zip, path);
   }
 
   fs::path dir;
@@ -214,7 +217,7 @@ TEST_CASE("install from a local file, reinstall and delete") {
   pack.name = "Test Pack";
   pack.internal_path = "Inner-1";
 
-  fs::path zip1 = f.make_pack_zip("Inner-1", "first");
+  auto [zip1, _] = f.make_pack_zip("Inner-1", "first");
   REQUIRE(f.sounds.install_pack(pack, zip1, false, true));
   REQUIRE(read_file(f.paths.sound_user() / "Test Pack/sfx/boom.ogg") ==
           "first");
@@ -222,7 +225,7 @@ TEST_CASE("install from a local file, reinstall and delete") {
   REQUIRE(!fs::exists(f.paths.tmp_dir() / "Test Pack"));
 
   // Reinstall replaces the old contents.
-  fs::path zip2 = f.make_pack_zip("Inner-1", "second");
+  auto [zip2, _] = f.make_pack_zip("Inner-1", "second");
   REQUIRE(f.sounds.install_pack(pack, zip2, true, false));
   REQUIRE(read_file(f.paths.sound_user() / "Test Pack/sfx/boom.ogg") ==
           "second");
@@ -254,7 +257,7 @@ TEST_CASE("a stock pack with the same name is not a user copy") {
   // Only the stock one: installing is not a reinstall, and nothing goes to the
   // trash.
   REQUIRE(!f.sounds.has_user_copy(pack));
-  fs::path zip1 = f.make_pack_zip("Inner-1", "first");
+  auto [zip1, _] = f.make_pack_zip("Inner-1", "first");
   REQUIRE(f.sounds.install_pack(pack, zip1, false, true));
   REQUIRE(f.sounds.has_user_copy(pack));
   REQUIRE(f.trash.list().empty());
@@ -262,7 +265,7 @@ TEST_CASE("a stock pack with the same name is not a user copy") {
 
   // Installing over the user's copy without reinstall is refused, not merged.
   write_file(f.paths.sound_user() / "CC-Sounds/mine.txt", "keep");
-  fs::path zip2 = f.make_pack_zip("Inner-1", "second");
+  auto [zip2, _] = f.make_pack_zip("Inner-1", "second");
   REQUIRE(!f.sounds.install_pack(pack, zip2, false, true));
   REQUIRE(read_file(f.paths.sound_user() / "CC-Sounds/sfx/boom.ogg") ==
           "first");
@@ -279,11 +282,15 @@ TEST_CASE("a stock pack with the same name is not a user copy") {
 
 TEST_CASE("install downloads the archive and uses the cache") {
   SoundFixture f("sound_download");
-  fs::path zip = f.make_pack_zip("Inner-2", "downloaded");
+  auto [zip, path] = f.make_pack_zip("Inner-2", "downloaded");
+  INFO(path);
+
+  TestServer server(f.dir);
+  server.start();
 
   SoundpackSource pack;
   pack.name = "Test Pack";
-  pack.url = "file://" + to_utf8(zip);
+  pack.url = server.url("/" + path);
   pack.filename = "test-pack.zip";
   pack.internal_path = "Inner-2";
 
@@ -306,7 +313,7 @@ TEST_CASE("failed installs leave the old copy alone") {
   pack.filename = "nope.zip";
   pack.internal_path = "Inner-1";
 
-  fs::path zip = f.make_pack_zip("Inner-1", "good");
+  auto [zip, _] = f.make_pack_zip("Inner-1", "good");
   REQUIRE(f.sounds.install_pack(pack, zip, false, true));
 
   // Download fails.
@@ -315,7 +322,7 @@ TEST_CASE("failed installs leave the old copy alone") {
   write_file(f.dir / "bad.zip", "garbage");
   REQUIRE(!f.sounds.install_pack(pack, f.dir / "bad.zip", true, true));
   // The archive does not have the expected directory.
-  fs::path wrong = f.make_pack_zip("Other-Dir", "wrong");
+  auto [wrong, _] = f.make_pack_zip("Other-Dir", "wrong");
   REQUIRE(!f.sounds.install_pack(pack, wrong, true, true));
 
   REQUIRE(read_file(f.paths.sound_user() / "Test Pack/sfx/boom.ogg") == "good");

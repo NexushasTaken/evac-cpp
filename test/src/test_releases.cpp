@@ -13,6 +13,7 @@
 #include "core/release_installer.h"
 #include "core/release_manager.h"
 #include "core/settings.h"
+#include "test_server.h"
 
 namespace fs = std::filesystem;
 
@@ -97,6 +98,8 @@ TEST_CASE("install, update and remove a release from a local archive") {
   Paths paths(dir, settings, status);
   Trash trash(settings, paths, status);
   ReleaseInstaller installer(settings, paths, status, trash);
+  TestServer server(dir);
+  server.start();
 
   // A fake game archive with one top directory, like the real ones.
   write_file(dir / "pack/cdda-1/cataclysm-launcher", "#!/bin/sh\n");
@@ -107,7 +110,7 @@ TEST_CASE("install, update and remove a release from a local archive") {
 
   Release release;
   release.name = "Test Build 1";
-  release.url = "file://" + to_utf8(dir / "fake.tar.gz");
+  release.url = server.url("/fake.tar.gz");
   release.filename = "fake-1.tar.gz";
 
   REQUIRE(installer.install_release(release, ""));
