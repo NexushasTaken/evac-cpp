@@ -16,6 +16,7 @@ class Recipe(ConanFile):
         self.requires("nlohmann_json/3.11.3")
         self.requires("libarchive/3.7.9")
         self.requires("spdlog/1.15.1")
+        self.requires("boost/1.91.0")
 
     def build_requirements(self):
         self.test_requires("catch2/3.8.0")

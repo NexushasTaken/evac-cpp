@@ -19,6 +19,7 @@ add_library(
     evac-cpp_lib
     OBJECT
     src/core/version.cpp
+    src/core/platform.cpp
     src/core/process.cpp
     src/core/status.cpp
     src/core/helpers.cpp
@@ -45,18 +46,6 @@ add_library(
     src/core/trash.cpp
 )
 
-if(WIN32)
-    target_sources(
-        evac-cpp_lib
-        PRIVATE src/core/platform_windows.cpp src/core/process_windows.cpp
-    )
-else()
-    target_sources(
-        evac-cpp_lib
-        PRIVATE src/core/platform_posix.cpp src/core/process_posix.cpp
-    )
-endif()
-
 target_compile_definitions(
     evac-cpp_lib
     PRIVATE EVAC_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data"
@@ -74,8 +63,7 @@ find_package(cpr REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(LibArchive REQUIRED)
 find_package(spdlog REQUIRED)
-find_package(Catch2 REQUIRED)
-find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets)
+find_package(Boost REQUIRED)
 target_link_libraries(
     evac-cpp_lib
     PUBLIC
@@ -84,6 +72,7 @@ target_link_libraries(
         nlohmann_json::nlohmann_json
         LibArchive::LibArchive
         spdlog::spdlog
+        Boost::process
 )
 
 # ---- Declare executable ----
@@ -115,6 +104,7 @@ set_property(TARGET evac-cpp_exe PROPERTY OUTPUT_NAME evac-cpp)
 
 target_compile_features(evac-cpp_exe PRIVATE cxx_std_17)
 
+find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets)
 target_link_libraries(evac-cpp_exe PRIVATE evac-cpp_lib Qt6::Widgets)
 
 # ---- Install rules ----
