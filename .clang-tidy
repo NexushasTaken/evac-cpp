@@ -2,7 +2,9 @@
 # Enable ALL the things! Except not really
 # misc-non-private-member-variables-in-classes: the options don't do anything
 # modernize-use-nodiscard: too aggressive, attribute is situationally useful
+FormatStyle: file
 Checks: "*,\
+  -clang-analyzer-*\
   -google-readability-todo,\
   -altera-*,\
   -fuchsia-*,\
