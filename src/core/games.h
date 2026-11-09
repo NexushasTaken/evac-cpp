@@ -8,7 +8,7 @@ struct GameInfo {
   std::string key;  // "dda", "bn", ... Also the name of the game's directory.
   std::string name;
   std::string description;  // Rich text: the HTML subset Qt labels show.
-  bool has_stable_channel;  // The others only have experimental builds.
+  bool has_stable_channel{};  // The others only have experimental builds.
 };
 
 // All supported games, in the order they are shown.

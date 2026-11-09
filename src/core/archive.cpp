@@ -2,15 +2,21 @@
 
 #include <archive.h>
 #include <archive_entry.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #include <array>
 #include <climits>
 #include <ctime>
 #include <filesystem>
 #include <fstream>
+#include <ios>
+#include <string>
+#include <system_error>
 #include <vector>
 
 #include "core/fs.h"
+#include "core/status.h"
 
 namespace fs = std::filesystem;
 
@@ -69,7 +75,7 @@ static bool copy_data_blocks(struct archive* in, struct archive* out,
   la_int64_t offset = 0;
 
   while (true) {
-    int r = archive_read_data_block(in, &buff, &size, &offset);
+    const int r = archive_read_data_block(in, &buff, &size, &offset);
     if (r == ARCHIVE_EOF) {
       return true;
     }
@@ -105,8 +111,9 @@ bool extract(const fs::path& archive_path, const fs::path& dest_dir,
   archive_read_support_filter_gzip(in);
 
   struct archive* out = archive_write_disk_new();
-  int flags = ARCHIVE_EXTRACT_TIME | ARCHIVE_EXTRACT_PERM |
-              ARCHIVE_EXTRACT_SECURE_NODOTDOT | ARCHIVE_EXTRACT_SECURE_SYMLINKS;
+  const int flags = ARCHIVE_EXTRACT_TIME | ARCHIVE_EXTRACT_PERM |
+                    ARCHIVE_EXTRACT_SECURE_NODOTDOT |
+                    ARCHIVE_EXTRACT_SECURE_SYMLINKS;
   archive_write_disk_set_options(out, flags);
 
   bool ok = true;
@@ -120,7 +127,7 @@ bool extract(const fs::path& archive_path, const fs::path& dest_dir,
 
   struct archive_entry* entry = nullptr;
   while (ok) {
-    int r = archive_read_next_header(in, &entry);
+    const int r = archive_read_next_header(in, &entry);
     if (r == ARCHIVE_EOF) {
       break;
     }
@@ -170,7 +177,7 @@ static bool add_file_data(struct archive* a, const fs::path& path) {
   std::array<char, USHRT_MAX> buf{};
   while (f) {
     f.read(buf.data(), sizeof(buf));
-    std::streamsize n = f.gcount();
+    const std::streamsize n = f.gcount();
     if (n > 0 &&
         0 > archive_write_data(a, buf.data(), static_cast<size_t>(n))) {
       return false;
@@ -184,7 +191,7 @@ bool zip(const fs::path& parent, const std::string& dir_to_zip,
   status.post("Creating " + file_name_of(dest_zip));
 
   const fs::path& base = parent;
-  fs::path root = base / to_path(dir_to_zip);
+  const fs::path root = base / to_path(dir_to_zip);
   std::error_code ec;
   if (!fs::is_directory(root, ec)) {
     status.post("Cannot zip, no such directory: " + to_utf8(root), MSG_ERROR);
@@ -217,11 +224,11 @@ bool zip(const fs::path& parent, const std::string& dir_to_zip,
 
   for (size_t i = 0; i < items.size() && ok; ++i) {
     const fs::path& p = items.at(i);
-    fs::file_status st = fs::symlink_status(p, ec);
+    const fs::file_status st = fs::symlink_status(p, ec);
     if (fs::is_symlink(st)) {
       continue;
     }
-    bool is_dir = fs::is_directory(st);
+    const bool is_dir = fs::is_directory(st);
 
     struct archive_entry* e = archive_entry_new();
     // Zip wants "/" separators, and a trailing one for a directory.
@@ -230,7 +237,8 @@ bool zip(const fs::path& parent, const std::string& dir_to_zip,
       rel += "/";
     }
     set_entry_path(e, rel);
-    mode_t mode = S_ISUID | S_ISGID | S_ISVTX | S_IRWXU | S_IRWXG | S_IRWXO;
+    const mode_t mode =
+        S_ISUID | S_ISGID | S_ISVTX | S_IRWXU | S_IRWXG | S_IRWXO;
     archive_entry_set_perm(e, static_cast<unsigned>(st.permissions()) & mode);
     archive_entry_set_mtime(e, std::time(nullptr), 0);
     if (is_dir) {

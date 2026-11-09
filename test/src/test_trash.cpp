@@ -1,12 +1,20 @@
 #include <catch2/catch_test_macros.hpp>
+#include <chrono>
+#include <cstddef>
 #include <filesystem>
 #include <fstream>
+#include <nlohmann/json_fwd.hpp>
 #include <sstream>
+#include <string>
+#include <vector>
+
+#include "core/status.h"
 
 #ifndef _WIN32
 #include <unistd.h>
 #endif
 
+#include "absl/strings/match.h"
 #include "core/fs.h"
 #include "core/helpers.h"
 #include "core/paths.h"
@@ -28,7 +36,7 @@ static void write_file(const fs::path& path, const std::string& content) {
 }
 
 static std::string read_file(const fs::path& path) {
-  std::ifstream f(path);
+  const std::ifstream f(path);
   std::stringstream ss;
   ss << f.rdbuf();
   return ss.str();
@@ -47,7 +55,7 @@ static Trash::Clock::time_point at(int seconds) {
 }
 
 struct TrashFixture {
-  TrashFixture(const std::string& name)
+  explicit TrashFixture(const std::string& name)
       : dir(make_temp_dir(name)),
         settings(dir / "s.json", status),
         paths(dir, settings, status),
@@ -56,7 +64,7 @@ struct TrashFixture {
   }
 
   // A directory with files of the given total size.
-  fs::path make_thing(const std::string& rel, size_t bytes) {
+  fs::path make_thing(const std::string& rel, size_t bytes) const {
     fs::path path = dir / rel;
     write_file(path / "data.bin", std::string(bytes, 'x'));
     return path;
@@ -77,15 +85,15 @@ TEST_CASE("trash settings and directory") {
   REQUIRE(f.paths.trash_dir() == f.dir / "trash");
 
   // The trash is next to the game directories, but is not an install.
-  write_file(f.dir / "trash/x" / INFO_FILENAME, "{\"name\": \"Not A Build\"}");
-  write_file(f.dir / "dda/game0" / INFO_FILENAME, "{\"name\": \"Test Build\"}");
+  write_file(f.dir / "trash/x" / INFO_FILENAME, R"({"name": "Not A Build"})");
+  write_file(f.dir / "dda/game0" / INFO_FILENAME, R"({"name": "Test Build"})");
   Paths::InstallsSummary installs = f.paths.installs_summary();
   REQUIRE(installs.count("trash") == 0);
   REQUIRE(installs["dda"].size() == 1);
   REQUIRE(installs["dda"].count("Test Build") == 1);
-  for (Paths::InstallsSummary::const_iterator g = installs.begin();
-       g != installs.end(); ++g)
+  for (auto g = installs.begin(); g != installs.end(); ++g) {
     REQUIRE(g->second.count("Not A Build") == 0);
+  }
 }
 
 TEST_CASE("remove moves into the trash and list reads it back") {
@@ -106,25 +114,26 @@ TEST_CASE("remove moves into the trash and list reads it back") {
   REQUIRE(items[0].id == Trash::make_id("soundpack", "CC-Sounds", at(0)));
   REQUIRE(f.trash.total_size() == 1005);
 
-  fs::path item_dir = f.paths.trash_dir() / items[0].id / "item";
+  const fs::path item_dir = f.paths.trash_dir() / items[0].id / "item";
   REQUIRE(read_file(item_dir / "sfx/boom.ogg") == "12345");
 }
 
 TEST_CASE("make_id keeps the name safe for a directory") {
-  std::string id = Trash::make_id("backup", "a/b c:d", at(0));
-  REQUIRE(id.find('/') == std::string::npos);
-  REQUIRE(id.find(' ') == std::string::npos);
+  const std::string id = Trash::make_id("backup", "a/b c:d", at(0));
+  REQUIRE(!absl::StrContains(id, '/'));
+  REQUIRE(!absl::StrContains(id, ' '));
   REQUIRE(id.substr(id.size() - 7) == "a_b_c_d");
-  REQUIRE(id.find("_backup_") != std::string::npos);
+  REQUIRE(absl::StrContains(id, "_backup_"));
 
-  std::string long_id = Trash::make_id("mod", std::string(100, 'n'), at(0));
+  const std::string long_id =
+      Trash::make_id("mod", std::string(100, 'n'), at(0));
   REQUIRE(long_id.size() < 80);
 }
 
 TEST_CASE("remove with use_trash off deletes for good") {
   TrashFixture f("trash_off");
   f.settings.set_bool("use_trash", false);
-  fs::path thing = f.make_thing("dda/save_backups/old", 10);
+  const fs::path thing = f.make_thing("dda/save_backups/old", 10);
 
   REQUIRE(f.trash.remove(thing, "backup", "old", at(0)));
   REQUIRE(!fs::exists(thing));
@@ -134,8 +143,8 @@ TEST_CASE("remove with use_trash off deletes for good") {
 
 TEST_CASE("removes at the same moment get their own entries") {
   TrashFixture f("trash_same_time");
-  fs::path a = f.make_thing("one/Pack", 1);
-  fs::path b = f.make_thing("two/Pack", 2);
+  const fs::path a = f.make_thing("one/Pack", 1);
+  const fs::path b = f.make_thing("two/Pack", 2);
 
   REQUIRE(f.trash.remove(a, "soundpack", "Pack", at(0)));
   REQUIRE(f.trash.remove(b, "soundpack", "Pack", at(0)));
@@ -149,9 +158,9 @@ TEST_CASE("remove refuses what it can't or shouldn't move") {
   TrashFixture f("trash_refuse");
   REQUIRE(!f.trash.remove(f.dir / "missing", "mod", "missing", at(0)));
 
-  fs::path thing = f.make_thing("thing", 1);
+  const fs::path thing = f.make_thing("thing", 1);
   REQUIRE(f.trash.remove(thing, "mod", "thing", at(0)));
-  fs::path entry = f.paths.trash_dir() / f.trash.list()[0].id;
+  const fs::path entry = f.paths.trash_dir() / f.trash.list()[0].id;
 
   // The trash itself, something inside it, and a directory that holds it.
   REQUIRE(!f.trash.remove(f.paths.trash_dir(), "mod", "trash", at(1)));
@@ -167,7 +176,7 @@ TEST_CASE("list is newest first and skips half-written entries") {
   REQUIRE(f.trash.remove(f.make_thing("b", 1), "mod", "b", at(30)));
   REQUIRE(f.trash.remove(f.make_thing("c", 1), "mod", "c", at(20)));
 
-  write_file(f.paths.trash_dir() / "no-item/info.json", "{\"name\": \"x\"}");
+  write_file(f.paths.trash_dir() / "no-item/info.json", R"({"name": "x"})");
   write_file(f.paths.trash_dir() / "no-info/item/file", "x");
 
   std::vector<TrashItem> items = f.trash.list();
@@ -191,12 +200,12 @@ TEST_CASE("delete_items and empty") {
 
   // Ids that are not entries in the trash are refused, and nothing outside it
   // is touched.
-  fs::path outside = f.make_thing("outside", 1);
+  const fs::path outside = f.make_thing("outside", 1);
   std::vector<std::string> bad;
-  bad.push_back("");
-  bad.push_back("..");
-  bad.push_back("../outside");
-  bad.push_back("no-such-id");
+  bad.emplace_back("");
+  bad.emplace_back("..");
+  bad.emplace_back("../outside");
+  bad.emplace_back("no-such-id");
   REQUIRE(!f.trash.delete_items(bad));
   REQUIRE(fs::exists(outside));
   REQUIRE(fs::exists(f.paths.trash_dir()));
@@ -210,7 +219,7 @@ TEST_CASE("delete_items and empty") {
 
 TEST_CASE("over_limit picks the oldest and keeps the newest") {
   TrashFixture f("trash_limit");
-  const size_t MB = 1024 * 1024;
+  const size_t MB = static_cast<const size_t>(1024 * 1024);
   f.settings.set_int("trash_max_size_mb", 3);
 
   REQUIRE(f.trash.remove(f.make_thing("old", 2 * MB), "mod", "old", at(0)));
@@ -242,7 +251,7 @@ static TrashItem newest(TrashFixture& f) {
 
 TEST_CASE("restore puts things back, or next to a new copy") {
   TrashFixture f("trash_restore_plain");
-  fs::path sound = f.dir / "dda/userdata/sound";
+  const fs::path sound = f.dir / "dda/userdata/sound";
   fs::path pack = f.make_thing("dda/userdata/sound/CC-Sounds", 3);
 
   REQUIRE(f.trash.remove(pack, "soundpack", "CC-Sounds", at(0)));
@@ -268,8 +277,8 @@ TEST_CASE("restore puts things back, or next to a new copy") {
   // And again: the next free name.
   REQUIRE(f.trash.remove(f.make_thing("other/CC-Sounds", 1), "soundpack",
                          "CC-Sounds", at(2)));
-  TrashItem item = newest(f);
-  fs::path info_file = f.paths.trash_dir() / item.id / "info.json";
+  const TrashItem item = newest(f);
+  const fs::path info_file = f.paths.trash_dir() / item.id / "info.json";
   nlohmann::json info;
   REQUIRE(load_json_file(info_file, info, f.status));
   info["original_path"] =
@@ -283,15 +292,15 @@ TEST_CASE("restore puts things back, or next to a new copy") {
 
 TEST_CASE("restoring a mod whose ID is taken needs replace") {
   TrashFixture f("trash_restore_mod");
-  fs::path mods = f.dir / "dda/userdata/mods";
+  const fs::path mods = f.dir / "dda/userdata/mods";
   write_file(mods / "ModA/modinfo.json",
-             "{\"type\": \"MOD_INFO\", \"id\": \"a\", \"name\": \"Old A\"}");
+             R"({"type": "MOD_INFO", "id": "a", "name": "Old A"})");
   REQUIRE(f.trash.remove(mods / "ModA", "mod", "Old A", at(0)));
-  std::string old_id = newest(f).id;
+  const std::string old_id = newest(f).id;
 
   // Another folder with the same mod ID.
   write_file(mods / "ModA-v2/modinfo.json",
-             "{\"type\": \"MOD_INFO\", \"id\": \"a\", \"name\": \"New A\"}");
+             R"({"type": "MOD_INFO", "id": "a", "name": "New A"})");
   RestorePlan plan = f.trash.plan_restore(old_id);
   REQUIRE(plan.kind == RestorePlan::CONFLICT);
   REQUIRE(plan.conflict_path == mods / "ModA-v2");
@@ -313,12 +322,15 @@ TEST_CASE("restoring a mod whose ID is taken needs replace") {
   // renamed.
   REQUIRE(f.trash.remove(mods / "ModA", "mod", "Old A", at(5)));
   write_file(mods / "ModA/modinfo.json",
-             "{\"type\": \"MOD_INFO\", \"id\": \"b\", \"name\": \"B\"}");
+             R"({"type": "MOD_INFO", "id": "b", "name": "B"})");
   // Not newest(f): "New A" went to the trash with the real clock, so which one
   // is newer depends on today's date.
   std::string again_id;
-  for (const TrashItem& item : f.trash.list())
-    if (item.name == "Old A") again_id = item.id;
+  for (const TrashItem& item : f.trash.list()) {
+    if (item.name == "Old A") {
+      again_id = item.id;
+    }
+  }
   REQUIRE(!again_id.empty());
   plan = f.trash.plan_restore(again_id);
   REQUIRE(plan.kind == RestorePlan::RENAMED);
@@ -327,23 +339,23 @@ TEST_CASE("restoring a mod whose ID is taken needs replace") {
 
 TEST_CASE("a renamed restore can get a name the user picked") {
   TrashFixture f("trash_restore_named");
-  fs::path sound = f.dir / "dda/userdata/sound";
-  fs::path pack = f.make_thing("dda/userdata/sound/CC-Sounds", 3);
+  const fs::path sound = f.dir / "dda/userdata/sound";
+  const fs::path pack = f.make_thing("dda/userdata/sound/CC-Sounds", 3);
   REQUIRE(f.trash.remove(pack, "soundpack", "CC-Sounds", at(0)));
-  std::string id = newest(f).id;
+  const std::string id = newest(f).id;
   write_file(pack / "new.txt", "new");  // Reinstalled: the old place is taken.
   write_file(sound / "Other/x", "x");
 
-  REQUIRE(f.trash.check_restore_name(id, "") != "");
-  REQUIRE(f.trash.check_restore_name(id, "..") != "");
-  REQUIRE(f.trash.check_restore_name(id, "a/b") != "");
-  REQUIRE(f.trash.check_restore_name(id, "CC-Sounds") != "");  // Taken.
-  REQUIRE(f.trash.check_restore_name(id, "Other") != "");
+  REQUIRE(!f.trash.check_restore_name(id, "").empty());
+  REQUIRE(!f.trash.check_restore_name(id, "..").empty());
+  REQUIRE(!f.trash.check_restore_name(id, "a/b").empty());
+  REQUIRE(!f.trash.check_restore_name(id, "CC-Sounds").empty());  // Taken.
+  REQUIRE(!f.trash.check_restore_name(id, "Other").empty());
   REQUIRE(!f.trash.restore(id, false, "Other"));
   REQUIRE(read_file(sound / "Other/x") == "x");
   REQUIRE(f.trash.list().size() == 1);
 
-  REQUIRE(f.trash.check_restore_name(id, "CC-Sounds old") == "");
+  REQUIRE(f.trash.check_restore_name(id, "CC-Sounds old").empty());
   REQUIRE(f.trash.restore(id, false, "CC-Sounds old"));
   REQUIRE(fs::exists(sound / "CC-Sounds old/data.bin"));
   REQUIRE(read_file(pack / "new.txt") == "new");
@@ -351,12 +363,12 @@ TEST_CASE("a renamed restore can get a name the user picked") {
   REQUIRE(f.trash.list().empty());
 
   // Backups follow the backup name rules.
-  fs::path backup = f.make_thing("dda/userdata/evac/backups/Manual", 1);
+  const fs::path backup = f.make_thing("dda/userdata/evac/backups/Manual", 1);
   REQUIRE(f.trash.remove(backup, "backup", "Manual", at(1)));
   write_file(backup / "x.zip", "x");
-  REQUIRE(f.trash.check_restore_name(newest(f).id, "a:b") != "");
-  REQUIRE(f.trash.check_restore_name(newest(f).id, " Manual 2") != "");
-  REQUIRE(f.trash.check_restore_name(newest(f).id, "Manual 2") == "");
+  REQUIRE(!f.trash.check_restore_name(newest(f).id, "a:b").empty());
+  REQUIRE(!f.trash.check_restore_name(newest(f).id, " Manual 2").empty());
+  REQUIRE(f.trash.check_restore_name(newest(f).id, "Manual 2").empty());
 
   // Saves and installs keep their automatic names.
   REQUIRE(!Trash::can_choose_name("saves"));
@@ -366,14 +378,14 @@ TEST_CASE("a renamed restore can get a name the user picked") {
 
 TEST_CASE("restoring an install") {
   TrashFixture f("trash_restore_install");
-  fs::path base = f.dir / "dda";
-  write_file(base / "game0" / INFO_FILENAME, "{\"name\": \"Build 1\"}");
+  const fs::path base = f.dir / "dda";
+  write_file(base / "game0" / INFO_FILENAME, R"({"name": "Build 1"})");
   REQUIRE(f.trash.remove(base / "game0", "install", "Build 1", at(0)));
   std::string id = newest(f).id;
   REQUIRE(f.trash.plan_restore(id).kind == RestorePlan::ORIGINAL);
 
   // Updated in the meantime: game0 holds a newer build, so it goes to game1.
-  write_file(base / "game0" / INFO_FILENAME, "{\"name\": \"Build 2\"}");
+  write_file(base / "game0" / INFO_FILENAME, R"({"name": "Build 2"})");
   RestorePlan plan = f.trash.plan_restore(id);
   REQUIRE(plan.kind == RestorePlan::RENAMED);
   REQUIRE(plan.dest == base / "game1");
@@ -385,7 +397,7 @@ TEST_CASE("restoring an install") {
   // The same build installed again: replace or nothing.
   REQUIRE(f.trash.remove(base / "game1", "install", "Build 1", at(1)));
   id = newest(f).id;
-  write_file(base / "game2" / INFO_FILENAME, "{\"name\": \"Build 1\"}");
+  write_file(base / "game2" / INFO_FILENAME, R"({"name": "Build 1"})");
   write_file(base / "game2/marker", "reinstalled");
   plan = f.trash.plan_restore(id);
   REQUIRE(plan.kind == RestorePlan::CONFLICT);
@@ -405,7 +417,7 @@ TEST_CASE("restoring saves merges the worlds") {
   write_file(saves / "Alpha/map.dat", "alpha old");
   write_file(saves / "Beta/map.dat", "beta old");
   REQUIRE(f.trash.remove(saves, "saves", "Saves before restoring x", at(0)));
-  std::string id = newest(f).id;
+  const std::string id = newest(f).id;
 
   // No saves now: the whole directory goes back.
   REQUIRE(f.trash.plan_restore(id).kind == RestorePlan::ORIGINAL);
@@ -432,17 +444,17 @@ TEST_CASE("what can't be restored stays in the trash") {
   REQUIRE(f.trash.plan_restore("../x").kind == RestorePlan::IMPOSSIBLE);
 
   // The folder it was in is gone, e.g. the install it lived in was deleted.
-  fs::path pack = f.make_thing("dda/game0/data/sound/Pack", 1);
+  const fs::path pack = f.make_thing("dda/game0/data/sound/Pack", 1);
   REQUIRE(f.trash.remove(pack, "soundpack", "Pack", at(0)));
   fs::remove_all(f.dir / "dda/game0");
-  std::string id = newest(f).id;
+  const std::string id = newest(f).id;
   REQUIRE(f.trash.plan_restore(id).kind == RestorePlan::IMPOSSIBLE);
   REQUIRE(!f.trash.restore(id, true));
   REQUIRE(f.trash.list().size() == 1);
   REQUIRE(!fs::exists(f.dir / "dda/game0"));  // Not created again.
 
   // An info.json that points into the trash.
-  fs::path info_file = f.paths.trash_dir() / id / "info.json";
+  const fs::path info_file = f.paths.trash_dir() / id / "info.json";
   nlohmann::json info;
   REQUIRE(load_json_file(info_file, info, f.status));
   info["original_path"] = f.paths.trash_dir() / id / "item/x";
@@ -455,15 +467,17 @@ TEST_CASE("what can't be restored stays in the trash") {
 
 #ifndef _WIN32  // Windows has no permission bits for directories.
 TEST_CASE("a failed restore keeps the item") {
-  if (geteuid() == 0) SKIP("root can write anywhere");
+  if (geteuid() == 0) {
+    SKIP("root can write anywhere");
+  }
   TrashFixture f("trash_restore_fail");
-  fs::path sound = f.dir / "dda/userdata/sound";
-  fs::path pack = f.make_thing("dda/userdata/sound/Pack", 1);
+  const fs::path sound = f.dir / "dda/userdata/sound";
+  const fs::path pack = f.make_thing("dda/userdata/sound/Pack", 1);
   REQUIRE(f.trash.remove(pack, "soundpack", "Pack", at(0)));
-  std::string id = newest(f).id;
+  const std::string id = newest(f).id;
 
   fs::permissions(sound, fs::perms::owner_read | fs::perms::owner_exec);
-  bool restored = f.trash.restore(id, false);
+  const bool restored = f.trash.restore(id, false);
   fs::permissions(sound, fs::perms::owner_all);
   REQUIRE(!restored);
   REQUIRE(f.trash.list().size() == 1);

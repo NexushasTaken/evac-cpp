@@ -1,5 +1,7 @@
 #include "ui/tab_backups.h"
 
+#include <qnamespace.h>
+
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -10,19 +12,27 @@
 #include <QUrl>
 #include <QVBoxLayout>
 #include <ctime>
+#include <format>
+#include <functional>
 #include <memory>
+#include <string>
+#include <vector>
 
+#include "core/backup_manager.h"
 #include "core/fs.h"
 #include "core/git.h"
+#include "core/paths.h"
 #include "core/platform.h"
+#include "ui/app_context.h"
 #include "ui/dialogs.h"
 #include "ui/qt_helpers.h"
+#include "ui/task_runner.h"
 
 static const char* const NO_INFO_TEXT =
     "Select an existing backup to see its details here.";
 
 TabBackups::TabBackups(AppContext& ctx, TaskRunner& runner, QWidget& parent)
-    : m_ctx(ctx), m_runner(runner), m_parent(parent), m_updating(false) {
+    : m_ctx(ctx), m_runner(runner), m_parent(parent) {
   build_ui();
 }
 
@@ -103,8 +113,8 @@ void TabBackups::show_unavailable(const QString& message) {
 }
 
 void TabBackups::refresh() {
-  std::string game = m_ctx.settings.get_string("game");
-  Paths::InstallsSummary installs = m_ctx.paths.installs_summary();
+  const std::string game = m_ctx.settings.get_string("game");
+  const Paths::InstallsSummary installs = m_ctx.paths.installs_summary();
   if (!installs.contains(game)) {
     show_unavailable("Install the game first (on the Game tab).");
     return;
@@ -123,7 +133,7 @@ void TabBackups::reload_list() {
 
   m_updating = true;
   m_list->clear();
-  for (auto& m_backup : m_backups) {
+  for (const auto& m_backup : m_backups) {
     m_list->addItem(qstr(m_backup.name));
   }
   m_updating = false;
@@ -133,7 +143,7 @@ void TabBackups::reload_list() {
 }
 
 int TabBackups::selected_backup() {
-  int row = selected_row(m_list);
+  const int row = selected_row(m_list);
   if (row < 0 || static_cast<size_t>(row) >= m_backups.size()) {
     return -1;
   }
@@ -141,7 +151,7 @@ int TabBackups::selected_backup() {
 }
 
 void TabBackups::update_buttons() {
-  bool have = (selected_backup() >= 0);
+  const bool have = (selected_backup() >= 0);
   m_restore_button->setEnabled(have);
   m_delete_button->setEnabled(have);
   m_create_button->setEnabled(
@@ -154,7 +164,7 @@ void TabBackups::on_selection_changed() {
   }
   update_buttons();
 
-  int index = selected_backup();
+  const int index = selected_backup();
   if (index < 0) {
     m_info_view->setPlainText(NO_INFO_TEXT);
     return;
@@ -166,17 +176,17 @@ void TabBackups::on_selection_changed() {
     worlds += (i > 0 ? ", " : "") + backup.worlds.at(i);
   }
 
-  QString url = QUrl::fromLocalFile(qstr(backup.path)).toString();
-  QString text = "<u>Location:</u><br><a href=\"" + url.toHtmlEscaped() +
-                 "\">" + escape(to_utf8(backup.path)) +
-                 "</a><br><br><u>Worlds:</u><br>" + escape(worlds);
+  const QString url = QUrl::fromLocalFile(qstr(backup.path)).toString();
+  const QString text = "<u>Location:</u><br><a href=\"" + url.toHtmlEscaped() +
+                       "\">" + escape(to_utf8(backup.path)) +
+                       "</a><br><br><u>Worlds:</u><br>" + escape(worlds);
   m_info_view->setHtml(text);
 }
 
 // Red entry text for a name that can't be used.
 void TabBackups::on_name_changed() {
-  std::string name = str(m_name_entry->text());
-  bool valid = BackupManager::is_valid_backup_name(name);
+  const std::string name = str(m_name_entry->text());
+  const bool valid = BackupManager::is_valid_backup_name(name);
   m_name_entry->setStyleSheet(
       name.empty() || valid ? QString() : QString("color: #d02020;"));
   update_buttons();
@@ -186,7 +196,7 @@ void TabBackups::on_name_changed() {
 // done.
 void TabBackups::run_task(const std::function<void()>& work) {
   m_content->setEnabled(false);
-  bool started = m_runner.run(work, [this]() {
+  const bool started = m_runner.run(work, [this] {
     m_content->setEnabled(true);
     reload_list();
   });
@@ -196,32 +206,32 @@ void TabBackups::run_task(const std::function<void()>& work) {
 }
 
 void TabBackups::on_create_clicked() {
-  std::string name = str(m_name_entry->text());
+  const std::string name = str(m_name_entry->text());
   if (!BackupManager::is_valid_backup_name(name)) {
     return;
   }
-  run_task([this, name]() { m_ctx.backups.backup_current(name); });
+  run_task([this, name] { m_ctx.backups.backup_current(name); });
 }
 
 void TabBackups::on_restore_clicked() {
-  int index = selected_backup();
+  const int index = selected_backup();
   if (index < 0) {
     return;
   }
-  std::string name = m_backups.at(index).name;
+  const std::string name = m_backups.at(index).name;
 
   // Running git status on every world can take a while, so the worlds with
   // changes not in a snapshot are found on the worker thread.
-  std::shared_ptr<std::vector<std::string> > changed =
+  const std::shared_ptr<std::vector<std::string> > changed =
       std::make_shared<std::vector<std::string> >();
   m_content->setEnabled(false);
-  bool started = m_runner.run(
-      [this, changed]() {
+  const bool started = m_runner.run(
+      [this, changed] {
         if (git::available()) {
           *changed = m_ctx.snapshots.worlds_with_changes();
         }
       },
-      [this, changed, name]() {
+      [this, changed, name] {
         m_content->setEnabled(true);
         confirm_restore(name, *changed);
       });
@@ -233,7 +243,7 @@ void TabBackups::on_restore_clicked() {
 void TabBackups::confirm_restore(const std::string& name,
                                  const std::vector<std::string>& changed) {
   // This replaces the current saves, so make sure that is what the user wants.
-  std::string current =
+  const std::string current =
       m_ctx.settings.get_bool("use_trash")
           ? "Your current saves of this game will be moved to the trash"
           : "Your current saves of this game will be deleted for good";
@@ -251,23 +261,23 @@ void TabBackups::confirm_restore(const std::string& name,
               "tab first to keep them there.";
   }
   dialogs::confirm(m_parent, "Restore this backup?", qstr(detail), "Restore",
-                   [this, name]() {
-                     run_task([this, name]() { m_ctx.backups.restore(name); });
+                   [this, name] {
+                     run_task([this, name] { m_ctx.backups.restore(name); });
                    });
 }
 
 void TabBackups::on_delete_clicked() {
-  int index = selected_backup();
+  const int index = selected_backup();
   if (index < 0) {
     return;
   }
   std::string name = m_backups.at(index).name;
-  bool use_trash = m_ctx.settings.get_bool("use_trash");
+  const bool use_trash = m_ctx.settings.get_bool("use_trash");
   dialogs::confirm(
       m_parent, "Delete the backup?",
       qstr(std::format("The backup \"{}\" {}.", name,
                        dialogs::removal_text(use_trash))),
-      qstr(dialogs::removal_button(use_trash)), [this, name]() {
-        run_task([this, name]() { m_ctx.backups.delete_backup(name); });
+      qstr(dialogs::removal_button(use_trash)), [this, name] {
+        run_task([this, name] { m_ctx.backups.delete_backup(name); });
       });
 }

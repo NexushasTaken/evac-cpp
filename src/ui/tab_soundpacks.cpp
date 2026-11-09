@@ -1,5 +1,7 @@
 #include "ui/tab_soundpacks.h"
 
+#include <qnamespace.h>
+
 #include <QCheckBox>
 #include <QFileDialog>
 #include <QHBoxLayout>
@@ -8,16 +10,25 @@
 #include <QPushButton>
 #include <QStandardPaths>
 #include <QVBoxLayout>
+#include <cstddef>
+#include <format>
+#include <functional>
 #include <map>
+#include <string>
+#include <vector>
 
 #include "core/fs.h"
+#include "core/paths.h"
+#include "core/soundpack_manager.h"
+#include "ui/app_context.h"
 #include "ui/dialogs.h"
 #include "ui/download_prompt.h"
 #include "ui/qt_helpers.h"
+#include "ui/task_runner.h"
 
 TabSoundpacks::TabSoundpacks(AppContext& ctx, TaskRunner& runner,
                              QWidget& parent)
-    : m_ctx(ctx), m_runner(runner), m_parent(parent), m_updating(false) {
+    : m_ctx(ctx), m_runner(runner), m_parent(parent) {
   build_ui();
 }
 
@@ -104,8 +115,8 @@ void TabSoundpacks::show_unavailable(const QString& message) {
 }
 
 void TabSoundpacks::refresh() {
-  std::string game = m_ctx.settings.get_string("game");
-  Paths::InstallsSummary installs = m_ctx.paths.installs_summary();
+  const std::string game = m_ctx.settings.get_string("game");
+  const Paths::InstallsSummary installs = m_ctx.paths.installs_summary();
   if (!installs.contains(game)) {
     show_unavailable("Install the game first (on the Game tab).");
     return;
@@ -129,12 +140,12 @@ void TabSoundpacks::refresh_installed() {
   // Packs can share a name (a restored copy, a copy of a stock pack...): tell
   // those apart by their folder, after the name.
   std::map<std::string, int> name_count;
-  for (auto& i : m_installed) {
+  for (const auto& i : m_installed) {
     ++name_count[i.name];
   }
 
   for (const auto& pack : m_installed) {
-    std::string folder = to_utf8(pack.location.filename());
+    const std::string folder = to_utf8(pack.location.filename());
     std::string text = pack.name;
     if (name_count[pack.name] > 1) {
       text += " (" + (pack.is_stock ? std::string("stock") : folder) + ")";
@@ -157,7 +168,7 @@ void TabSoundpacks::refresh_installed() {
 }
 
 int TabSoundpacks::selected_installed() {
-  int row = selected_row(m_installed_list);
+  const int row = selected_row(m_installed_list);
   if (row < 0 || static_cast<size_t>(row) >= m_installed.size()) {
     return -1;
   }
@@ -165,7 +176,7 @@ int TabSoundpacks::selected_installed() {
 }
 
 int TabSoundpacks::selected_available() {
-  int row = selected_row(m_available_list);
+  const int row = selected_row(m_available_list);
   if (row < 0 || static_cast<size_t>(row) >= available_soundpacks().size()) {
     return -1;
   }
@@ -173,20 +184,21 @@ int TabSoundpacks::selected_available() {
 }
 
 void TabSoundpacks::update_buttons() {
-  int installed = selected_installed();
-  bool can_change = (installed >= 0 && !m_installed[installed].is_stock);
+  const int installed = selected_installed();
+  const bool can_change = (installed >= 0 && !m_installed[installed].is_stock);
   m_delete_button->setEnabled(can_change);
   m_toggle_button->setEnabled(can_change);
-  bool disabled = (installed >= 0 && !m_installed[installed].enabled);
+  const bool disabled = (installed >= 0 && !m_installed[installed].enabled);
   m_toggle_button->setText(disabled ? "Enable Selected" : "Disable Selected");
 
-  int available = selected_available();
+  const int available = selected_available();
   m_install_button->setEnabled(available >= 0);
   m_install_from_file_button->setEnabled(available >= 0);
   // By the directory the install writes to, not by name: a stock pack with
   // the same name is not replaced.
-  bool reinstall = (available >= 0 && m_ctx.soundpacks.has_user_copy(
-                                          available_soundpacks()[available]));
+  const bool reinstall =
+      (available >= 0 &&
+       m_ctx.soundpacks.has_user_copy(available_soundpacks()[available]));
   m_install_button->setText(reinstall ? "Reinstall Selected"
                                       : "Install Selected");
 }
@@ -216,7 +228,7 @@ void TabSoundpacks::on_available_selected() {
 // done.
 void TabSoundpacks::run_task(const std::function<void()>& work) {
   m_content->setEnabled(false);
-  bool started = m_runner.run(work, [this]() {
+  const bool started = m_runner.run(work, [this] {
     m_content->setEnabled(true);
     refresh_installed();
   });
@@ -226,65 +238,66 @@ void TabSoundpacks::run_task(const std::function<void()>& work) {
 }
 
 void TabSoundpacks::on_toggle_clicked() {
-  int index = selected_installed();
+  const int index = selected_installed();
   if (index < 0 || m_installed[index].is_stock) {
     return;
   }
-  std::filesystem::path location = m_installed[index].location;
-  bool enable = !m_installed[index].enabled;
-  run_task([this, location, enable]() {
+  const std::filesystem::path location = m_installed[index].location;
+  const bool enable = !m_installed[index].enabled;
+  run_task([this, location, enable] {
     m_ctx.soundpacks.set_enabled(location, enable);
   });
 }
 
 void TabSoundpacks::on_delete_clicked() {
-  int index = selected_installed();
+  const int index = selected_installed();
   if (index < 0 || m_installed[index].is_stock) {
     return;
   }
   std::string name = m_installed[index].name;
-  std::filesystem::path location = m_installed[index].location;
+  const std::filesystem::path location = m_installed[index].location;
 
   // Show the folder too: two packs can have the same name.
-  bool use_trash = m_ctx.settings.get_bool("use_trash");
+  const bool use_trash = m_ctx.settings.get_bool("use_trash");
   dialogs::confirm(
       m_parent, "Delete the soundpack?",
       qstr(std::format("{} ({}) {}.", name, to_utf8(location.filename()),
                        dialogs::removal_text(use_trash))),
-      qstr(dialogs::removal_button(use_trash)), [this, location]() {
-        run_task(
-            [this, location]() { m_ctx.soundpacks.delete_pack(location); });
+      qstr(dialogs::removal_button(use_trash)), [this, location] {
+        run_task([this, location] { m_ctx.soundpacks.delete_pack(location); });
       });
 }
 
 void TabSoundpacks::on_install_clicked() { install_selected(""); }
 
 void TabSoundpacks::install_selected(const std::string& from_file) {
-  int index = selected_available();
+  const int index = selected_available();
   if (index < 0) {
     return;
   }
-  SoundpackSource pack = available_soundpacks()[index];
-  bool reinstall = m_ctx.soundpacks.has_user_copy(pack);
-  bool keep_archive = !from_file.empty();  // Never delete the user's own file.
+  const SoundpackSource pack = available_soundpacks()[index];
+  const bool reinstall = m_ctx.soundpacks.has_user_copy(pack);
+  const bool keep_archive =
+      !from_file.empty();  // Never delete the user's own file.
 
-  std::function<void()> install = [this, pack, from_file, reinstall,
-                                   keep_archive]() {
-    run_task([this, pack, from_file, reinstall, keep_archive]() {
+  const std::function<void()> install = [this, pack, from_file, reinstall,
+                                         keep_archive] {
+    run_task([this, pack, from_file, reinstall, keep_archive] {
       m_ctx.soundpacks.install_pack(pack, to_path(from_file), reinstall,
                                     keep_archive);
     });
   };
 
   // Reinstalling replaces the installed copy.
-  std::string title = (reinstall ? "Reinstall " : "Install ") + pack.name + "?";
-  std::string detail =
+  const std::string title =
+      (reinstall ? "Reinstall " : "Install ") + pack.name + "?";
+  const std::string detail =
       reinstall
           ? std::format(
                 "The installed copy {}, and a fresh copy is installed.",
                 dialogs::removal_text(m_ctx.settings.get_bool("use_trash")))
           : std::string();
-  std::string button = reinstall ? "Reinstall" : "Install";
+  const std::string button = reinstall ? "Reinstall" : "Install";
 
   if (!from_file.empty()) {
     // Nothing to download.
@@ -311,9 +324,9 @@ void TabSoundpacks::on_install_from_file_clicked() {
     return;
   }
 
-  QString downloads =
+  const QString downloads =
       QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
-  QString file = QFileDialog::getOpenFileName(
+  const QString file = QFileDialog::getOpenFileName(
       &m_parent, "Choose the soundpack archive", downloads);
   if (!file.isEmpty()) {
     install_selected(str(file));

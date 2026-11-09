@@ -1,9 +1,15 @@
 #include <catch2/catch_test_macros.hpp>
+#include <cstddef>
 #include <filesystem>
+#include <nlohmann/json_fwd.hpp>
+#include <string>
+#include <vector>
 
+#include "absl/strings/match.h"
 #include "core/licenses.h"
 #include "core/paths.h"
 #include "core/settings.h"
+#include "core/status.h"
 #include "core/tips.h"
 #include "core/window_state.h"
 
@@ -18,15 +24,16 @@ static fs::path make_temp_dir(const std::string& name) {
 
 TEST_CASE("tips") {
   REQUIRE(tips_of_the_day().size() == 10);
-  for (size_t i = 0; i < tips_of_the_day().size(); ++i)
-    REQUIRE(!tips_of_the_day()[i].empty());
+  for (const auto& i : tips_of_the_day()) {
+    REQUIRE(!i.empty());
+  }
 
   REQUIRE(pick_tip(0) == tips_of_the_day()[0]);
   REQUIRE(pick_tip(13) == tips_of_the_day()[3]);
 }
 
 TEST_CASE("window state round trip keeps other keys") {
-  fs::path dir = make_temp_dir("window_state");
+  const fs::path dir = make_temp_dir("window_state");
   Status status;
   Settings settings(dir / "s.json", status);
   settings.load();
@@ -60,7 +67,7 @@ TEST_CASE("window state round trip keeps other keys") {
 }
 
 TEST_CASE("nonsensical window sizes are ignored") {
-  fs::path dir = make_temp_dir("window_state_bad");
+  const fs::path dir = make_temp_dir("window_state_bad");
   Status status;
   Settings settings(dir / "s.json", status);
   settings.load();
@@ -79,16 +86,16 @@ TEST_CASE("nonsensical window sizes are ignored") {
 TEST_CASE("license sections can all be read") {
   Status status;
   Settings settings(make_temp_dir("licenses") / "s.json", status);
-  Paths paths(make_temp_dir("licenses_paths"), settings, status);
+  const Paths paths(make_temp_dir("licenses_paths"), settings, status);
 
   std::vector<LicenseSection> sections =
       load_license_sections(paths.data_dir());
   REQUIRE(sections.size() == 8);
   REQUIRE(sections[0].heading == "Evac");
-  REQUIRE(sections[0].text.find("MIT License") != std::string::npos);
-  REQUIRE(sections[1].text.find("qrrk") != std::string::npos);
+  REQUIRE(absl::StrContains(sections[0].text, "MIT License"));
+  REQUIRE(absl::StrContains(sections[1].text, "qrrk"));
   for (size_t i = 0; i < sections.size(); ++i) {
     REQUIRE(!sections[i].text.empty());
-    REQUIRE(sections[i].text.find("(Could not read") == std::string::npos);
+    REQUIRE(!absl::StrContains(sections[i].text, "(Could not read"));
   }
 }

@@ -1,11 +1,18 @@
 #include "core/game_launcher.h"
 
+#include <cstddef>
 #include <filesystem>
+#include <nlohmann/json_fwd.hpp>
+#include <string>
+#include <vector>
 
 #include "core/fs.h"
 #include "core/helpers.h"
+#include "core/paths.h"
 #include "core/platform.h"
 #include "core/process.h"
+#include "core/settings.h"
+#include "core/status.h"
 
 namespace fs = std::filesystem;
 
@@ -14,7 +21,7 @@ namespace fs = std::filesystem;
 // game cataclysm-tiles.exe and newer BN builds cataclysm-bn-tiles.exe.
 static std::vector<std::string> executable_names() {
   std::vector<std::string> names;
-  std::string os = platform::os_name();
+  const std::string_view os = platform::os_name();
   if (os == "linux") {
     names.emplace_back("cataclysm-launcher");
   } else if (os == "win") {
@@ -32,7 +39,7 @@ bool split_command_line(const std::string& text,
       false;  // Separate from word.empty(), so that '' gives an empty word.
   size_t i = 0;
   while (i < text.size()) {
-    char c = text.at(i);
+    const char c = text.at(i);
     if (c == ' ' || c == '\t' || c == '\n') {
       if (in_word) {
         words.push_back(word);
@@ -41,7 +48,7 @@ bool split_command_line(const std::string& text,
       in_word = false;
       ++i;
     } else if (c == '\'') {
-      size_t end = text.find('\'', i + 1);
+      const size_t end = text.find('\'', i + 1);
       if (end == std::string::npos) {
         error = "A single quote (') is not closed.";
         return false;
@@ -101,9 +108,9 @@ std::string GameLauncher::last_world() {
 }
 
 bool GameLauncher::start(const std::string& world) {
-  fs::path game_dir = m_paths.game_dir();
+  const fs::path game_dir = m_paths.game_dir();
   // The game wants a trailing separator.
-  std::string userdata = to_utf8(m_paths.userdata() / "");
+  const std::string userdata = to_utf8(m_paths.userdata() / "");
 
   std::vector<std::string> names = executable_names();
   if (names.empty()) {

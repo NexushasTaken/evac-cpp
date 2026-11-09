@@ -14,7 +14,7 @@ namespace platform {
 
 // "linux", "win" or "mac". The same names the release lists use. Other POSIX
 // systems count as "linux" (they run Linux builds, or none).
-std::string os_name();
+std::string_view os_name();
 
 // Full path of the running executable, empty if it can't be found.
 std::filesystem::path executable_path();

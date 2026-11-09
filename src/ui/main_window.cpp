@@ -1,12 +1,17 @@
 #include "ui/main_window.h"
 
+#include <qnamespace.h>
+
 #include <QCloseEvent>
 #include <QTabWidget>
 #include <QVBoxLayout>
+#include <cstdint>
 #include <ctime>
 
+#include "core/status.h"
 #include "core/tips.h"
 #include "core/window_state.h"
+#include "ui/app_context.h"
 #include "ui/log_view.h"
 #include "ui/qt_helpers.h"
 #include "ui/tab_backups.h"
@@ -23,11 +28,11 @@ static const int DEFAULT_HEIGHT = 820;
 
 MainWindow::MainWindow(AppContext& ctx)
     : m_ctx(ctx),
-      m_page_refresh_pending(false),
+
       m_trash_size_seen(ctx.trash.total_size()),
       m_runner(ctx.status) {
   setWindowTitle("Evac \xe2\x80\x94 a launcher for Cataclysm: DDA and BN");
-  WindowState saved = load_window_state(ctx.settings);
+  const WindowState saved = load_window_state(ctx.settings);
   resize(saved.valid ? saved.width : DEFAULT_WIDTH,
          saved.valid ? saved.height : DEFAULT_HEIGHT);
   if (saved.valid && saved.maximized) {
@@ -116,7 +121,7 @@ void MainWindow::on_task_finished() {
 // away, otherwise it only says so.
 void MainWindow::check_trash_limit() {
   std::uint64_t total = m_ctx.trash.total_size();
-  bool grew = (total > m_trash_size_seen);
+  const bool grew = (total > m_trash_size_seen);
   m_trash_size_seen = total;
   if (!grew || m_ctx.trash.over_limit().empty()) {
     return;
@@ -158,7 +163,7 @@ void MainWindow::show_page(QWidget* page) {
 // A maximized window keeps the size it had before, so that un-maximizing it
 // next time gives something sensible.
 void MainWindow::save_window_state() {
-  WindowState previous = load_window_state(m_ctx.settings);
+  const WindowState previous = load_window_state(m_ctx.settings);
   WindowState state;
   state.valid = true;
   state.maximized = isMaximized();

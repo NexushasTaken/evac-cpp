@@ -1,5 +1,9 @@
 #include "ui/tab_settings.h"
 
+#include <qframe.h>
+#include <qnamespace.h>
+#include <qobject.h>
+
 #include <QCheckBox>
 #include <QComboBox>
 #include <QHBoxLayout>
@@ -7,7 +11,9 @@
 #include <QLineEdit>
 #include <QSpinBox>
 #include <QVBoxLayout>
+#include <string>
 
+#include "ui/app_context.h"
 #include "ui/licenses_dialog.h"
 #include "ui/qt_helpers.h"
 
@@ -22,10 +28,7 @@ static QLabel* make_section_heading(const QString& text) {
 }
 
 TabSettings::TabSettings(AppContext& ctx, QWidget& parent)
-    : m_ctx(ctx),
-      m_parent(parent),
-      m_licenses_dialog(nullptr),
-      m_updating(false) {
+    : m_ctx(ctx), m_parent(parent) {
   build_ui();
   load_from_settings();
 }
@@ -34,7 +37,7 @@ QCheckBox* TabSettings::add_check(QVBoxLayout& box, const char* caption,
                                   const char* tooltip, const char* key) {
   auto* check = new QCheckBox(caption);
   check->setToolTip(tooltip);
-  std::string setting = key;
+  const std::string setting = key;
   connect(check, &QCheckBox::toggled, this, [this, setting](bool active) {
     if (m_updating) {
       return;
@@ -156,7 +159,9 @@ void TabSettings::build_ui() {
   m_proxy_option->addItem("For Downloading Only");
   connect(m_proxy_option, &QComboBox::currentIndexChanged, this,
           [this](int index) {
-            if (m_updating || index < 0 || index >= NUM_PROXY_OPTIONS) return;
+            if (m_updating || index < 0 || index >= NUM_PROXY_OPTIONS) {
+              return;
+            }
             m_ctx.settings.set_string("proxy_option", PROXY_OPTIONS[index]);
             m_ctx.settings.save();
           });
@@ -170,7 +175,9 @@ void TabSettings::build_ui() {
   m_proxy_host->setPlaceholderText("host");
   connect(m_proxy_host, &QLineEdit::textChanged, this,
           [this](const QString& text) {
-            if (m_updating) return;
+            if (m_updating) {
+              return;
+            }
             m_ctx.settings.set_string("proxy_host", str(text));
             m_ctx.settings.save();
           });
@@ -180,7 +187,9 @@ void TabSettings::build_ui() {
   m_proxy_port = new QSpinBox();
   m_proxy_port->setRange(0, 65535);
   connect(m_proxy_port, &QSpinBox::valueChanged, this, [this](int value) {
-    if (m_updating) return;
+    if (m_updating) {
+      return;
+    }
     m_ctx.settings.set_int("proxy_port", value);
     m_ctx.settings.save();
   });
@@ -223,7 +232,7 @@ void TabSettings::build_ui() {
   auto* licenses_link =
       new QLabel("<a href=\"#\">View opensource licenses</a>");
   licenses_link->setTextFormat(Qt::RichText);
-  connect(licenses_link, &QLabel::linkActivated, this, [this]() {
+  connect(licenses_link, &QLabel::linkActivated, this, [this] {
     if (!m_licenses_dialog) {
       m_licenses_dialog = new LicensesDialog(m_parent, m_ctx.paths.data_dir());
     }
@@ -244,7 +253,7 @@ void TabSettings::build_ui() {
 void TabSettings::load_from_settings() {
   m_updating = true;
 
-  for (auto& m_check : m_checks) {
+  for (const auto& m_check : m_checks) {
     m_check.second->setChecked(m_ctx.settings.get_bool(m_check.first));
   }
 
@@ -252,7 +261,7 @@ void TabSettings::load_from_settings() {
       qstr(m_ctx.settings.get_string("game_extra_args")));
   m_num_releases->setValue(m_ctx.settings.get_int("num_releases_to_request"));
 
-  std::string option = m_ctx.settings.get_string("proxy_option");
+  const std::string option = m_ctx.settings.get_string("proxy_option");
   int selected = 0;
   for (int i = 0; i < NUM_PROXY_OPTIONS; ++i) {
     if (option == PROXY_OPTIONS[i]) {

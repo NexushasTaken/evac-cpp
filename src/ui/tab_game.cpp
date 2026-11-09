@@ -1,5 +1,11 @@
 #include "ui/tab_game.h"
 
+#include <qaction.h>
+#include <qbrush.h>
+#include <qcontainerfwd.h>
+#include <qfont.h>
+#include <qnamespace.h>
+
 #include <QComboBox>
 #include <QFileDialog>
 #include <QGridLayout>
@@ -13,20 +19,29 @@
 #include <QToolButton>
 #include <QTreeWidget>
 #include <QVBoxLayout>
+#include <cstddef>
+#include <filesystem>
+#include <format>
+#include <functional>
+#include <map>
+#include <string>
+#include <system_error>
+#include <utility>
+#include <vector>
 
 #include "core/fs.h"
 #include "core/games.h"
+#include "core/paths.h"
+#include "core/release_manager.h"
+#include "core/status.h"
+#include "ui/app_context.h"
 #include "ui/dialogs.h"
 #include "ui/download_prompt.h"
 #include "ui/qt_helpers.h"
+#include "ui/task_runner.h"
 
 TabGame::TabGame(AppContext& ctx, TaskRunner& runner, QWidget& parent)
-    : m_ctx(ctx),
-      m_runner(runner),
-      m_parent(parent),
-      m_updating(false),
-      m_had_install(-1),
-      m_asking_missing(false) {
+    : m_ctx(ctx), m_runner(runner), m_parent(parent) {
   build_ui();
 }
 
@@ -117,9 +132,9 @@ void TabGame::build_ui() {
   m_folder_menu_button = new QPushButton("Open folder");
   m_folder_menu_button->setMenu(folder_menu);
   connect(game_dir_action, &QAction::triggered, this,
-          [this]() { dialogs::open_folder(m_ctx.paths.game_dir()); });
+          [this] { dialogs::open_folder(m_ctx.paths.game_dir()); });
   connect(user_dir_action, &QAction::triggered, this,
-          [this]() { dialogs::open_folder(m_ctx.paths.userdata()); });
+          [this] { dialogs::open_folder(m_ctx.paths.userdata()); });
 
   auto* play_row = new QHBoxLayout();
   play_row->setSpacing(8);
@@ -231,7 +246,7 @@ void TabGame::set_install_expanded(bool expanded) {
 
 void TabGame::start() {
   const std::vector<GameInfo>& all = all_games();
-  std::string game = m_ctx.settings.get_string("game");
+  const std::string game = m_ctx.settings.get_string("game");
   for (size_t i = 0; i < all.size(); ++i) {
     if (all[i].key == game) {
       m_game_dropdown->setCurrentIndex(static_cast<int>(i));
@@ -274,7 +289,7 @@ void TabGame::start() {
 
   apply_game_choice();
   // The window is not shown yet, so ask once it is.
-  QTimer::singleShot(0, this, [this]() { check_missing_userdata(); });
+  QTimer::singleShot(0, this, [this] { check_missing_userdata(); });
 }
 
 void TabGame::apply_settings() {
@@ -293,7 +308,7 @@ std::string TabGame::release_key() {
 void TabGame::run_task(const std::function<void()>& work,
                        const std::function<void()>& after) {
   m_content->setEnabled(false);
-  bool started = m_runner.run(work, [this, after]() {
+  const bool started = m_runner.run(work, [this, after] {
     m_content->setEnabled(true);
     after();
   });
@@ -303,9 +318,9 @@ void TabGame::run_task(const std::function<void()>& work,
 }
 
 void TabGame::fetch_releases() {
-  std::string key = release_key();
-  run_task([this, key]() { m_ctx.releases.fetch(key); },
-           [this]() { reload_builds_list(); });
+  const std::string key = release_key();
+  run_task([this, key] { m_ctx.releases.fetch(key); },
+           [this] { reload_builds_list(); });
 }
 
 // Makes the widgets match the settings (game and channel) and loads the builds.
@@ -317,7 +332,7 @@ void TabGame::apply_game_choice() {
       m_ctx.settings.get_string("channel") != "experimental") {
     m_ctx.settings.set_string("channel", "experimental");
   }
-  std::string channel = m_ctx.settings.get_string("channel");
+  const std::string channel = m_ctx.settings.get_string("channel");
 
   m_stable_button->setEnabled(info.has_stable_channel);
   m_experimental_button->setEnabled(info.has_stable_channel);
@@ -351,7 +366,7 @@ void TabGame::reload_builds_list() {
   m_releases = m_ctx.releases.get(release_key());
 
   m_builds_dropdown->clear();
-  for (auto& m_release : m_releases) {
+  for (const auto& m_release : m_releases) {
     m_builds_dropdown->addItem(qstr(m_release.name));
   }
   m_updating = false;
@@ -364,17 +379,18 @@ void TabGame::reload_builds_list() {
 void TabGame::refresh_installed() {
   m_updating = true;
 
-  std::string game = m_ctx.settings.get_string("game");
+  const std::string game = m_ctx.settings.get_string("game");
   m_installs = m_ctx.paths.installs_summary();
-  auto g = m_installs.find(game);
-  bool have_install = (g != m_installs.end());
-  std::string active = m_ctx.settings.get_string("active_install_" + game);
+  const auto g = m_installs.find(game);
+  const bool have_install = (g != m_installs.end());
+  const std::string active =
+      m_ctx.settings.get_string("active_install_" + game);
 
   // The list of installs.
   m_installs_list->clear();
   m_install_names.clear();
   if (have_install) {
-    QBrush dim = dim_brush(m_installs_list);
+    const QBrush dim = dim_brush(m_installs_list);
     std::map<std::string, std::filesystem::path>::const_iterator it;
     for (it = g->second.begin(); it != g->second.end(); ++it) {
       auto* row = new QTreeWidgetItem(m_installs_list);
@@ -383,8 +399,8 @@ void TabGame::refresh_installed() {
         row->setText(1, "active");
         row->setForeground(1, dim);
       }
-      QString tooltip = qstr("Location:\n" + to_utf8(it->second) +
-                             "\n(double-click to open folder)");
+      const QString tooltip = qstr("Location:\n" + to_utf8(it->second) +
+                                   "\n(double-click to open folder)");
       row->setToolTip(0, tooltip);
       row->setToolTip(1, tooltip);
       m_install_names.push_back(it->first);
@@ -404,10 +420,10 @@ void TabGame::refresh_installed() {
   m_resume_button->setEnabled(have_install && m_ctx.launcher.has_last_world());
 
   // The install buttons depend on the selected build.
-  int selected = m_builds_dropdown->currentIndex();
-  bool build_selected =
+  const int selected = m_builds_dropdown->currentIndex();
+  const bool build_selected =
       (selected >= 0 && static_cast<size_t>(selected) < m_releases.size());
-  bool same_build_installed =
+  const bool same_build_installed =
       build_selected && have_install &&
       g->second.contains(m_releases[selected].name) &&
       !m_ctx.settings.get_bool("update_to_same_build_allowed");
@@ -430,7 +446,7 @@ void TabGame::refresh_installed() {
 
 void TabGame::reload_userdata_list() {
   m_updating = true;
-  std::filesystem::path active = m_ctx.paths.userdata();
+  const std::filesystem::path active = m_ctx.paths.userdata();
   std::vector<UserdataFolder> folders = m_ctx.paths.custom_userdata();
 
   std::vector<std::string> labels;
@@ -462,15 +478,15 @@ void TabGame::reload_userdata_list() {
            "mods, sound, etc.):\n" +
            to_utf8(active)));
 
-  bool custom = (selected != 0);
+  const bool custom = (selected != 0);
   m_userdata_rename_button->setEnabled(custom);
   m_userdata_remove_button->setEnabled(custom);
   m_updating = false;
 }
 
 std::string TabGame::userdata_label(const std::filesystem::path& path) {
-  std::vector<UserdataFolder> folders = m_ctx.paths.custom_userdata();
-  for (auto& folder : folders) {
+  const std::vector<UserdataFolder> folders = m_ctx.paths.custom_userdata();
+  for (const auto& folder : folders) {
     if (folder.path == path) {
       return folder.label;
     }
@@ -478,14 +494,18 @@ std::string TabGame::userdata_label(const std::filesystem::path& path) {
   return "Default";
 }
 
-void TabGame::extracted() { return; }
+void TabGame::extracted() {}
 void TabGame::on_userdata_selected() {
   if (m_updating) {
     return;
   }
-  int index = m_userdata_dropdown->currentIndex();
-  if (index < 0 || static_cast<size_t>(index) >= m_userdata_paths.size())
-    return extracted();
+  const int index = m_userdata_dropdown->currentIndex();
+  if (index < 0 || static_cast<size_t>(index) >= m_userdata_paths.size()) {
+    {
+      extracted();
+    }
+    return;
+  }
   // A job on another tab may be working in the current userdata.
   if (m_runner.busy()) {
     m_ctx.status.post(
@@ -495,7 +515,7 @@ void TabGame::on_userdata_selected() {
     reload_userdata_list();
     return;
   }
-  std::filesystem::path path = m_userdata_paths[index];
+  const std::filesystem::path path = m_userdata_paths[index];
   m_ctx.paths.set_active_userdata(path);
   m_ctx.status.post("Using the user data folder \"" + userdata_label(path) +
                     "\": " + to_utf8(path));
@@ -511,12 +531,12 @@ void TabGame::on_userdata_add_clicked() {
         MSG_WARN);
     return;
   }
-  QString dir =
+  const QString dir =
       QFileDialog::getExistingDirectory(&m_parent, "Choose a user data folder");
   if (dir.isEmpty()) {
     return;
   }
-  std::filesystem::path path = to_path(str(dir));
+  const std::filesystem::path path = to_path(str(dir));
   dialogs::ask_text(
       m_parent, "Name the user data folder",
       qstr("The name shown in the list for " + to_utf8(path) + "."),
@@ -525,7 +545,7 @@ void TabGame::on_userdata_add_clicked() {
         return m_ctx.paths.check_userdata_label(label);
       },
       [this, path](const std::string& label) {
-        std::string problem = m_ctx.paths.add_userdata(path, label);
+        const std::string problem = m_ctx.paths.add_userdata(path, label);
         if (!problem.empty()) {
           dialogs::tell(m_parent, "Cannot add the user data folder",
                         qstr(problem));
@@ -541,7 +561,7 @@ void TabGame::on_userdata_add_clicked() {
 }
 
 void TabGame::on_userdata_rename_clicked() {
-  std::filesystem::path path = m_ctx.paths.userdata();
+  const std::filesystem::path path = m_ctx.paths.userdata();
   if (m_ctx.paths.is_default_userdata_active()) {
     return;
   }
@@ -554,7 +574,7 @@ void TabGame::on_userdata_rename_clicked() {
         return m_ctx.paths.check_userdata_label(label, path);
       },
       [this, path](const std::string& label) {
-        std::string problem = m_ctx.paths.rename_userdata(path, label);
+        const std::string problem = m_ctx.paths.rename_userdata(path, label);
         if (!problem.empty()) {
           dialogs::tell(m_parent, "Cannot rename the user data folder",
                         qstr(problem));
@@ -564,8 +584,10 @@ void TabGame::on_userdata_rename_clicked() {
 }
 
 void TabGame::on_userdata_remove_clicked() {
-  std::filesystem::path path = m_ctx.paths.userdata();
-  if (m_ctx.paths.is_default_userdata_active()) return;
+  const std::filesystem::path path = m_ctx.paths.userdata();
+  if (m_ctx.paths.is_default_userdata_active()) {
+    return;
+  }
   if (m_runner.busy()) {
     m_ctx.status.post(
         "Wait for the current task to finish before changing the user data "
@@ -580,7 +602,7 @@ void TabGame::on_userdata_remove_clicked() {
            to_utf8(path) +
            " and its files stay where they are, and you can add it again "
            "later."),
-      "Remove", [this, path]() {
+      "Remove", [this, path] {
         m_ctx.paths.remove_userdata(path);
         m_ctx.status.post(
             "Removed " + to_utf8(path) +
@@ -594,9 +616,10 @@ void TabGame::check_missing_userdata() {
   if (m_asking_missing || m_ctx.paths.is_default_userdata_active()) {
     return;
   }
-  std::filesystem::path path = m_ctx.paths.userdata();
+  const std::filesystem::path path = m_ctx.paths.userdata();
   std::error_code ec;
-  if (std::filesystem::is_directory(path, ec) || m_kept_missing.count(path)) {
+  if (std::filesystem::is_directory(path, ec) ||
+      (m_kept_missing.contains(path) != 0u)) {
     return;
   }
 
@@ -625,7 +648,7 @@ void TabGame::check_missing_userdata() {
 }
 
 std::string TabGame::selected_install_name() {
-  int row = selected_row(m_installs_list);
+  const int row = selected_row(m_installs_list);
   if (row < 0 || static_cast<size_t>(row) >= m_install_names.size()) {
     return "";
   }
@@ -636,7 +659,7 @@ void TabGame::on_game_selected() {
   if (m_updating) {
     return;
   }
-  int index = m_game_dropdown->currentIndex();
+  const int index = m_game_dropdown->currentIndex();
   const std::vector<GameInfo>& all = all_games();
   if (index < 0 || static_cast<size_t>(index) >= all.size()) {
     return;
@@ -669,7 +692,7 @@ void TabGame::on_installs_row_selected() {
   if (m_updating) {
     return;
   }
-  std::string name = selected_install_name();
+  const std::string name = selected_install_name();
   m_delete_button->setEnabled(!name.empty());
   m_make_active_button->setEnabled(
       !name.empty() &&
@@ -678,22 +701,22 @@ void TabGame::on_installs_row_selected() {
 }
 
 void TabGame::on_installs_row_activated(QTreeWidgetItem* row) {
-  int index = m_installs_list->indexOfTopLevelItem(row);
+  const int index = m_installs_list->indexOfTopLevelItem(row);
   if (index < 0 || static_cast<size_t>(index) >= m_install_names.size()) {
     return;
   }
-  auto g = m_installs.find(m_ctx.settings.get_string("game"));
+  const auto g = m_installs.find(m_ctx.settings.get_string("game"));
   if (g == m_installs.end()) {
     return;
   }
-  auto it = g->second.find(m_install_names[index]);
+  const auto it = g->second.find(m_install_names[index]);
   if (it != g->second.end()) {
     dialogs::open_folder(it->second);
   }
 }
 
 void TabGame::on_make_active_clicked() {
-  std::string name = selected_install_name();
+  const std::string name = selected_install_name();
   if (name.empty()) {
     return;
   }
@@ -708,18 +731,18 @@ void TabGame::on_install_new_clicked() { install_selected(false); }
 void TabGame::on_update_clicked() { install_selected(true); }
 
 void TabGame::install_selected(bool update_active) {
-  int selected = m_builds_dropdown->currentIndex();
+  const int selected = m_builds_dropdown->currentIndex();
   if (selected < 0 || static_cast<size_t>(selected) >= m_releases.size()) {
     return;
   }
-  Release release = m_releases[selected];
+  const Release release = m_releases[selected];
 
   std::filesystem::path update_path;
   std::string active_name;
   if (update_active) {
-    std::string game = m_ctx.settings.get_string("game");
+    const std::string game = m_ctx.settings.get_string("game");
     active_name = m_ctx.settings.get_string("active_install_" + game);
-    auto g = m_installs.find(game);
+    const auto g = m_installs.find(game);
     if (g != m_installs.end() && g->second.contains(active_name)) {
       update_path = g->second.find(active_name)->second;
     }
@@ -739,18 +762,18 @@ void TabGame::install_selected(bool update_active) {
   }
 
   confirm_download(m_ctx, m_runner, m_parent, *m_content, question,
-                   [this, release, update_path]() {
+                   [this, release, update_path] {
                      run_task(
-                         [this, release, update_path]() {
+                         [this, release, update_path] {
                            m_ctx.installer.install_release(release,
                                                            update_path);
                          },
-                         [this]() { refresh_installed(); });
+                         [this] { refresh_installed(); });
                    });
 }
 
 void TabGame::on_delete_clicked() {
-  std::string name = selected_install_name();
+  const std::string name = selected_install_name();
   if (name.empty()) {
     return;
   }
@@ -759,10 +782,9 @@ void TabGame::on_delete_clicked() {
       m_parent, qstr("Uninstall \"" + name + "\"?"),
       qstr(removal_detail(name, false)),
       qstr(dialogs::removal_button(m_ctx.settings.get_bool("use_trash"))),
-      [this, name]() {
-        run_task(
-            [this, name]() { m_ctx.installer.remove_release_by_name(name); },
-            [this]() { refresh_installed(); });
+      [this, name] {
+        run_task([this, name] { m_ctx.installer.remove_release_by_name(name); },
+                 [this] { refresh_installed(); });
       });
 }
 
@@ -771,7 +793,7 @@ void TabGame::on_delete_clicked() {
 // it also says where user data inside the game directory goes.
 std::string TabGame::removal_detail(const std::string& install_name,
                                     bool update) {
-  bool use_trash = m_ctx.settings.get_bool("use_trash");
+  const bool use_trash = m_ctx.settings.get_bool("use_trash");
   std::string detail =
       update ? std::format(
                    "The current files of \"{}\" {}, and the new "
@@ -780,7 +802,7 @@ std::string TabGame::removal_detail(const std::string& install_name,
              : std::format("The game files of \"{}\" {}.", install_name,
                            dialogs::removal_text(use_trash));
 
-  std::vector<std::filesystem::path> misplaced =
+  const std::vector<std::filesystem::path> misplaced =
       m_ctx.installer.check_game_dir_for_userdata(install_name);
   if (!misplaced.empty()) {
     detail +=
@@ -798,14 +820,16 @@ std::string TabGame::removal_detail(const std::string& install_name,
 void TabGame::on_play_clicked() { start_game(""); }
 
 void TabGame::on_resume_clicked() {
-  std::string world = m_ctx.launcher.last_world();
+  const std::string world = m_ctx.launcher.last_world();
   if (!world.empty()) {
     start_game(world);
   }
 }
 
 void TabGame::start_game(const std::string& world) {
-  if (!m_ctx.launcher.start(world)) return;
+  if (!m_ctx.launcher.start(world)) {
+    return;
+  }
   if (!m_ctx.settings.get_bool("keep_open_after_starting_game")) {
     m_parent.close();
   }

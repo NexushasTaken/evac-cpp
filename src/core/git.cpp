@@ -1,6 +1,11 @@
 #include "core/git.h"
 
 #include <cstdio>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "core/process.h"
 
 namespace git {
 
@@ -28,22 +33,23 @@ static const char* const FORCED_CONFIG[] = {
 
 Result run(const std::vector<std::string>& args) {
   std::vector<std::string> all;
-  for (size_t i = 0; i < sizeof(FORCED_CONFIG) / sizeof(FORCED_CONFIG[0]);
-       ++i) {
-    all.push_back("-c");
-    all.push_back(FORCED_CONFIG[i]);
+  for (auto i : FORCED_CONFIG) {
+    all.emplace_back("-c");
+    all.emplace_back(i);
   }
   all.insert(all.end(), args.begin(), args.end());
 
   process::Environment env;
   // GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE, ... would point git somewhere else.
-  env.remove_prefixes.push_back("GIT_");
-  env.set.push_back(std::make_pair("GIT_CONFIG_GLOBAL", "/dev/null"));
-  env.set.push_back(std::make_pair("GIT_CONFIG_NOSYSTEM", "1"));
-  env.set.push_back(std::make_pair("GIT_TERMINAL_PROMPT", "0"));
+  env.remove_prefixes.emplace_back("GIT_");
+  env.set.emplace_back("GIT_CONFIG_GLOBAL", "/dev/null");
+  env.set.emplace_back("GIT_CONFIG_NOSYSTEM", "1");
+  env.set.emplace_back("GIT_TERMINAL_PROMPT", "0");
 
   Result result = process::run("git", all, env);
-  if (result.not_found) result.err = "git is not installed.";
+  if (result.not_found) {
+    result.err = "git is not installed.";
+  }
   return result;
 }
 
@@ -53,25 +59,29 @@ bool parse_version(const std::string& text, int& major, int& minor) {
 
 bool available() {
   std::vector<std::string> args;
-  args.push_back("--version");
+  args.emplace_back("--version");
   Result r = run(args);
   int major = 0;
   int minor = 0;
-  if (!r.ok() || !parse_version(r.out, major, minor)) return false;
+  if (!r.ok() || !parse_version(r.out, major, minor)) {
+    return false;
+  }
   return major > 2 || (major == 2 && minor >= 23);
 }
 
 std::string shell_quote(const std::string& word) {
   if (!word.empty() &&
       word.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVW"
-                             "XYZ0123456789_-./=:@%+,") == std::string::npos)
+                             "XYZ0123456789_-./=:@%+,") == std::string::npos) {
     return word;
+  }
   std::string result = "'";
-  for (size_t i = 0; i < word.size(); ++i) {
-    if (word[i] == '\'')
+  for (char i : word) {
+    if (i == '\'') {
       result += "'\\''";
-    else
-      result += word[i];
+    } else {
+      result += i;
+    }
   }
   return result + "'";
 }

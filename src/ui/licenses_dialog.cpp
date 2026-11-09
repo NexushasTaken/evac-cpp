@@ -1,11 +1,17 @@
 #include "ui/licenses_dialog.h"
 
+#include <qdialog.h>
+#include <qnamespace.h>
+
 #include <QFontDatabase>
 #include <QPlainTextEdit>
 #include <QTextBlockFormat>
 #include <QTextCharFormat>
 #include <QTextCursor>
 #include <QVBoxLayout>
+#include <cstddef>
+#include <filesystem>
+#include <vector>
 
 #include "core/licenses.h"
 #include "ui/qt_helpers.h"
@@ -34,8 +40,8 @@ LicensesDialog::LicensesDialog(QWidget& parent,
   QTextCharFormat heading;
   heading.setFontWeight(QFont::Bold);
   heading.setFontPointSize(text_view->font().pointSizeF() * 1.3);
-  QTextBlockFormat body_block;
-  QTextCharFormat body;
+  const QTextBlockFormat body_block;
+  const QTextCharFormat body;
 
   QTextCursor cursor(text_view->document());
   std::vector<LicenseSection> sections = load_license_sections(data_dir);

@@ -1,12 +1,20 @@
 #include "core/backup_manager.h"
 
 #include <algorithm>
-#include <cstdio>
+#include <cctype>
+#include <ctime>
 #include <filesystem>
 #include <format>
+#include <string>
+#include <system_error>
+#include <vector>
 
 #include "core/archive.h"
 #include "core/fs.h"
+#include "core/paths.h"
+#include "core/settings.h"
+#include "core/status.h"
+#include "core/trash.h"
 
 namespace fs = std::filesystem;
 
@@ -47,7 +55,8 @@ std::vector<BackupSummary> BackupManager::list() {
   std::vector<BackupSummary> result;
   m_paths.move_old_backups();
 
-  std::vector<std::string> names = Paths::list_dir(m_paths.save_backups());
+  const std::vector<std::string> names =
+      Paths::list_dir(m_paths.save_backups());
   for (const auto& name : names) {
     BackupSummary summary;
     summary.name = name;
@@ -57,7 +66,7 @@ std::vector<BackupSummary> BackupManager::list() {
     std::error_code ec;
     for (fs::directory_iterator it(summary.path, ec);
          !ec && it != fs::directory_iterator(); it.increment(ec)) {
-      std::string file = to_utf8(it->path().filename());
+      const std::string file = to_utf8(it->path().filename());
       if (ends_with_zip(file)) {
         summary.worlds.push_back(file.substr(0, file.size() - 4));
       }
@@ -76,15 +85,15 @@ bool BackupManager::backup_current(const std::string& backup_name) {
   }
 
   m_paths.move_old_backups();
-  fs::path dest_dir = m_paths.save_backups() / to_path(backup_name);
+  const fs::path dest_dir = m_paths.save_backups() / to_path(backup_name);
   if (fs::exists(dest_dir)) {
     m_status.post("A backup named \"" + backup_name + "\" already exists.",
                   MSG_ERROR);
     return false;
   }
 
-  fs::path saves = m_paths.savegames();
-  std::vector<std::string> worlds = Paths::list_dir(saves);
+  const fs::path saves = m_paths.savegames();
+  const std::vector<std::string> worlds = Paths::list_dir(saves);
   if (worlds.empty()) {
     m_status.post("There are no saved games to back up.", MSG_WARN);
     return false;
@@ -113,7 +122,7 @@ bool BackupManager::backup_current(const std::string& backup_name) {
 }
 
 bool BackupManager::restore(const std::string& backup_name) {
-  fs::path source_dir = m_paths.save_backups() / to_path(backup_name);
+  const fs::path source_dir = m_paths.save_backups() / to_path(backup_name);
   if (!is_valid_backup_name(backup_name) || !fs::is_directory(source_dir)) {
     m_status.post("Backup \"" + backup_name + "\" not found.", MSG_ERROR);
     return false;
@@ -136,7 +145,7 @@ bool BackupManager::restore(const std::string& backup_name) {
   m_status.post("Restoring backup \"" + backup_name + "\"...");
 
   // Unpack next to the saves first, and only replace them when that worked.
-  fs::path stage = m_paths.tmp_dir() / "restore";
+  const fs::path stage = m_paths.tmp_dir() / "restore";
   fs::remove_all(stage, ec);
   fs::create_directories(stage, ec);
   for (const auto& zip : zips) {
@@ -147,7 +156,7 @@ bool BackupManager::restore(const std::string& backup_name) {
     }
   }
 
-  fs::path saves = m_paths.savegames();
+  const fs::path saves = m_paths.savegames();
   if (fs::exists(saves) &&
       !m_trash.remove(saves, "saves",
                       "Saves before restoring " + backup_name)) {
@@ -155,7 +164,7 @@ bool BackupManager::restore(const std::string& backup_name) {
     return false;
   }
   fs::create_directories(saves.parent_path(), ec);
-  bool moved = fs_helper::move_dir(stage, saves, m_status);
+  const bool moved = fs_helper::move_dir(stage, saves, m_status);
   fs::remove_all(stage, ec);
   if (!moved) {
     return false;
@@ -166,7 +175,7 @@ bool BackupManager::restore(const std::string& backup_name) {
 }
 
 bool BackupManager::delete_backup(const std::string& backup_name) {
-  fs::path target = m_paths.save_backups() / to_path(backup_name);
+  const fs::path target = m_paths.save_backups() / to_path(backup_name);
   if (!is_valid_backup_name(backup_name) || !fs::is_directory(target)) {
     m_status.post("Backup \"" + backup_name + "\" not found.", MSG_ERROR);
     return false;

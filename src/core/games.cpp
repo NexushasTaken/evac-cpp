@@ -1,5 +1,7 @@
 #include "core/games.h"
 
+#include <vector>
+
 static std::vector<GameInfo> make_games() {
   std::vector<GameInfo> games;
   GameInfo g;

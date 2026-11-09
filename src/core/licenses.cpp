@@ -1,13 +1,18 @@
 #include "core/licenses.h"
 
+#include <array>
+#include <filesystem>
 #include <format>
 #include <fstream>
 #include <sstream>
+#include <string>
+#include <string_view>
+#include <vector>
 
 #include "core/fs.h"
 
 static std::string read_text(const std::filesystem::path& path) {
-  std::ifstream f(path);
+  const std::ifstream f(path);
   if (!f) {
     return "(Could not read " + to_utf8(path) + ")";
   }

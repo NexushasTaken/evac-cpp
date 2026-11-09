@@ -1,10 +1,13 @@
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
 #include <fstream>
+#include <nlohmann/json_fwd.hpp>
+#include <string>
 
 #include "core/helpers.h"
 #include "core/paths.h"
 #include "core/settings.h"
+#include "core/status.h"
 
 namespace fs = std::filesystem;
 
@@ -16,7 +19,7 @@ static fs::path make_temp_dir(const std::string& name) {
 }
 
 TEST_CASE("settings creates a file with defaults") {
-  fs::path dir = make_temp_dir("settings_create");
+  const fs::path dir = make_temp_dir("settings_create");
   Status status;
   Settings s(dir / "evac_settings.json", status);
   s.load();
@@ -28,7 +31,7 @@ TEST_CASE("settings creates a file with defaults") {
 }
 
 TEST_CASE("settings keeps unknown keys and fills in missing ones") {
-  fs::path dir = make_temp_dir("settings_compat");
+  const fs::path dir = make_temp_dir("settings_compat");
   std::ofstream(dir / "evac_settings.json")
       << "{\"game\": \"bn\", \"launcher_theme\": \"Gray.tres\", "
          "\"proxy_port\": 8080}";
@@ -51,8 +54,8 @@ TEST_CASE("settings keeps unknown keys and fills in missing ones") {
 }
 
 TEST_CASE("settings falls back to default on wrong type") {
-  fs::path dir = make_temp_dir("settings_type");
-  std::ofstream(dir / "evac_settings.json") << "{\"debug_mode\": \"yes\"}";
+  const fs::path dir = make_temp_dir("settings_type");
+  std::ofstream(dir / "evac_settings.json") << R"({"debug_mode": "yes"})";
 
   Status status;
   Settings s(dir / "evac_settings.json", status);
@@ -61,7 +64,7 @@ TEST_CASE("settings falls back to default on wrong type") {
 }
 
 TEST_CASE("paths follow the original layout") {
-  fs::path dir = make_temp_dir("paths");
+  const fs::path dir = make_temp_dir("paths");
   Status status;
   Settings s(dir / "evac_settings.json", status);
   s.load();
@@ -79,7 +82,7 @@ TEST_CASE("paths follow the original layout") {
 }
 
 TEST_CASE("installs summary finds installs and sets the active one") {
-  fs::path dir = make_temp_dir("installs");
+  const fs::path dir = make_temp_dir("installs");
   Status status;
   Settings s(dir / "evac_settings.json", status);
   s.load();
@@ -122,7 +125,7 @@ TEST_CASE("portable locations keep everything in one directory") {
 
 TEST_CASE(
     "settings are saved into a config directory that does not exist yet") {
-  fs::path dir = make_temp_dir("settings_newdir");
+  const fs::path dir = make_temp_dir("settings_newdir");
   Status status;
   Settings s(dir / "a/b/evac_settings.json", status);
   s.load();
@@ -130,7 +133,7 @@ TEST_CASE(
 }
 
 TEST_CASE("custom userdata folders") {
-  fs::path dir = make_temp_dir("userdata_folders");
+  const fs::path dir = make_temp_dir("userdata_folders");
   Status status;
   Settings s(dir / "evac_settings.json", status);
   s.load();
@@ -140,18 +143,19 @@ TEST_CASE("custom userdata folders") {
   REQUIRE(p.is_default_userdata_active());
 
   // Trailing slashes and ".." are cleaned up; nothing is created on disk.
-  REQUIRE(p.add_userdata(dir / "x/../modded/", "Modded") == "");
+  REQUIRE(p.add_userdata(dir / "x/../modded/", "Modded").empty());
   REQUIRE(!fs::exists(dir / "modded"));
   REQUIRE(p.custom_userdata().size() == 1);
   REQUIRE(p.custom_userdata()[0].path == dir / "modded");
   REQUIRE(p.userdata() == dir / "dda/userdata");
 
-  REQUIRE(p.add_userdata(dir / "modded", "Other") != "");  // Already there.
-  REQUIRE(p.add_userdata(dir / "dda/userdata", "Again") != "");  // The default.
-  REQUIRE(p.add_userdata(dir / "clean", "Modded") != "");        // Same name.
-  REQUIRE(p.add_userdata(dir / "clean", "Default") != "");
-  REQUIRE(p.add_userdata(dir / "clean", "  ") != "");
-  REQUIRE(p.add_userdata(dir / "clean", "Clean") == "");
+  REQUIRE(!p.add_userdata(dir / "modded", "Other").empty());  // Already there.
+  REQUIRE(
+      !p.add_userdata(dir / "dda/userdata", "Again").empty());  // The default.
+  REQUIRE(!p.add_userdata(dir / "clean", "Modded").empty());    // Same name.
+  REQUIRE(!p.add_userdata(dir / "clean", "Default").empty());
+  REQUIRE(!p.add_userdata(dir / "clean", "  ").empty());
+  REQUIRE(p.add_userdata(dir / "clean", "Clean").empty());
 
   p.set_active_userdata(dir / "modded");
   REQUIRE(p.userdata() == dir / "modded");
@@ -160,10 +164,10 @@ TEST_CASE("custom userdata folders") {
   REQUIRE(p.mod_repo() == dir / "dda/mod_repo");  // Not part of userdata.
 
   // Renaming changes the label only.
-  REQUIRE(p.rename_userdata(dir / "modded", "Clean") != "");
-  REQUIRE(p.rename_userdata(dir / "modded", "Modded") ==
-          "");  // Its own name is fine.
-  REQUIRE(p.rename_userdata(dir / "modded", "Heavy mods") == "");
+  REQUIRE(!p.rename_userdata(dir / "modded", "Clean").empty());
+  REQUIRE(p.rename_userdata(dir / "modded", "Modded")
+              .empty());  // Its own name is fine.
+  REQUIRE(p.rename_userdata(dir / "modded", "Heavy mods").empty());
   REQUIRE(p.custom_userdata()[0].label == "Heavy mods");
   REQUIRE(p.userdata() == dir / "modded");
 
@@ -180,14 +184,14 @@ TEST_CASE("custom userdata folders") {
   p.remove_userdata(dir / "modded");
   REQUIRE(p.custom_userdata().size() == 1);
   REQUIRE(p.is_default_userdata_active());
-  REQUIRE(s.get_string("active_userdata_dda") == "");
+  REQUIRE(s.get_string("active_userdata_dda").empty());
   REQUIRE(fs::exists(dir / "modded/save"));
 }
 
 TEST_CASE("a stale active userdata falls back to the default") {
-  fs::path dir = make_temp_dir("userdata_stale");
+  const fs::path dir = make_temp_dir("userdata_stale");
   std::ofstream(dir / "evac_settings.json")
-      << "{\"active_userdata_dda\": \"/nowhere\"}";
+      << R"({"active_userdata_dda": "/nowhere"})";
   Status status;
   Settings s(dir / "evac_settings.json", status);
   s.load();

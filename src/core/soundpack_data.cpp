@@ -1,4 +1,6 @@
 // The downloadable soundpacks, taken from the original launcher.
+#include <vector>
+
 #include "core/soundpack_manager.h"
 
 static std::vector<SoundpackSource> make_sources() {

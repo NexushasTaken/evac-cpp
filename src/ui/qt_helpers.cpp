@@ -1,5 +1,12 @@
 #include "ui/qt_helpers.h"
 
+#include <qabstractitemmodel.h>
+#include <qbrush.h>
+#include <qfont.h>
+#include <qhashfunctions.h>
+#include <qnamespace.h>
+#include <qtypes.h>
+
 #include <QAbstractButton>
 #include <QAbstractItemView>
 #include <QIcon>
@@ -8,6 +15,9 @@
 #include <QLocale>
 #include <QWidget>
 #include <algorithm>
+#include <cstdint>
+#include <filesystem>
+#include <string>
 
 #include "core/fs.h"
 
@@ -44,11 +54,11 @@ QLabel* make_heading(const QString& text) {
   return label;
 }
 
-int selected_row(QAbstractItemView* view) {
+int selected_row(const QAbstractItemView* view) {
   if (view->selectionModel() == nullptr) {
     return -1;
   }
-  QModelIndexList rows = view->selectionModel()->selectedRows();
+  const QModelIndexList rows = view->selectionModel()->selectedRows();
   if (rows.isEmpty()) {
     return -1;
   }
@@ -59,13 +69,13 @@ int selected_row(QAbstractItemView* view) {
   return first;
 }
 
-QBrush dim_brush(QWidget* widget) {
+QBrush dim_brush(const QWidget* widget) {
   return widget->palette().brush(QPalette::Disabled, QPalette::Text);
 }
 
 void set_icon(QAbstractButton* button, const char* theme_name,
               const QString& fallback_text) {
-  QIcon icon = QIcon::fromTheme(theme_name);
+  const QIcon icon = QIcon::fromTheme(theme_name);
   if (icon.isNull()) {
     button->setText(fallback_text);
   } else {

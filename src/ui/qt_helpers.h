@@ -32,11 +32,11 @@ QLabel* make_label(const QString& text);
 QLabel* make_heading(const QString& text);
 
 // The row of the first selected item, or -1.
-int selected_row(QAbstractItemView* view);
+int selected_row(const QAbstractItemView* view);
 
 // The text color of disabled widgets, for list rows that should look grayed
 // out but stay selectable.
-QBrush dim_brush(QWidget* widget);
+QBrush dim_brush(const QWidget* widget);
 
 // An icon from the desktop's icon theme. Themes don't exist everywhere
 // (Windows, macOS), so the button gets the text instead when the icon isn't

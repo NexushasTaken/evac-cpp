@@ -1,6 +1,14 @@
 #include "ui/task_runner.h"
 
+#include <qnamespace.h>
+#include <qobjectdefs.h>
+#include <qtmetamacros.h>
+
 #include <exception>
+#include <functional>
+#include <string>
+
+#include "core/status.h"
 
 TaskRunner::TaskRunner(Status& status) : m_status(status), m_busy(false) {}
 
@@ -14,7 +22,7 @@ bool TaskRunner::run(const std::function<void()>& work,
 
   m_busy = true;
   m_done = done;
-  m_thread = std::thread([this, work]() {
+  m_thread = std::thread([this, work] {
     try {
       work();
     } catch (const std::exception& e) {
@@ -23,7 +31,7 @@ bool TaskRunner::run(const std::function<void()>& work,
     // Queued: runs on the thread this object lives in (the main thread).
     // Dropped if the runner is gone by then.
     QMetaObject::invokeMethod(
-        this, [this]() { on_finished(); }, Qt::QueuedConnection);
+        this, [this] { on_finished(); }, Qt::QueuedConnection);
   });
   return true;
 }
@@ -34,7 +42,7 @@ void TaskRunner::on_finished() {
   }
   m_busy = false;
 
-  std::function<void()> done = m_done;
+  const std::function<void()> done = m_done;
   m_done = nullptr;
   if (done) {
     done();

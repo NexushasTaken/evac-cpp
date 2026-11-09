@@ -1,8 +1,21 @@
 #include "core/release_manager.h"
 
-#include "core/platform.h"
+#include <cstddef>
+#include <mutex>
+#include <nlohmann/json_fwd.hpp>
+#include <string>
+#include <string_view>
+#include <vector>
 
-std::string ReleaseManager::current_platform() { return platform::os_name(); }
+#include "core/http.h"
+#include "core/platform.h"
+#include "core/release_data.h"
+#include "core/settings.h"
+#include "core/status.h"
+
+std::string_view ReleaseManager::current_platform() {
+  return platform::os_name();
+}
 
 std::string ReleaseManager::make_key(const std::string& game,
                                      const std::string& channel) {
@@ -33,11 +46,11 @@ std::string_view ReleaseManager::releases_url(const std::string& game) {
 }
 
 std::string_view ReleaseManager::asset_substring(const std::string& game,
-                                                 const std::string& platform) {
+                                                 const std::string_view& platform) {
   if (platform != "linux" && platform != "win") {
     return "";  // No builds the launcher can install (macOS ones are .dmg).
   }
-  bool lin = (platform == "linux");
+  const bool lin = (platform == "linux");
   if (game == "dda") {
     return lin ? "cdda-linux-with-graphics-and-sounds-x64"
                : "cdda-windows-with-graphics-and-sounds-x64";
@@ -91,8 +104,10 @@ bool ReleaseManager::parse_builds(const std::string& body,
     Release r;
     r.name = rec["name"].get<std::string>();
     if (shorten_names) {
-      size_t space = r.name.find_last_of(' ');
-      if (space != std::string::npos) r.name = r.name.substr(space + 1);
+      const size_t space = r.name.find_last_of(' ');
+      if (space != std::string::npos) {
+        r.name = r.name.substr(space + 1);
+      }
     }
 
     // If several assets match, the last one wins (like in the original).
@@ -103,7 +118,7 @@ bool ReleaseManager::parse_builds(const std::string& body,
           !asset["browser_download_url"].is_string()) {
         continue;
       }
-      std::string asset_name = asset["name"].get<std::string>();
+      const std::string asset_name = asset["name"].get<std::string>();
       if (asset_name.find(asset_substring) != std::string::npos) {
         r.url = asset["browser_download_url"].get<std::string>();
         r.filename = asset_name;
@@ -118,18 +133,18 @@ bool ReleaseManager::parse_builds(const std::string& body,
 }
 
 bool ReleaseManager::fetch(const std::string& release_key) {
-  size_t dash = release_key.find('-');
+  const size_t dash = release_key.find('-');
   if (dash == std::string::npos) {
     m_status.post("Invalid release key: " + release_key, MSG_ERROR);
     return false;
   }
-  std::string game = release_key.substr(0, dash);
-  std::string channel = release_key.substr(dash + 1);
-  std::string platform = current_platform();
+  const std::string game = release_key.substr(0, dash);
+  const std::string channel = release_key.substr(dash + 1);
+  const std::string_view platform = current_platform();
 
   if (channel == "stable") {
-    std::vector<Release> list = stable_releases(game, platform);
-    std::scoped_lock lock(m_mutex);
+    const std::vector<Release> list = stable_releases(game, platform);
+    const std::scoped_lock lock(m_mutex);
     m_releases[release_key] = list;
     return true;
   }
@@ -139,7 +154,7 @@ bool ReleaseManager::fetch(const std::string& release_key) {
   }
 
   std::string url{releases_url(game)};
-  std::string substring{asset_substring(game, platform)};
+  const std::string substring{asset_substring(game, platform)};
   if (url.empty()) {
     m_status.post("Invalid release key: " + release_key, MSG_ERROR);
     return false;
@@ -181,14 +196,14 @@ bool ReleaseManager::fetch(const std::string& release_key) {
   }
 
   m_status.post("Got " + std::to_string(list.size()) + " releases.");
-  std::scoped_lock lock(m_mutex);
+  const std::scoped_lock lock(m_mutex);
   m_releases[release_key] = list;
   return true;
 }
 
 std::vector<Release> ReleaseManager::get(const std::string& release_key) {
-  std::scoped_lock lock(m_mutex);
-  auto it = m_releases.find(release_key);
+  const std::scoped_lock lock(m_mutex);
+  const auto it = m_releases.find(release_key);
   if (it == m_releases.end()) {
     return {};
   }

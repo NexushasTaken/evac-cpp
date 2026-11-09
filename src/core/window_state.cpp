@@ -1,5 +1,9 @@
 #include "core/window_state.h"
 
+#include <nlohmann/json_fwd.hpp>
+
+#include "core/settings.h"
+
 static const int MIN_SIZE = 300;
 static const int MAX_SIZE = 20000;
 
@@ -14,8 +18,8 @@ WindowState load_window_state(Settings& settings) {
     return state;
   }
 
-  int width = static_cast<int>(json["size_x"].get<double>());
-  int height = static_cast<int>(json["size_y"].get<double>());
+  const int width = static_cast<int>(json["size_x"].get<double>());
+  const int height = static_cast<int>(json["size_y"].get<double>());
   if (!sane(width) || !sane(height)) {
     return state;
   }

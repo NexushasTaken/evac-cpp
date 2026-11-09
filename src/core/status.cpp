@@ -1,6 +1,9 @@
 #include "core/status.h"
 
 #include <chrono>
+#include <format>
+#include <mutex>
+#include <string>
 
 static std::string current_timestamp() {
   namespace chr = std::chrono;
@@ -27,7 +30,7 @@ std::string Status::format(const std::string& msg, MessageType type,
 }
 
 void Status::post(const std::string& msg, MessageType type) {
-  std::scoped_lock lock(m_mutex);
+  const std::scoped_lock lock(m_mutex);
 
   if (type == MSG_DEBUG && !m_debug_enabled) {
     return;
@@ -45,7 +48,7 @@ void Status::post(const std::string& msg, MessageType type) {
 }
 
 void Status::set_listener(const Listener& listener) {
-  std::scoped_lock lock(m_mutex);
+  const std::scoped_lock lock(m_mutex);
   m_listener = listener;
   if (m_listener) {
     for (const auto& i : m_buffer) {
@@ -56,6 +59,6 @@ void Status::set_listener(const Listener& listener) {
 }
 
 void Status::set_debug_enabled(bool enabled) {
-  std::scoped_lock lock(m_mutex);
+  const std::scoped_lock lock(m_mutex);
   m_debug_enabled = enabled;
 }

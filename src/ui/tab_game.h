@@ -59,7 +59,7 @@ class TabGame : public QWidget {
   void on_delete_clicked();
   void on_installs_row_selected();
   void on_installs_row_activated(QTreeWidgetItem* row);
-  void extracted();
+  static void extracted();
   void on_userdata_selected();
   void on_userdata_add_clicked();
   void on_userdata_rename_clicked();
@@ -84,10 +84,10 @@ class TabGame : public QWidget {
   TaskRunner& m_runner;
   QWidget& m_parent;
 
-  bool m_updating;    // True while we change widgets ourselves, so handlers do
-                      // nothing.
-  int m_had_install;  // -1 before the first refresh, then 0 or 1. Used to
-                      // open/close the install section once.
+  bool m_updating{false};  // True while we change widgets ourselves, so
+                           // handlers do nothing.
+  int m_had_install{-1};  // -1 before the first refresh, then 0 or 1. Used to
+                          // open/close the install section once.
   std::vector<Release> m_releases;
   Paths::InstallsSummary m_installs;
   std::vector<std::string>
@@ -100,39 +100,39 @@ class TabGame : public QWidget {
   std::set<std::filesystem::path>
       m_kept_missing;  // Missing folders the user chose to keep, not asked
                        // again.
-  bool m_asking_missing;
+  bool m_asking_missing{false};
 
-  QWidget* m_content;
-  QComboBox* m_game_dropdown;
-  QLabel* m_description;
+  QWidget* m_content{};
+  QComboBox* m_game_dropdown{};
+  QLabel* m_description{};
 
   // Userdata folder choice.
-  QComboBox* m_userdata_dropdown;
-  QToolButton* m_userdata_add_button;
-  QToolButton* m_userdata_rename_button;
-  QToolButton* m_userdata_remove_button;
+  QComboBox* m_userdata_dropdown{};
+  QToolButton* m_userdata_add_button{};
+  QToolButton* m_userdata_rename_button{};
+  QToolButton* m_userdata_remove_button{};
 
   // Play section.
-  QLabel* m_active_title;
-  QPushButton* m_play_button;
-  QPushButton* m_resume_button;
-  QPushButton* m_folder_menu_button;
+  QLabel* m_active_title{};
+  QPushButton* m_play_button{};
+  QPushButton* m_resume_button{};
+  QPushButton* m_folder_menu_button{};
 
   // Installed versions.
-  QWidget* m_installs_box;
-  QTreeWidget* m_installs_list;
-  QPushButton* m_make_active_button;
-  QPushButton* m_delete_button;
+  QWidget* m_installs_box{};
+  QTreeWidget* m_installs_list{};
+  QPushButton* m_make_active_button{};
+  QPushButton* m_delete_button{};
 
   // Install / update section.
-  QToolButton* m_install_expander;
-  QWidget* m_install_section;
-  QRadioButton* m_stable_button;
-  QRadioButton* m_experimental_button;
-  QToolButton* m_refresh_button;
-  QComboBox* m_builds_dropdown;
-  QPushButton* m_install_new_button;
-  QPushButton* m_update_button;
+  QToolButton* m_install_expander{};
+  QWidget* m_install_section{};
+  QRadioButton* m_stable_button{};
+  QRadioButton* m_experimental_button{};
+  QToolButton* m_refresh_button{};
+  QComboBox* m_builds_dropdown{};
+  QPushButton* m_install_new_button{};
+  QPushButton* m_update_button{};
 };
 
 #endif

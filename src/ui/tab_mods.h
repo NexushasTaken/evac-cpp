@@ -33,7 +33,7 @@ class TabMods : public QWidget {
     std::string id;
     std::string name;
     std::string location;
-    bool grayed;
+    bool grayed{};
     std::string badge;  // Why the row is grayed, shown next to the name.
   };
 
@@ -44,7 +44,7 @@ class TabMods : public QWidget {
   void show_mod_info(const std::string& id, bool from_available);
   void run_task(const std::function<void()>& work);
 
-  std::set<int> selected_rows(QTreeWidget* list);
+  static std::set<int> selected_rows(QTreeWidget* list);
   void fill_list(QTreeWidget* list, const std::vector<ModRow>& rows,
                  const QString& placeholder);
 
@@ -63,25 +63,25 @@ class TabMods : public QWidget {
   AppContext& m_ctx;
   TaskRunner& m_runner;
   QWidget& m_parent;
-  bool m_updating;
+  bool m_updating{false};
   std::vector<ModRow> m_installed_rows;
   std::vector<ModRow> m_available_rows;
   std::set<int> m_previous_installed_selection;
   std::set<int> m_previous_available_selection;
 
-  QLabel* m_hint_label;
-  QWidget* m_content;
-  QLabel* m_installed_caption;
-  QLabel* m_available_caption;
-  QTreeWidget* m_installed_list;
-  QTreeWidget* m_available_list;
-  QCheckBox* m_show_stock_check;
-  QCheckBox* m_show_installed_check;
-  QPushButton* m_delete_button;
-  QPushButton* m_add_selected_button;
-  QPushButton* m_add_all_button;
-  QPushButton* m_kenan_button;
-  QTextBrowser* m_info_view;
+  QLabel* m_hint_label{};
+  QWidget* m_content{};
+  QLabel* m_installed_caption{};
+  QLabel* m_available_caption{};
+  QTreeWidget* m_installed_list{};
+  QTreeWidget* m_available_list{};
+  QCheckBox* m_show_stock_check{};
+  QCheckBox* m_show_installed_check{};
+  QPushButton* m_delete_button{};
+  QPushButton* m_add_selected_button{};
+  QPushButton* m_add_all_button{};
+  QPushButton* m_kenan_button{};
+  QTextBrowser* m_info_view{};
 };
 
 #endif

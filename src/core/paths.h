@@ -99,7 +99,7 @@ class Paths {
   // Files that ship with the launcher (bundled fonts, ...): <executable
   // dir>/data if it exists, otherwise the data directory the build was made
   // from.
-  std::filesystem::path data_dir() const;
+  static std::filesystem::path data_dir();
   // Everything the launcher adds to a userdata folder goes in launcher_dir, so
   // it moves with its worlds. The game never looks there.
   std::filesystem::path launcher_dir();

@@ -1,11 +1,16 @@
 #include <catch2/catch_test_macros.hpp>
+#include <ctime>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <string>
+#include <vector>
 
 #include "core/backup_manager.h"
 #include "core/paths.h"
 #include "core/settings.h"
+#include "core/status.h"
+#include "core/trash.h"
 
 namespace fs = std::filesystem;
 
@@ -22,14 +27,14 @@ static void write_file(const fs::path& path, const std::string& content) {
 }
 
 static std::string read_file(const fs::path& path) {
-  std::ifstream f(path);
+  const std::ifstream f(path);
   std::stringstream ss;
   ss << f.rdbuf();
   return ss.str();
 }
 
 struct BackupFixture {
-  BackupFixture(const std::string& name)
+  explicit BackupFixture(const std::string& name)
       : dir(make_temp_dir(name)),
         settings(dir / "s.json", status),
         paths(dir, settings, status),
@@ -134,7 +139,7 @@ TEST_CASE("restore replaces the current saves") {
   std::vector<TrashItem> trashed = f.trash.list();
   REQUIRE(trashed.size() == 1);
   REQUIRE(trashed[0].kind == "saves");
-  fs::path old_saves = f.paths.trash_dir() / trashed[0].id / "item";
+  const fs::path old_saves = f.paths.trash_dir() / trashed[0].id / "item";
   REQUIRE(read_file(old_saves / "Alpha/map.dat") == "alpha v2");
   REQUIRE(read_file(old_saves / "Gamma/map.dat") == "gamma");
 
@@ -168,7 +173,7 @@ TEST_CASE("a broken backup does not destroy the current saves") {
 
 TEST_CASE("backups in the old folder are moved into userdata") {
   BackupFixture f("backup_move");
-  fs::path old_dir = f.dir / "dda/save_backups";
+  const fs::path old_dir = f.dir / "dda/save_backups";
   write_file(old_dir / "old one/Alpha.zip", "zip");
 
   std::vector<BackupSummary> list = f.backups.list();
@@ -186,9 +191,9 @@ TEST_CASE("backups in the old folder are moved into userdata") {
 TEST_CASE(
     "old backups go to the default userdata even when another one is active") {
   BackupFixture f("backup_move_custom");
-  fs::path old_dir = f.dir / "dda/save_backups";
+  const fs::path old_dir = f.dir / "dda/save_backups";
   write_file(old_dir / "old one/Alpha.zip", "zip");
-  REQUIRE(f.paths.add_userdata(f.dir / "modded", "Modded") == "");
+  REQUIRE(f.paths.add_userdata(f.dir / "modded", "Modded").empty());
   f.paths.set_active_userdata(f.dir / "modded");
 
   REQUIRE(f.backups.list().empty());

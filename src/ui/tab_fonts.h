@@ -57,38 +57,38 @@ class TabFonts : public QWidget {
 
   AppContext& m_ctx;
   QWidget& m_parent;
-  bool m_updating;
+  bool m_updating{false};
   std::vector<FontEntry> m_entries;  // As shown in m_entries_list.
 
-  QLabel* m_hint_label;
-  QScrollArea* m_scroller;
+  QLabel* m_hint_label{};
+  QScrollArea* m_scroller{};
 
-  QListWidget* m_fonts_list;
-  QPushButton* m_add_file_button;
-  QLabel* m_description_label;
-  FontPreview* m_preview;
-  QPushButton* m_set_ui_button;
-  QPushButton* m_set_menus_button;
-  QPushButton* m_set_map_button;
-  QPushButton* m_set_overmap_button;
-  QPushButton* m_set_all_button;
-  QPushButton* m_reset_button;
+  QListWidget* m_fonts_list{};
+  QPushButton* m_add_file_button{};
+  QLabel* m_description_label{};
+  FontPreview* m_preview{};
+  QPushButton* m_set_ui_button{};
+  QPushButton* m_set_menus_button{};
+  QPushButton* m_set_map_button{};
+  QPushButton* m_set_overmap_button{};
+  QPushButton* m_set_all_button{};
+  QPushButton* m_reset_button{};
 
-  QComboBox* m_field_dropdown;
-  QLabel* m_missing_field_label;
-  QListWidget* m_entries_list;
-  QPushButton* m_move_up_button;
-  QPushButton* m_move_down_button;
-  QPushButton* m_remove_button;
+  QComboBox* m_field_dropdown{};
+  QLabel* m_missing_field_label{};
+  QListWidget* m_entries_list{};
+  QPushButton* m_move_up_button{};
+  QPushButton* m_move_down_button{};
+  QPushButton* m_remove_button{};
 
   // UI (also the menus), map, overmap.
-  QSpinBox* m_size_spins[3];
-  QSpinBox* m_width_spins[3];
-  QSpinBox* m_height_spins[3];
-  QCheckBox* m_manual_check;
-  QCheckBox* m_blending_check;
-  QCheckBox* m_ascii_check;
-  QPushButton* m_save_button;
+  QSpinBox* m_size_spins[3]{};
+  QSpinBox* m_width_spins[3]{};
+  QSpinBox* m_height_spins[3]{};
+  QCheckBox* m_manual_check{};
+  QCheckBox* m_blending_check{};
+  QCheckBox* m_ascii_check{};
+  QPushButton* m_save_button{};
 };
 
 #endif

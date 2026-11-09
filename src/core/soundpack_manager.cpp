@@ -2,9 +2,17 @@
 
 #include <filesystem>
 #include <fstream>
+#include <string>
+#include <string_view>
+#include <system_error>
+#include <vector>
 
 #include "core/archive.h"
 #include "core/fs.h"
+#include "core/paths.h"
+#include "core/settings.h"
+#include "core/status.h"
+#include "core/trash.h"
 
 namespace fs = std::filesystem;
 
@@ -32,9 +40,9 @@ std::vector<InstalledSoundpack> SoundpackManager::parse_sound_dir(
     const fs::path& sound_dir) {
   std::vector<InstalledSoundpack> result;
 
-  std::vector<std::string> subdirs = Paths::list_dir(sound_dir);
+  const std::vector<std::string> subdirs = Paths::list_dir(sound_dir);
   for (const auto& subdir : subdirs) {
-    fs::path location = sound_dir / to_path(subdir);
+    const fs::path location = sound_dir / to_path(subdir);
     fs::path config = location / CONFIG_FILE;
     bool enabled = true;
     std::error_code ec;
@@ -89,8 +97,8 @@ std::vector<InstalledSoundpack> SoundpackManager::get_installed(
 
 bool SoundpackManager::find_user_pack(const fs::path& location,
                                       InstalledSoundpack& out) {
-  std::vector<InstalledSoundpack> packs = get_installed(false);
-  for (auto& pack : packs) {
+  const std::vector<InstalledSoundpack> packs = get_installed(false);
+  for (const auto& pack : packs) {
     if (pack.location == location) {
       out = pack;
       return true;
@@ -118,16 +126,16 @@ bool SoundpackManager::set_enabled(const fs::path& location, bool enabled) {
     return true;
   }
 
-  fs::path config = pack.location / CONFIG_FILE;
+  const fs::path config = pack.location / CONFIG_FILE;
   fs::path disabled = config;
   disabled += DISABLED_SUFFIX;
-  fs::path from = enabled ? disabled : config;
-  fs::path to = enabled ? config : disabled;
+  const fs::path from = enabled ? disabled : config;
+  const fs::path to = enabled ? config : disabled;
 
   // rename() replaces an existing file, so check first. symlink_status also
   // sees a dangling symlink, which exists() would not.
   std::error_code ec;
-  fs::file_status to_status = fs::symlink_status(to, ec);
+  const fs::file_status to_status = fs::symlink_status(to, ec);
   if (fs::exists(to_status)) {
     m_status.post("Not renaming the config of soundpack \"" + pack.name +
                       "\": " + to_utf8(to) + " already exists.",
@@ -157,8 +165,8 @@ bool SoundpackManager::has_user_copy(const SoundpackSource& pack) {
 bool SoundpackManager::install_pack(const SoundpackSource& pack,
                                     const fs::path& from_file, bool reinstall,
                                     bool keep_archive) {
-  fs::path sound_dir = m_paths.sound_user();
-  fs::path tmp_dir = m_paths.tmp_dir() / to_path(pack.name);
+  const fs::path sound_dir = m_paths.sound_user();
+  const fs::path tmp_dir = m_paths.tmp_dir() / to_path(pack.name);
   fs::path archive_path;
   std::error_code ec;
 
@@ -197,7 +205,7 @@ bool SoundpackManager::install_pack(const SoundpackSource& pack,
     fs::remove(archive_path, ec);
   }
 
-  fs::path source = tmp_dir / to_path(pack.internal_path);
+  const fs::path source = tmp_dir / to_path(pack.internal_path);
   if (extracted && !fs::is_directory(source)) {
     m_status.post(
         "The archive does not contain \"" + pack.internal_path + "\".",
@@ -211,14 +219,14 @@ bool SoundpackManager::install_pack(const SoundpackSource& pack,
 
   // Only now is it safe to remove the old copy. The directory may not be
   // there even when reinstalling, if the installed copy has another name.
-  fs::path old_copy = sound_dir / to_path(pack.name);
+  const fs::path old_copy = sound_dir / to_path(pack.name);
   if (reinstall && fs::exists(fs::symlink_status(old_copy, ec)) &&
       !m_trash.remove(old_copy, "soundpack", pack.name)) {
     fs::remove_all(tmp_dir, ec);
     return false;
   }
 
-  bool moved =
+  const bool moved =
       fs_helper::move_dir(source, sound_dir / to_path(pack.name), m_status);
   fs::remove_all(tmp_dir, ec);
   if (!moved) {

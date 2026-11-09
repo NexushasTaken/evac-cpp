@@ -43,18 +43,18 @@ class TabBackups : public QWidget {
   AppContext& m_ctx;
   TaskRunner& m_runner;
   QWidget& m_parent;
-  bool m_updating;
+  bool m_updating{false};
   std::vector<BackupSummary> m_backups;
 
-  QLabel* m_hint_label;
-  QWidget* m_content;
-  QListWidget* m_list;
-  QPushButton* m_restore_button;
-  QPushButton* m_delete_button;
-  QPushButton* m_refresh_button;
-  QTextBrowser* m_info_view;
-  QLineEdit* m_name_entry;
-  QPushButton* m_create_button;
+  QLabel* m_hint_label{};
+  QWidget* m_content{};
+  QListWidget* m_list{};
+  QPushButton* m_restore_button{};
+  QPushButton* m_delete_button{};
+  QPushButton* m_refresh_button{};
+  QTextBrowser* m_info_view{};
+  QLineEdit* m_name_entry{};
+  QPushButton* m_create_button{};
 };
 
 #endif

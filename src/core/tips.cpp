@@ -1,5 +1,9 @@
 #include "core/tips.h"
 
+#include <ctime>
+#include <string>
+#include <vector>
+
 static std::vector<std::string> make_tips() {
   std::vector<std::string> tips;
   tips.emplace_back(

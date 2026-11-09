@@ -2,15 +2,19 @@
 
 #include <filesystem>
 #include <fstream>
+#include <nlohmann/json_fwd.hpp>
 #include <sstream>
+#include <string>
+#include <system_error>
 
 #include "core/fs.h"
+#include "core/status.h"
 
 const char* const INFO_FILENAME = "evac_install_info.json";
 
 bool load_json_file(const std::filesystem::path& file, nlohmann::json& out,
                     Status& status) {
-  std::ifstream f(file);
+  const std::ifstream f(file);
   if (!f) {
     status.post("Failed to read file: " + to_utf8(file), MSG_ERROR);
     return false;
@@ -19,7 +23,7 @@ bool load_json_file(const std::filesystem::path& file, nlohmann::json& out,
   std::stringstream ss;
   ss << f.rdbuf();
 
-  nlohmann::json parsed = nlohmann::json::parse(ss.str(), nullptr, false);
+  const nlohmann::json parsed = nlohmann::json::parse(ss.str(), nullptr, false);
   if (parsed.is_discarded()) {
     status.post("Failed to parse JSON file: " + to_utf8(file), MSG_ERROR);
     return false;

@@ -58,31 +58,31 @@ class TabSnapshots : public QWidget {
   AppContext& m_ctx;
   TaskRunner& m_runner;
   QWidget& m_parent;
-  bool m_updating;
+  bool m_updating{false};
   std::vector<WorldInfo> m_worlds;
   std::vector<Snapshot> m_snapshots;
   std::string m_selected_name;    // Kept across reloads.
   std::set<std::string> m_asked;  // Deleted worlds already asked about.
 
-  QLabel* m_hint_label;
-  QWidget* m_content;
-  QTreeWidget* m_worlds_list;
-  QLabel* m_snapshots_title;
-  QAction* m_export_action;
-  QAction* m_import_action;
-  QAction* m_start_fresh_action;
-  QAction* m_delete_action;
-  QTreeWidget* m_snapshots_list;
-  QPushButton* m_restore_button;
-  QPushButton* m_discard_button;
-  QTextBrowser* m_details_view;
-  QLineEdit* m_name_entry;
-  QLineEdit* m_description_entry;
-  QPushButton* m_take_button;
-  QPushButton* m_take_all_button;
-  QLabel* m_footer_label;
-  QLineEdit* m_command_entry;
-  QPushButton* m_copy_button;
+  QLabel* m_hint_label{};
+  QWidget* m_content{};
+  QTreeWidget* m_worlds_list{};
+  QLabel* m_snapshots_title{};
+  QAction* m_export_action{};
+  QAction* m_import_action{};
+  QAction* m_start_fresh_action{};
+  QAction* m_delete_action{};
+  QTreeWidget* m_snapshots_list{};
+  QPushButton* m_restore_button{};
+  QPushButton* m_discard_button{};
+  QTextBrowser* m_details_view{};
+  QLineEdit* m_name_entry{};
+  QLineEdit* m_description_entry{};
+  QPushButton* m_take_button{};
+  QPushButton* m_take_all_button{};
+  QLabel* m_footer_label{};
+  QLineEdit* m_command_entry{};
+  QPushButton* m_copy_button{};
 };
 
 #endif

@@ -4,6 +4,7 @@
 #include <fstream>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "core/paths.h"
@@ -26,7 +27,8 @@ TEST_CASE("windows arguments are quoted for CommandLineToArgvW") {
 }
 
 TEST_CASE("windows command line") {
-  std::vector<std::string> args = {"--userdir", "C:\\Users\\Me\\My Data\\"};
+  const std::vector<std::string> args = {"--userdir",
+                                         R"(C:\Users\Me\My Data\)"};
   REQUIRE(process::windows_command_line(
               "C:\\Program Files\\dda\\cataclysm-tiles.exe", args) ==
           "\"C:\\Program Files\\dda\\cataclysm-tiles.exe\" --userdir "
@@ -36,11 +38,11 @@ TEST_CASE("windows command line") {
 
 TEST_CASE("environment changes") {
   process::Environment env;
-  env.remove_prefixes.push_back("GIT_");
-  env.set.push_back(std::make_pair("HOME", "/new"));
-  env.set.push_back(std::make_pair("EXTRA", "1"));
-  std::vector<std::string> current = {"PATH=/bin", "GIT_DIR=/x", "git_dir=/y",
-                                      "HOME=/old", "HOMEPAGE=z"};
+  env.remove_prefixes.emplace_back("GIT_");
+  env.set.emplace_back("HOME", "/new");
+  env.set.emplace_back("EXTRA", "1");
+  const std::vector<std::string> current = {
+      "PATH=/bin", "GIT_DIR=/x", "git_dir=/y", "HOME=/old", "HOMEPAGE=z"};
 
   std::vector<std::string> result =
       process::apply_environment(current, env, false);
@@ -55,8 +57,8 @@ TEST_CASE("environment changes") {
 }
 
 TEST_CASE("windows and macos locations") {
-  Locations loc = windows_locations("C:\\Users\\Me\\AppData\\Roaming",
-                                    "C:\\Users\\Me\\AppData\\Local");
+  Locations loc = windows_locations(R"(C:\Users\Me\AppData\Roaming)",
+                                    R"(C:\Users\Me\AppData\Local)");
   REQUIRE(loc.config_dir == "C:\\Users\\Me\\AppData\\Roaming/evac");
   REQUIRE(loc.games_dir == "C:\\Users\\Me\\AppData\\Local/evac");
   REQUIRE(loc.cache_dir == "C:\\Users\\Me\\AppData\\Local/evac/cache");
@@ -75,9 +77,9 @@ TEST_CASE("no releases for a platform without builds") {
 }
 
 TEST_CASE("the platform knows the executable") {
-  std::string os = platform::os_name();
+  const std::string_view os = platform::os_name();
   REQUIRE((os == "linux" || os == "win" || os == "mac"));
-  std::filesystem::path exe = platform::executable_path();
+  const std::filesystem::path exe = platform::executable_path();
   REQUIRE(!exe.empty());
   REQUIRE(platform::is_executable_file(exe));
 }
@@ -95,8 +97,8 @@ TEST_CASE("run collects output and the exit code") {
 
 TEST_CASE("run passes the changed environment") {
   process::Environment env;
-  env.remove_prefixes.push_back("HOME");
-  env.set.push_back(std::make_pair("EVAC_TEST_VAR", "hello"));
+  env.remove_prefixes.emplace_back("HOME");
+  env.set.emplace_back("EVAC_TEST_VAR", "hello");
   process::Result r =
       process::run("sh", {"-c", "echo \"$EVAC_TEST_VAR ${HOME-unset}\""}, env);
   REQUIRE(r.ok());
@@ -104,7 +106,7 @@ TEST_CASE("run passes the changed environment") {
 }
 
 TEST_CASE("a detached program runs in its working directory") {
-  std::filesystem::path dir =
+  const std::filesystem::path dir =
       std::filesystem::temp_directory_path() / "evac_test_detached";
   std::filesystem::remove_all(dir);
   std::filesystem::create_directories(dir);
@@ -114,8 +116,9 @@ TEST_CASE("a detached program runs in its working directory") {
                                   dir.string(), error));
 
   // It is not our child, so poll for the file.
-  for (int i = 0; i < 100 && !std::filesystem::exists(dir / "out"); ++i)
+  for (int i = 0; i < 100 && !std::filesystem::exists(dir / "out"); ++i) {
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  }
   std::ifstream in(dir / "out");
   std::string line;
   std::getline(in, line);
@@ -123,7 +126,7 @@ TEST_CASE("a detached program runs in its working directory") {
 }
 
 TEST_CASE("run reports a missing program") {
-  process::Result r =
+  const process::Result r =
       process::run("evac-no-such-program", {}, process::Environment());
   REQUIRE(!r.started);
   REQUIRE(r.not_found);

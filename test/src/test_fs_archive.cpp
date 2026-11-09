@@ -3,9 +3,12 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <string>
+#include <vector>
 
 #include "core/archive.h"
 #include "core/fs.h"
+#include "core/status.h"
 
 namespace fs = std::filesystem;
 
@@ -22,22 +25,24 @@ static void write_file(const fs::path& path, const std::string& content) {
 }
 
 static std::string read_file(const fs::path& path) {
-  std::ifstream f(path);
+  const std::ifstream f(path);
   std::stringstream ss;
   ss << f.rdbuf();
   return ss.str();
 }
 
 TEST_CASE("list_dir lists, recurses and filters") {
-  fs::path dir = make_temp_dir("list");
+  const fs::path dir = make_temp_dir("list");
   Status status;
   write_file(dir / "a.txt", "a");
   write_file(dir / "sub/b.json", "b");
 
-  std::vector<std::string> flat = fs_helper::list_dir(dir, false, "", status);
+  const std::vector<std::string> flat =
+      fs_helper::list_dir(dir, false, "", status);
   REQUIRE(flat.size() == 2);  // a.txt and sub
 
-  std::vector<std::string> all = fs_helper::list_dir(dir, true, "", status);
+  const std::vector<std::string> all =
+      fs_helper::list_dir(dir, true, "", status);
   REQUIRE(all.size() == 3);
 
   std::vector<std::string> json =
@@ -47,7 +52,7 @@ TEST_CASE("list_dir lists, recurses and filters") {
 }
 
 TEST_CASE("copy_dir copies into the destination") {
-  fs::path dir = make_temp_dir("copy");
+  const fs::path dir = make_temp_dir("copy");
   Status status;
   write_file(dir / "src/x.txt", "x");
   write_file(dir / "src/deep/y.txt", "y");
@@ -59,7 +64,7 @@ TEST_CASE("copy_dir copies into the destination") {
 }
 
 TEST_CASE("rm_dir removes recursively") {
-  fs::path dir = make_temp_dir("rm");
+  const fs::path dir = make_temp_dir("rm");
   Status status;
   write_file(dir / "d/a/b.txt", "b");
   REQUIRE(fs_helper::rm_dir(dir / "d", status));
@@ -67,7 +72,7 @@ TEST_CASE("rm_dir removes recursively") {
 }
 
 TEST_CASE("move_dir renames and merges") {
-  fs::path dir = make_temp_dir("move");
+  const fs::path dir = make_temp_dir("move");
   Status status;
   write_file(dir / "from/a.txt", "a");
   write_file(dir / "from/sub/b.txt", "b");
@@ -84,7 +89,7 @@ TEST_CASE("move_dir renames and merges") {
 }
 
 TEST_CASE("zip then extract round trip") {
-  fs::path dir = make_temp_dir("zip");
+  const fs::path dir = make_temp_dir("zip");
   Status status;
   write_file(dir / "save/World/data.bin", "hello");
   write_file(dir / "save/World/sub/more.txt", "more");
@@ -97,11 +102,12 @@ TEST_CASE("zip then extract round trip") {
 }
 
 TEST_CASE("names outside ASCII survive a zip round trip") {
-  fs::path dir = make_temp_dir("zip_utf8");
+  const fs::path dir = make_temp_dir("zip_utf8");
   Status status;
   // Not in the Windows ANSI code pages of Western Europe, so this fails if a
   // name goes through one.
-  std::string world = "\xd0\x9c\xd0\xb8\xd1\x80 \xc3\x84";  // "Мир Ä" in UTF-8.
+  const std::string world =
+      "\xd0\x9c\xd0\xb8\xd1\x80 \xc3\x84";  // "Мир Ä" in UTF-8.
   write_file(dir / "save" / to_path(world) / "\xc3\xa9t\xc3\xa9.txt", "summer");
 
   REQUIRE(archive_helper::zip(dir / "save", world,
@@ -115,20 +121,22 @@ TEST_CASE("names outside ASCII survive a zip round trip") {
 }
 
 TEST_CASE("extract handles tar.gz") {
-  fs::path dir = make_temp_dir("targz");
+  const fs::path dir = make_temp_dir("targz");
   Status status;
   write_file(dir / "pack/game/file.txt", "game");
 
-  std::string cmd = "tar -czf '" + to_utf8(dir / "pack.tar.gz") + "' -C '" +
-                    to_utf8(dir / "pack") + "' game";
-  if (std::system(cmd.c_str()) != 0) SKIP("tar is not available");
+  const std::string cmd = "tar -czf '" + to_utf8(dir / "pack.tar.gz") +
+                          "' -C '" + to_utf8(dir / "pack") + "' game";
+  if (std::system(cmd.c_str()) != 0) {
+    SKIP("tar is not available");
+  }
 
   REQUIRE(archive_helper::extract(dir / "pack.tar.gz", dir / "out", status));
   REQUIRE(read_file(dir / "out/game/file.txt") == "game");
 }
 
 TEST_CASE("extract fails on garbage") {
-  fs::path dir = make_temp_dir("garbage");
+  const fs::path dir = make_temp_dir("garbage");
   Status status;
   write_file(dir / "bad.zip", "this is not an archive");
   REQUIRE(!archive_helper::extract(dir / "bad.zip", dir / "out", status));

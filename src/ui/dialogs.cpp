@@ -1,5 +1,9 @@
 #include "ui/dialogs.h"
 
+#include <qcontainerfwd.h>
+#include <qnamespace.h>
+#include <qtextdocument.h>
+
 #include <QDesktopServices>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -9,6 +13,12 @@
 #include <QPushButton>
 #include <QUrl>
 #include <QVBoxLayout>
+#include <cstddef>
+#include <filesystem>
+#include <functional>
+#include <string>
+#include <string_view>
+#include <system_error>
 #include <vector>
 
 #include "ui/qt_helpers.h"
@@ -101,8 +111,8 @@ void ask_text(QWidget& parent, const QString& title, const QString& detail,
   ok->setDefault(true);
   box->addWidget(buttons);
 
-  std::function<void()> update = [entry, problem, ok, check]() {
-    std::string why = check(str(entry->text()));
+  const std::function<void()> update = [entry, problem, ok, check] {
+    const std::string why = check(str(entry->text()));
     problem->setText(qstr(why));
     problem->setVisible(!why.empty());
     ok->setEnabled(why.empty());
@@ -112,8 +122,8 @@ void ask_text(QWidget& parent, const QString& title, const QString& detail,
   QObject::connect(buttons, &QDialogButtonBox::rejected, dialog,
                    &QDialog::reject);
   QObject::connect(buttons, &QDialogButtonBox::accepted, dialog,
-                   [dialog, entry, check, done]() {
-                     std::string value = str(entry->text());
+                   [dialog, entry, check, done] {
+                     const std::string value = str(entry->text());
                      if (!check(value).empty()) {
                        return;
                      }

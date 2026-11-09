@@ -1,5 +1,8 @@
 #include "ui/tab_trash.h"
 
+#include <qnamespace.h>
+#include <qtextoption.h>
+
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLabel>
@@ -8,11 +11,21 @@
 #include <QTreeWidget>
 #include <QVBoxLayout>
 #include <algorithm>
+#include <cstddef>
+#include <cstdint>
 #include <filesystem>
+#include <format>
+#include <functional>
+#include <string>
+#include <system_error>
+#include <vector>
 
 #include "core/fs.h"
+#include "core/trash.h"
+#include "ui/app_context.h"
 #include "ui/dialogs.h"
 #include "ui/qt_helpers.h"
+#include "ui/task_runner.h"
 
 static const char* const NO_INFO_TEXT =
     "Select an item to see where it came from and what restoring it does.";
@@ -70,7 +83,7 @@ static std::uint64_t total_of(const std::vector<TrashItem>& items) {
 }
 
 TabTrash::TabTrash(AppContext& ctx, TaskRunner& runner, QWidget& parent)
-    : m_ctx(ctx), m_runner(runner), m_parent(parent), m_updating(false) {
+    : m_ctx(ctx), m_runner(runner), m_parent(parent) {
   build_ui();
 }
 
@@ -199,7 +212,7 @@ void TabTrash::update_summary() {
 }
 
 int TabTrash::selected_item() {
-  int row = selected_row(m_list);
+  const int row = selected_row(m_list);
   if (row < 0 || static_cast<size_t>(row) >= m_items.size()) {
     return -1;
   }
@@ -207,7 +220,7 @@ int TabTrash::selected_item() {
 }
 
 void TabTrash::update_buttons() {
-  bool have = (selected_item() >= 0);
+  const bool have = (selected_item() >= 0);
   m_restore_button->setEnabled(have);
   m_delete_button->setEnabled(have);
   m_empty_button->setEnabled(!m_items.empty());
@@ -220,13 +233,13 @@ void TabTrash::on_selection_changed() {
   }
   update_buttons();
 
-  int index = selected_item();
+  const int index = selected_item();
   if (index < 0) {
     m_info_view->setPlainText(NO_INFO_TEXT);
     return;
   }
   const TrashItem& item = m_items[index];
-  RestorePlan plan = m_ctx.trash.plan_restore(item.id);
+  const RestorePlan plan = m_ctx.trash.plan_restore(item.id);
 
   std::string restore;
   switch (plan.kind) {
@@ -261,7 +274,7 @@ void TabTrash::on_selection_changed() {
 // done.
 void TabTrash::run_task(const std::function<void()>& work) {
   m_content->setEnabled(false);
-  bool started = m_runner.run(work, [this]() {
+  const bool started = m_runner.run(work, [this] {
     m_content->setEnabled(true);
     refresh();
   });
@@ -271,23 +284,23 @@ void TabTrash::run_task(const std::function<void()>& work) {
 }
 
 void TabTrash::on_restore_clicked() {
-  int index = selected_item();
+  const int index = selected_item();
   if (index < 0) {
     return;
   }
   TrashItem item = m_items[index];
-  std::string id = item.id;
+  const std::string id = item.id;
   RestorePlan plan = m_ctx.trash.plan_restore(id);
 
   switch (plan.kind) {
     case RestorePlan::ORIGINAL:
-      run_task([this, id]() { m_ctx.trash.restore(id, false); });
+      run_task([this, id] { m_ctx.trash.restore(id, false); });
       break;
     case RestorePlan::RENAMED: {
       if (Trash::can_choose_name(item.kind)) {
         // The free name it would get is the default; the user can pick another.
-        std::string parent = to_utf8(plan.dest.parent_path());
-        std::string suggested = to_utf8(plan.dest.filename());
+        const std::string parent = to_utf8(plan.dest.parent_path());
+        const std::string suggested = to_utf8(plan.dest.filename());
         dialogs::ask_text(
             m_parent, qstr("Restore " + item.name + "?"),
             qstr("Its old place is taken, so it goes back under another name "
@@ -299,11 +312,11 @@ void TabTrash::on_restore_clicked() {
             },
             [this, id](const std::string& name) {
               run_task(
-                  [this, id, name]() { m_ctx.trash.restore(id, false, name); });
+                  [this, id, name] { m_ctx.trash.restore(id, false, name); });
             });
         break;
       }
-      std::string detail =
+      const std::string detail =
           (item.kind == "saves")
               ? "The worlds go back into your current saves. Worlds whose "
                 "names are taken get \" (restored)\" "
@@ -312,20 +325,20 @@ void TabTrash::on_restore_clicked() {
                     to_utf8(plan.dest);
       dialogs::confirm(
           m_parent, qstr("Restore " + item.name + "?"), qstr(detail), "Restore",
-          [this, id]() {
-            run_task([this, id]() { m_ctx.trash.restore(id, false); });
+          [this, id] {
+            run_task([this, id] { m_ctx.trash.restore(id, false); });
           });
       break;
     }
     case RestorePlan::CONFLICT: {
-      bool use_trash = m_ctx.settings.get_bool("use_trash");
-      std::string detail = std::format(
+      const bool use_trash = m_ctx.settings.get_bool("use_trash");
+      const std::string detail = std::format(
           "{}\n\nReplacing it: {} {}, then {} is restored.", plan.reason,
           plan.conflict_name, dialogs::removal_text(use_trash), item.name);
       dialogs::confirm(
           m_parent, qstr("Replace " + plan.conflict_name + "?"), qstr(detail),
-          "Replace", [this, id]() {
-            run_task([this, id]() { m_ctx.trash.restore(id, true); });
+          "Replace", [this, id] {
+            run_task([this, id] { m_ctx.trash.restore(id, true); });
           });
       break;
     }
@@ -337,17 +350,17 @@ void TabTrash::on_restore_clicked() {
 }
 
 void TabTrash::on_delete_clicked() {
-  int index = selected_item();
+  const int index = selected_item();
   if (index < 0) {
     return;
   }
-  TrashItem item = m_items[index];
-  std::vector<std::string> ids(1, item.id);
+  const TrashItem item = m_items[index];
+  const std::vector<std::string> ids(1, item.id);
   dialogs::confirm(m_parent, qstr("Delete " + item.name + " for good?"),
                    qstr(kind_text(item.kind) + ": " + item.name + " (" +
                         size_text(item.size) + ")\n\nThis can't be undone."),
-                   "Delete Permanently", [this, ids]() {
-                     run_task([this, ids]() { m_ctx.trash.delete_items(ids); });
+                   "Delete Permanently", [this, ids] {
+                     run_task([this, ids] { m_ctx.trash.delete_items(ids); });
                    });
 }
 
@@ -359,22 +372,21 @@ void TabTrash::on_empty_clicked() {
                    qstr("All " + std::to_string(m_items.size()) + " items (" +
                         size_text(total_of(m_items)) +
                         ") will be deleted for good. This can't be undone."),
-                   "Empty Trash", [this]() {
-                     run_task([this]() { (void)m_ctx.trash.empty(); });
-                   });
+                   "Empty Trash",
+                   [this] { run_task([this] { (void)m_ctx.trash.empty(); }); });
 }
 
 void TabTrash::on_free_up_clicked() { ask_free_up(); }
 
 void TabTrash::ask_free_up() {
-  std::vector<TrashItem> extra = m_ctx.trash.over_limit();
+  const std::vector<TrashItem> extra = m_ctx.trash.over_limit();
   if (extra.empty()) {
     m_ctx.status.post("The trash is not over its size limit.");
     return;
   }
   std::vector<std::string> ids;
   ids.reserve(extra.size());
-  for (auto& i : extra) {
+  for (const auto& i : extra) {
     ids.push_back(i.id);
   }
   dialogs::confirm(
@@ -383,8 +395,8 @@ void TabTrash::ask_free_up() {
            std::to_string(extra.size()) + " items (" +
            size_text(total_of(extra)) + ") will be deleted for good:\n" +
            list_names(extra) + "\n\nThis can't be undone."),
-      "Delete Permanently", [this, ids]() {
-        run_task([this, ids]() { m_ctx.trash.delete_items(ids); });
+      "Delete Permanently", [this, ids] {
+        run_task([this, ids] { m_ctx.trash.delete_items(ids); });
       });
 }
 

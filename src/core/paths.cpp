@@ -1,11 +1,22 @@
 #include "core/paths.h"
 
 #include <algorithm>
+#include <array>
+#include <cstddef>
 #include <filesystem>
+#include <map>
+#include <nlohmann/json_fwd.hpp>
+#include <string>
+#include <string_view>
+#include <system_error>
+#include <utility>
+#include <vector>
 
 #include "core/fs.h"
 #include "core/helpers.h"
 #include "core/platform.h"
+#include "core/settings.h"
+#include "core/status.h"
 
 namespace fs = std::filesystem;
 
@@ -35,7 +46,7 @@ static fs::path xdg_base(const std::string& value, const fs::path& fallback) {
 Locations xdg_locations(const std::string& home, const std::string& config_home,
                         const std::string& data_home,
                         const std::string& cache_home) {
-  fs::path home_dir = to_path(home);
+  const fs::path home_dir = to_path(home);
   Locations loc;
   loc.config_dir = xdg_base(config_home, home_dir / ".config") / "evac";
   loc.games_dir = xdg_base(data_home, home_dir / ".local" / "share") / "evac";
@@ -55,7 +66,7 @@ Locations windows_locations(const std::string& appdata,
 }
 
 Locations macos_locations(const std::string& home) {
-  fs::path home_dir = to_path(home);
+  const fs::path home_dir = to_path(home);
   Locations loc;
   loc.config_dir = home_dir / "Library" / "Application Support" / "evac";
   loc.games_dir = loc.config_dir;
@@ -64,22 +75,22 @@ Locations macos_locations(const std::string& home) {
 }
 
 Locations default_locations() {
-  fs::path exe_dir = Paths::executable_dir();
+  const fs::path exe_dir = Paths::executable_dir();
   if (fs::exists(exe_dir / "evac_settings.json")) {
     return portable_locations(exe_dir);
   }
 
-  std::string os = platform::os_name();
+  const std::string_view os = platform::os_name();
   if (os == "win") {
-    std::string appdata = platform::get_env("APPDATA");
-    std::string local_appdata = platform::get_env("LOCALAPPDATA");
+    const std::string appdata = platform::get_env("APPDATA");
+    const std::string local_appdata = platform::get_env("LOCALAPPDATA");
     if (appdata.empty() || local_appdata.empty()) {
       return portable_locations(exe_dir);
     }
     return windows_locations(appdata, local_appdata);
   }
 
-  std::string home = platform::get_env("HOME");
+  const std::string home = platform::get_env("HOME");
   if (home.empty()) {
     return portable_locations(exe_dir);
   }
@@ -104,7 +115,7 @@ Paths::Paths(const fs::path& root, Settings& settings, Status& status)
       m_status(status) {}
 
 fs::path Paths::executable_dir() {
-  fs::path exe = platform::executable_path();
+  const fs::path exe = platform::executable_path();
   if (exe.empty()) {
     return fs::current_path();
   }
@@ -131,13 +142,13 @@ Paths::InstallsSummary Paths::installs_summary() {
   InstallsSummary result;
 
   for (const auto& game : GAMES) {
-    fs::path base_dir = m_games_dir / game;
+    const fs::path base_dir = m_games_dir / game;
     std::map<std::string, fs::path> installs;
 
-    std::vector<std::string> subdirs = list_dir(base_dir);
+    const std::vector<std::string> subdirs = list_dir(base_dir);
     for (const auto& subdir : subdirs) {
-      fs::path dir = base_dir / to_path(subdir);
-      fs::path info_file = dir / INFO_FILENAME;
+      const fs::path dir = base_dir / to_path(subdir);
+      const fs::path info_file = dir / INFO_FILENAME;
       nlohmann::json info;
       if (fs::exists(info_file) && load_json_file(info_file, info, m_status) &&
           info.is_object() && info.contains("name") &&
@@ -151,10 +162,10 @@ Paths::InstallsSummary Paths::installs_summary() {
   }
 
   // Ensure that some installation of the game is set as active.
-  std::string game = m_settings.get_string("game");
-  auto it = result.find(game);
+  const std::string game = m_settings.get_string("game");
+  const auto it = result.find(game);
   if (it != result.end()) {
-    std::string active = m_settings.get_string("active_install_" + game);
+    const std::string active = m_settings.get_string("active_install_" + game);
     if (active.empty() || !it->second.contains(active)) {
       m_settings.set_string("active_install_" + game,
                             it->second.begin()->first);
@@ -170,7 +181,7 @@ fs::path Paths::game_base_dir() {
 
 fs::path Paths::cache_dir() const { return m_cache_dir; }
 
-fs::path Paths::data_dir() const {
+fs::path Paths::data_dir() {
   fs::path local = executable_dir() / "data";
   if (fs::is_directory(local)) {
     return local;
@@ -179,7 +190,7 @@ fs::path Paths::data_dir() const {
 }
 
 fs::path Paths::game_dir() {
-  std::string active =
+  const std::string active =
       m_settings.get_string("active_install_" + m_settings.get_string("game"));
   if (active.empty()) {
     return next_install_dir();
@@ -188,14 +199,14 @@ fs::path Paths::game_dir() {
 }
 
 fs::path Paths::find_active_game_dir() {
-  std::string active =
+  const std::string active =
       m_settings.get_string("active_install_" + m_settings.get_string("game"));
-  fs::path base_dir = game_base_dir();
+  const fs::path base_dir = game_base_dir();
 
-  std::vector<std::string> subdirs = list_dir(base_dir);
+  const std::vector<std::string> subdirs = list_dir(base_dir);
   for (const auto& subdir : subdirs) {
     fs::path dir = base_dir / to_path(subdir);
-    fs::path info_file = dir / INFO_FILENAME;
+    const fs::path info_file = dir / INFO_FILENAME;
     nlohmann::json info;
     if (fs::exists(info_file) && load_json_file(info_file, info, m_status) &&
         info.is_object() && info.contains("name") && info["name"] == active) {
@@ -207,7 +218,7 @@ fs::path Paths::find_active_game_dir() {
 
 // Names for new installs follow the pattern "game0", "game1", ...
 fs::path Paths::next_install_dir() {
-  fs::path base_dir = game_base_dir();
+  const fs::path base_dir = game_base_dir();
   int n = 0;
   while (fs::exists(base_dir / ("game" + std::to_string(n)))) {
     ++n;
@@ -222,8 +233,8 @@ fs::path Paths::userdata() {
   fs::path active = to_path(m_settings.get_string(
       "active_userdata_" + m_settings.get_string("game")));
   if (!active.empty()) {
-    std::vector<UserdataFolder> folders = custom_userdata();
-    for (auto& folder : folders) {
+    const std::vector<UserdataFolder> folders = custom_userdata();
+    for (const auto& folder : folders) {
       if (folder.path == active) {
         return active;
       }
@@ -234,7 +245,7 @@ fs::path Paths::userdata() {
 
 std::vector<UserdataFolder> Paths::custom_userdata() {
   std::vector<UserdataFolder> result;
-  nlohmann::json list =
+  const nlohmann::json list =
       m_settings.get_json("userdata_folders_" + m_settings.get_string("game"));
   if (!list.is_array()) {
     return result;
@@ -288,8 +299,8 @@ std::string Paths::check_userdata_label(const std::string& label,
   if (label == "Default") {
     return "\"Default\" is the name of the default user data folder.";
   }
-  std::vector<UserdataFolder> folders = custom_userdata();
-  for (auto& folder : folders) {
+  const std::vector<UserdataFolder> folders = custom_userdata();
+  for (const auto& folder : folders) {
     if (folder.label == label && folder.path != own_path) {
       return "Another user data folder is already called \"" + label + "\".";
     }
@@ -307,7 +318,7 @@ std::string Paths::add_userdata(const fs::path& path,
     return "This is the default user data folder, it is always in the list.";
   }
   std::vector<UserdataFolder> folders = custom_userdata();
-  for (auto& folder : folders) {
+  for (const auto& folder : folders) {
     if (folder.path == clean) {
       return "This folder is already in the list as \"" + folder.label + "\".";
     }
@@ -344,22 +355,22 @@ std::string Paths::rename_userdata(const fs::path& path,
 }
 
 void Paths::remove_userdata(const fs::path& path) {
-  std::vector<UserdataFolder> folders = custom_userdata();
+  const std::vector<UserdataFolder> folders = custom_userdata();
   std::vector<UserdataFolder> kept;
-  for (auto& folder : folders) {
+  for (const auto& folder : folders) {
     if (folder.path != path) {
       kept.push_back(folder);
     }
   }
   store_custom_userdata(kept);
-  std::string key = "active_userdata_" + m_settings.get_string("game");
+  const std::string key = "active_userdata_" + m_settings.get_string("game");
   if (to_path(m_settings.get_string(key)) == path) {
     m_settings.set_string(key, "");
   }
 }
 
 void Paths::set_active_userdata(const fs::path& path) {
-  std::string key = "active_userdata_" + m_settings.get_string("game");
+  const std::string key = "active_userdata_" + m_settings.get_string("game");
   m_settings.set_string(key, path == default_userdata() ? "" : to_utf8(path));
 }
 
@@ -387,9 +398,9 @@ fs::path Paths::snapshots() { return launcher_dir() / "snapshots"; }
 fs::path Paths::trash_dir() const { return m_games_dir / "trash"; }
 
 bool Paths::move_old_backups() {
-  fs::path old_dir = game_base_dir() / "save_backups";
-  fs::path parent_dir = default_userdata() / "evac";
-  fs::path new_dir = parent_dir / "backups";
+  const fs::path old_dir = game_base_dir() / "save_backups";
+  const fs::path parent_dir = default_userdata() / "evac";
+  const fs::path new_dir = parent_dir / "backups";
   std::error_code ec;
   if (!fs::is_directory(old_dir, ec) ||
       fs::exists(fs::symlink_status(new_dir, ec))) {

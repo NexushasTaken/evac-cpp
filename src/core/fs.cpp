@@ -3,6 +3,11 @@
 #include <algorithm>
 #include <filesystem>
 #include <regex>
+#include <string>
+#include <system_error>
+#include <vector>
+
+#include "core/status.h"
 
 namespace fs = std::filesystem;
 
@@ -18,7 +23,7 @@ std::vector<std::string> list_dir(const fs::path& path, bool recursive,
   std::vector<std::string> result;
 
   std::regex filter;
-  bool use_filter = !filter_regex.empty();
+  const bool use_filter = !filter_regex.empty();
   if (use_filter) {
     try {
       filter = std::regex(filter_regex);
@@ -49,7 +54,7 @@ std::vector<std::string> list_dir(const fs::path& path, bool recursive,
     if (ec) {
       break;
     }
-    std::string rel = fs::relative(it->path(), base);
+    const std::string rel = fs::relative(it->path(), base);
     if (!use_filter || std::regex_search(rel, filter)) {
       result.push_back(rel);
     }
@@ -82,7 +87,7 @@ static bool copy_dir_internal(const fs::path& src, const fs::path& dest,
     return false;
   }
   for (; it != fs::directory_iterator(); it.increment(ec)) {
-    fs::path target = dest / it->path().filename();
+    const fs::path target = dest / it->path().filename();
     if (it->is_symlink()) {
       fs::copy_symlink(it->path(), target, ec);
     } else if (it->is_directory()) {
@@ -151,7 +156,7 @@ static bool move_dir_internal(const fs::path& src, const fs::path& dest,
 
   fs::directory_iterator it(src, ec);
   for (; !ec && it != fs::directory_iterator(); it.increment(ec)) {
-    fs::path target = dest / it->path().filename();
+    const fs::path target = dest / it->path().filename();
     if (it->is_directory() && !it->is_symlink()) {
       if (!move_dir_internal(it->path(), target, status)) {
         ok = false;

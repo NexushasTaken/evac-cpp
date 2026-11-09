@@ -1,12 +1,17 @@
 #include "core/settings.h"
 
 #include <filesystem>
+#include <mutex>
+#include <nlohmann/json_fwd.hpp>
+#include <string>
+#include <utility>
 
 #include "core/fs.h"
 #include "core/helpers.h"
+#include "core/status.h"
 
-Settings::Settings(const std::filesystem::path& settings_file, Status& status)
-    : m_file(settings_file),
+Settings::Settings(std::filesystem::path settings_file, Status& status)
+    : m_file(std::move(settings_file)),
       m_status(status),
       m_current(nlohmann::json::object()) {}
 
@@ -65,7 +70,7 @@ nlohmann::json Settings::defaults() {
 void Settings::load() {
   bool created = false;
   {
-    std::scoped_lock lock(m_mutex);
+    const std::scoped_lock lock(m_mutex);
     if (std::filesystem::exists(m_file)) {
       nlohmann::json data;
       if (load_json_file(m_file, data, m_status) && data.is_object()) {
@@ -86,12 +91,12 @@ void Settings::load() {
 }
 
 bool Settings::save() {
-  std::scoped_lock lock(m_mutex);
+  const std::scoped_lock lock(m_mutex);
   return save_json_file(m_current, m_file, m_status);
 }
 
 nlohmann::json Settings::lookup(const std::string& name) {
-  std::scoped_lock lock(m_mutex);
+  const std::scoped_lock lock(m_mutex);
   nlohmann::json def = defaults();
   if (!def.contains(name)) {
     // Not one of ours; allow it only if it is in the file.
@@ -105,7 +110,8 @@ nlohmann::json Settings::lookup(const std::string& name) {
   if (m_current.contains(name)) {
     const nlohmann::json& v = m_current[name];
     const nlohmann::json& d = def[name];
-    bool same_type = (v.is_number() && d.is_number()) || (v.type() == d.type());
+    const bool same_type =
+        (v.is_number() && d.is_number()) || (v.type() == d.type());
     if (same_type) {
       return v;
     }
@@ -114,22 +120,22 @@ nlohmann::json Settings::lookup(const std::string& name) {
 }
 
 std::string Settings::get_string(const std::string& name) {
-  nlohmann::json v = lookup(name);
+  const nlohmann::json v = lookup(name);
   return v.is_string() ? v.get<std::string>() : std::string();
 }
 
 bool Settings::get_bool(const std::string& name) {
-  nlohmann::json v = lookup(name);
+  const nlohmann::json v = lookup(name);
   return v.is_boolean() ? v.get<bool>() : false;
 }
 
 int Settings::get_int(const std::string& name) {
-  nlohmann::json v = lookup(name);
+  const nlohmann::json v = lookup(name);
   return v.is_number() ? v.get<int>() : 0;
 }
 
 double Settings::get_double(const std::string& name) {
-  nlohmann::json v = lookup(name);
+  const nlohmann::json v = lookup(name);
   return v.is_number() ? v.get<double>() : 0.0;
 }
 
@@ -138,13 +144,13 @@ nlohmann::json Settings::get_json(const std::string& name) {
 }
 
 void Settings::set_string(const std::string& name, const std::string& value) {
-  std::scoped_lock lock(m_mutex);
+  const std::scoped_lock lock(m_mutex);
   m_current[name] = value;
 }
 
 void Settings::set_bool(const std::string& name, bool value) {
   {
-    std::scoped_lock lock(m_mutex);
+    const std::scoped_lock lock(m_mutex);
     m_current[name] = value;
   }
   if (name == "debug_mode") {
@@ -153,16 +159,16 @@ void Settings::set_bool(const std::string& name, bool value) {
 }
 
 void Settings::set_int(const std::string& name, int value) {
-  std::scoped_lock lock(m_mutex);
+  const std::scoped_lock lock(m_mutex);
   m_current[name] = value;
 }
 
 void Settings::set_double(const std::string& name, double value) {
-  std::scoped_lock lock(m_mutex);
+  const std::scoped_lock lock(m_mutex);
   m_current[name] = value;
 }
 
 void Settings::set_json(const std::string& name, const nlohmann::json& value) {
-  std::scoped_lock lock(m_mutex);
+  const std::scoped_lock lock(m_mutex);
   m_current[name] = value;
 }

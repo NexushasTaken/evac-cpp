@@ -1,15 +1,18 @@
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
 #include <fstream>
-#include <sstream>
+#include <map>
+#include <string>
 #include <tuple>
+#include <vector>
 
 #include "core/archive.h"
-#include "core/fs.h"
 #include "core/helpers.h"
 #include "core/mod_manager.h"
 #include "core/paths.h"
 #include "core/settings.h"
+#include "core/status.h"
+#include "core/trash.h"
 #include "test_server.h"
 
 namespace fs = std::filesystem;
@@ -28,12 +31,12 @@ static void write_file(const fs::path& path, const std::string& content) {
 
 static std::string modinfo(const std::string& id, const std::string& name,
                            const std::string& extra = "") {
-  return "{\"type\": \"MOD_INFO\", \"id\": \"" + id + "\", \"name\": \"" +
-         name + "\"" + extra + "}";
+  return R"({"type": "MOD_INFO", "id": ")" + id + R"(", "name": ")" + name +
+         "\"" + extra + "}";
 }
 
 struct ModFixture {
-  ModFixture(const std::string& name)
+  explicit ModFixture(const std::string& name)
       : dir(make_temp_dir(name)),
         settings(dir / "s.json", status),
         paths(dir, settings, status),
@@ -41,7 +44,7 @@ struct ModFixture {
         mods(settings, paths, status, trash) {
     settings.load();
     // A registered install, so that the stock mods directory is inside it.
-    write_file(dir / "dda/game0" / INFO_FILENAME, "{\"name\": \"Test Build\"}");
+    write_file(dir / "dda/game0" / INFO_FILENAME, R"({"name": "Test Build"})");
     paths.installs_summary();
   }
 
@@ -61,24 +64,24 @@ TEST_CASE("html tags are stripped") {
 }
 
 TEST_CASE("parse_mods_dir understands the different modinfo.json shapes") {
-  fs::path dir = make_temp_dir("mods_parse");
+  const fs::path dir = make_temp_dir("mods_parse");
   Status status;
 
   write_file(dir / "plain/modinfo.json", modinfo("plain_id", "Plain Mod"));
   write_file(dir / "list/modinfo.json",
-             "[{\"type\": \"something_else\", \"id\": \"nope\"}, " +
+             R"([{"type": "something_else", "id": "nope"}, )" +
                  modinfo("list_id", "<color_blue>List</color> Mod",
-                         ", \"description\": \"<b>Bold</b> text\"") +
+                         R"(, "description": "<b>Bold</b> text")") +
                  "]");
   write_file(dir / "ident/modinfo.json",
              "{\"type\": \"MOD_INFO\", \"ident\": \"ident_id\", \"name\": "
              "\"Ident Mod\"}");
   write_file(dir / "noid/modinfo.json",
-             "{\"type\": \"MOD_INFO\", \"name\": \"Name As Id\"}");
+             R"({"type": "MOD_INFO", "name": "Name As Id"})");
   write_file(dir / "comments/modinfo.json",
              "// a comment\n" + modinfo("comment_id", "Commented"));
   write_file(dir / "broken/modinfo.json", "{ this is not json");
-  write_file(dir / "nomod/modinfo.json", "[{\"type\": \"other\"}]");
+  write_file(dir / "nomod/modinfo.json", R"([{"type": "other"}])");
   write_file(dir / "empty/readme.txt", "no modinfo here");
 
   std::map<std::string, ModEntry> mods =
@@ -131,17 +134,17 @@ TEST_CASE("install and delete mods") {
   REQUIRE(f.mods.available().size() == 2);
 
   std::vector<std::string> ids;
-  ids.push_back("a");
-  ids.push_back("b");
+  ids.emplace_back("a");
+  ids.emplace_back("b");
   REQUIRE(f.mods.install_mods(ids));
   REQUIRE(fs::exists(f.paths.mods_user() / "ModA/items.json"));
   REQUIRE(fs::exists(f.paths.mods_user() / "ModB/modinfo.json"));
   REQUIRE(f.mods.mod_status("a") == MOD_INSTALLED);
 
-  std::vector<std::string> unknown(1, "zzz");
+  const std::vector<std::string> unknown(1, "zzz");
   REQUIRE(!f.mods.install_mods(unknown));
 
-  std::vector<std::string> only_a(1, "a");
+  const std::vector<std::string> only_a(1, "a");
   REQUIRE(f.mods.delete_mods(only_a));
   REQUIRE(!fs::exists(f.paths.mods_user() / "ModA"));
   REQUIRE(fs::exists(f.paths.mods_user() / "ModB"));
@@ -161,7 +164,7 @@ TEST_CASE("stock mods are never deleted") {
              modinfo("stock_ok", "Stock"));
   f.mods.refresh_installed();
 
-  std::vector<std::string> ids(1, "stock_ok");
+  const std::vector<std::string> ids(1, "stock_ok");
   REQUIRE(!f.mods.delete_mods(ids));
   REQUIRE(fs::exists(f.paths.mods_stock() / "normal/modinfo.json"));
   REQUIRE(f.trash.list().empty());
@@ -177,7 +180,7 @@ TEST_CASE("a mod that clashes with an obsolete stock mod gets a new ID") {
   f.mods.refresh_available();
   REQUIRE(f.mods.mod_status("shared") == MOD_STOCK_OBSOLETE);
 
-  std::vector<std::string> ids(1, "shared");
+  const std::vector<std::string> ids(1, "shared");
   REQUIRE(f.mods.install_mods(ids));
 
   nlohmann::json written;
@@ -201,7 +204,7 @@ TEST_CASE("the modified ID keeps the rest of the mod's modinfo.json") {
   write_file(f.paths.mod_repo() / "New/modinfo.json",
              "// a comment\n[{\"type\": \"other\", \"id\": \"keep_me\"}, " +
                  modinfo("shared", "<color_blue>New</color>",
-                         ", \"description\": \"<b>Bold</b>\"") +
+                         R"(, "description": "<b>Bold</b>")") +
                  "]");
   f.mods.refresh_installed();
   f.mods.refresh_available();
@@ -225,13 +228,13 @@ TEST_CASE("the modified ID keeps the rest of the mod's modinfo.json") {
 static std::tuple<fs::path, std::string> make_modpack_zip(
     ModFixture& f, const std::string& marker) {
   write_file(f.dir / "zipsrc/Pack-master/Sub/High/ModA/modinfo.json",
-             modinfo("a", "Mod A", ", \"description\": \"" + marker + "\""));
+             modinfo("a", "Mod A", R"(, "description": ")" + marker + "\""));
   write_file(f.dir / "zipsrc/Pack-master/Sub/High/ModB/modinfo.json",
              modinfo("b", "Mod B"));
   write_file(f.dir / "zipsrc/Pack-master/Sub/Archived/OldMod/modinfo.json",
              modinfo("old", "Old Mod"));
-  std::string path = (marker + ".zip");
-  fs::path zip = f.dir / path;
+  const std::string path = (marker + ".zip");
+  const fs::path zip = f.dir / path;
   REQUIRE(archive_helper::zip(f.dir / "zipsrc", "Pack-master", zip, f.status));
   fs::remove_all(f.dir / "zipsrc");
   return std::make_tuple(zip, path);
@@ -242,7 +245,7 @@ static Modpack test_modpack(const TestServer& server, const std::string& path) {
   pack.name = "Test Pack";
   pack.url = server.url("/" + path);
   pack.filename = "test-pack.zip";
-  pack.internal_paths.push_back("Pack-master/Sub/High");
+  pack.internal_paths.emplace_back("Pack-master/Sub/High");
   pack.archived_path = "Pack-master/Sub/Archived";
   return pack;
 }
@@ -255,7 +258,7 @@ TEST_CASE("retrieving a modpack fills the repository") {
   server.start();
 
   auto [_, path] = make_modpack_zip(f, "first");
-  Modpack pack = test_modpack(server, path);
+  const Modpack pack = test_modpack(server, path);
 
   REQUIRE(f.mods.retrieve_modpack(pack));
   REQUIRE(f.mods.available().size() == 2);
@@ -280,7 +283,7 @@ TEST_CASE("a bad modpack leaves the repository alone") {
   server.start();
 
   // The download fails.
-  Modpack pack = test_modpack(server, "does-not-exist.zip");
+  const Modpack pack = test_modpack(server, "does-not-exist.zip");
   REQUIRE(!f.mods.retrieve_modpack(pack));
 
   // The archive is fine, but not what we expect.

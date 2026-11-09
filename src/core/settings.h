@@ -15,7 +15,7 @@
 // untouched.
 class Settings {
  public:
-  Settings(const std::filesystem::path& settings_file, Status& status);
+  Settings(std::filesystem::path settings_file, Status& status);
 
   // Loads the file, or creates it with the defaults if it doesn't exist.
   void load();

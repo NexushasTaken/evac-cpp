@@ -1,9 +1,15 @@
 #include "ui/font_preview.h"
 
+#include <qcontainerfwd.h>
+#include <qfont.h>
+#include <qnamespace.h>
+#include <qobject.h>
+
 #include <QFontDatabase>
 #include <QLabel>
 #include <QRawFont>
 #include <QVBoxLayout>
+#include <filesystem>
 #include <map>
 
 #include "ui/qt_helpers.h"
@@ -19,18 +25,24 @@ static const char SAMPLE[] =
 static bool font_for_file(const QString& path, int pixel_size, QFont& font) {
   static std::map<QString, int>
       added;  // Path -> QFontDatabase id, -1 if it failed.
-  std::map<QString, int>::const_iterator it = added.find(path);
-  int id = (it != added.end())
-               ? it->second
-               : (added[path] = QFontDatabase::addApplicationFont(path));
-  if (id < 0) return false;
+  const auto it = added.find(path);
+  const int id = (it != added.end())
+                     ? it->second
+                     : (added[path] = QFontDatabase::addApplicationFont(path));
+  if (id < 0) {
+    return false;
+  }
   QStringList families = QFontDatabase::applicationFontFamilies(id);
-  if (families.isEmpty()) return false;
+  if (families.isEmpty()) {
+    return false;
+  }
 
   // A family has several files (Regular, Bold...): the style picks this one.
-  QRawFont raw(path, pixel_size);
+  const QRawFont raw(path, pixel_size);
   font = QFont(families[0]);
-  if (raw.isValid()) font.setStyleName(raw.styleName());
+  if (raw.isValid()) {
+    font.setStyleName(raw.styleName());
+  }
   font.setPixelSize(pixel_size);  // The game's font size is in pixels.
   return true;
 }
@@ -40,7 +52,7 @@ FontPreview::FontPreview() {
   m_label = make_label("");
   m_label->setTextInteractionFlags(Qt::TextSelectableByMouse);
   m_label->setContentsMargins(8, 8, 8, 8);
-  QVBoxLayout* layout = new QVBoxLayout(this);
+  auto* layout = new QVBoxLayout(this);
   layout->addWidget(m_label);
 }
 

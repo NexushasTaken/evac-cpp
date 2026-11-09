@@ -1,0 +1,2 @@
+InheritParentConfig: true
+Checks: '-cppcoreguidelines-pro-bounds-avoid-unchecked-container-access'

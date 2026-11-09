@@ -3,8 +3,11 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <vector>
 
 #include "core/http.h"
+#include "core/settings.h"
+#include "core/status.h"
 
 TEST_CASE("progress string") {
   REQUIRE(Http::format_progress({512L * 1024, 1024L * 1024,
@@ -23,7 +26,7 @@ TEST_CASE("size string") {
 
 TEST_CASE(
     "a cached archive is not downloaded, so there is no size to look up") {
-  std::filesystem::path dir =
+  const std::filesystem::path dir =
       std::filesystem::temp_directory_path() / "evac_test_describe";
   std::filesystem::remove_all(dir);
   std::filesystem::create_directories(dir);
@@ -49,7 +52,9 @@ TEST_CASE(
 // a file called hello.txt containing "hello\n" (see the README).
 TEST_CASE("get and download against a local server", "[network]") {
   const char* base = std::getenv("EVAC_TEST_URL");
-  if (!base) SKIP("EVAC_TEST_URL is not set");
+  if (base == nullptr) {
+    SKIP("EVAC_TEST_URL is not set");
+  }
 
   Status status;
   Http http(status);
@@ -64,12 +69,12 @@ TEST_CASE("get and download against a local server", "[network]") {
                    response));
   REQUIRE(response.code == 404);
 
-  std::filesystem::path dir =
+  const std::filesystem::path dir =
       std::filesystem::temp_directory_path() / "evac_test_http";
   std::filesystem::remove_all(dir);
   REQUIRE(http.download_file(std::string(base) + "/hello.txt", dir.string(),
                              "got.txt"));
-  std::ifstream f(dir / "got.txt");
+  const std::ifstream f(dir / "got.txt");
   std::stringstream ss;
   ss << f.rdbuf();
   REQUIRE(ss.str() == "hello\n");
@@ -84,7 +89,9 @@ TEST_CASE("get and download against a local server", "[network]") {
 // EVAC_TEST_HTTPS_URL=https://api.github.com/zen
 TEST_CASE("https request", "[network]") {
   const char* url = std::getenv("EVAC_TEST_HTTPS_URL");
-  if (!url) SKIP("EVAC_TEST_HTTPS_URL is not set");
+  if (url == nullptr) {
+    SKIP("EVAC_TEST_HTTPS_URL is not set");
+  }
 
   Status status;
   Http http(status);

@@ -33,7 +33,8 @@ class MainWindow : public QMainWindow {
   void check_trash_limit();
 
   AppContext& m_ctx;
-  bool m_page_refresh_pending;      // A tab was opened while a job was running.
+  bool m_page_refresh_pending{
+      false};                       // A tab was opened while a job was running.
   std::uint64_t m_trash_size_seen;  // To notice when the trash grows.
   TaskRunner m_runner;
 

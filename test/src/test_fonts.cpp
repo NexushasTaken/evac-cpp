@@ -1,13 +1,19 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <cstddef>
 #include <filesystem>
 #include <fstream>
+#include <nlohmann/json_fwd.hpp>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "core/font_manager.h"
 #include "core/fs.h"
 #include "core/helpers.h"
 #include "core/paths.h"
 #include "core/settings.h"
+#include "core/status.h"
 
 namespace fs = std::filesystem;
 
@@ -52,7 +58,7 @@ static void write_game_config(const fs::path& config_dir) {
 }
 
 struct FontFixture {
-  FontFixture(const std::string& name)
+  explicit FontFixture(const std::string& name)
       : dir(make_temp_dir(name)),
         settings(dir / "s.json", status),
         paths(dir, settings, status),
@@ -134,9 +140,8 @@ TEST_CASE("a font set by an older launcher by its file name is replaced too") {
   FontFixture f("fonts_old_name");
   write_game_config(f.paths.config());
   write_file(f.paths.font_user() / "Hack-Regular.ttf", "font");
-  write_file(
-      f.paths.config() / "fonts.json",
-      "{\"typeface\": [\"Hack-Regular.ttf\", \"data/font/unifont.ttf\"]}");
+  write_file(f.paths.config() / "fonts.json",
+             R"({"typeface": ["Hack-Regular.ttf", "data/font/unifont.ttf"]})");
   REQUIRE(f.fonts.load_available_fonts());
   REQUIRE(f.fonts.set_font(0, {"typeface"}));
   std::vector<std::string> files = f.fonts.font_files("typeface");
@@ -171,7 +176,7 @@ TEST_CASE("font_files reads every entry shape of the game's format") {
   REQUIRE(entries[0].hinting == "Light");
   REQUIRE(!entries[0].antialiasing);
   // A path alone does not say; the game decides.
-  REQUIRE(entries[1].hinting == "");
+  REQUIRE(entries[1].hinting.empty());
   REQUIRE(entries[1].antialiasing);
 
   // A single entry is turned into a list with our font in front.
@@ -219,14 +224,14 @@ TEST_CASE("fonts added from a file are kept in the user font directory") {
   FontFixture f("fonts_add");
   write_game_config(f.paths.config());
   REQUIRE(f.fonts.load_available_fonts());
-  size_t bundled = f.fonts.available_fonts().size();
+  const size_t bundled = f.fonts.available_fonts().size();
 
   write_file(f.dir / "elsewhere/MyFont.otf", "font");
   write_file(f.dir / "elsewhere/notes.txt", "text");
   REQUIRE(f.fonts.add_font_file(f.dir / "elsewhere/notes.txt") == -1);
   REQUIRE(!f.fonts.add_would_replace(f.dir / "elsewhere/MyFont.otf"));
-  int index = f.fonts.add_font_file(f.dir / "elsewhere/MyFont.otf");
-  REQUIRE(index == (int)bundled);
+  const int index = f.fonts.add_font_file(f.dir / "elsewhere/MyFont.otf");
+  REQUIRE(std::cmp_equal(index, bundled));
   REQUIRE(fs::exists(f.paths.font_user() / "MyFont.otf"));
   REQUIRE(f.fonts.add_would_replace(f.dir / "elsewhere/MyFont.otf"));
 
@@ -259,7 +264,7 @@ TEST_CASE("reset_font brings back the defaults") {
   REQUIRE(f.fonts.font_files("typeface")[0] ==
           f.paths.font_user() / "Hack-Regular.ttf");
 
-  write_file(f.dir / "dda/game0" / INFO_FILENAME, "{\"name\": \"Test Build\"}");
+  write_file(f.dir / "dda/game0" / INFO_FILENAME, R"({"name": "Test Build"})");
   f.paths.installs_summary();
   write_file(f.dir / "dda/game0/data/fontdata.json", GAME_FONTS);
   REQUIRE(f.fonts.reset_font());
@@ -277,19 +282,19 @@ TEST_CASE("font sizes use the proportions of the selected fonts") {
 
   // Hack: height 1.2, width 0.55. Terminus (not one of ours): 1.0 and 0.5.
   REQUIRE(f.fonts.set_font(2, {"typeface"}));
-  FontDims ui = f.fonts.auto_dims("typeface", 20);
+  const FontDims ui = f.fonts.auto_dims("typeface", 20);
   REQUIRE(ui.height == 24);
   REQUIRE(ui.width == 11);
   // The menus go by the UI font.
   REQUIRE(f.fonts.auto_dims("gui_typeface", 20).height == 24);
-  FontDims map = f.fonts.auto_dims("map_typeface", 10);
+  const FontDims map = f.fonts.auto_dims("map_typeface", 10);
   REQUIRE(map.height == 10);
   REQUIRE(map.width == 10);
 
   FontOptions options;
   options.ui = ui;
   options.map = map;
-  options.overmap = {12, 7, 13};  // Set by hand.
+  options.overmap = {.size = 12, .width = 7, .height = 13};  // Set by hand.
   options.blending = true;
   options.ascii_lines = false;
   REQUIRE(f.fonts.save_font_options(options));
@@ -303,7 +308,7 @@ TEST_CASE("font sizes use the proportions of the selected fonts") {
   // This game has no ASCII lines option, so none is added.
   REQUIRE(!f.fonts.has_game_option("USE_DRAW_ASCII_LINES_ROUTINE"));
 
-  FontDims overmap = f.fonts.game_dims("overmap_typeface");
+  const FontDims overmap = f.fonts.game_dims("overmap_typeface");
   REQUIRE(overmap.size == 12);
   REQUIRE(overmap.width == 7);
   REQUIRE(overmap.height == 13);
@@ -333,7 +338,7 @@ TEST_CASE("unknown game options are reported") {
   write_game_config(f.paths.config());
   REQUIRE(f.fonts.load_game_options());
   REQUIRE(!f.fonts.set_game_option("NO_SUCH_OPTION", "1"));
-  REQUIRE(f.fonts.get_game_option("NO_SUCH_OPTION") == "");
+  REQUIRE(f.fonts.get_game_option("NO_SUCH_OPTION").empty());
   REQUIRE(f.fonts.set_game_option("FONT_BLENDING", "true"));
   REQUIRE(f.fonts.get_game_option("FONT_BLENDING") == "true");
 }

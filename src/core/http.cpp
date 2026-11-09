@@ -1,16 +1,28 @@
 #include "core/http.h"
 
 #include <boost/predef.h>
-#include <cpr/cpr.h>
+#include <cpr/cprtypes.h>
+#include <cpr/response.h>
+#include <cpr/session.h>
+#include <cpr/ssl_options.h>
 #include <zoe/zoe.h>
 
+#include <array>
 #include <boost/algorithm/string/trim.hpp>
 #include <chrono>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <format>
+#include <string>
+#include <system_error>
+#include <utility>
+#include <vector>
 
 #include "core/fs.h"
+#include "core/settings.h"
+#include "core/status.h"
 
 namespace fs = std::filesystem;
 
@@ -46,10 +58,10 @@ void Http::set_proxy(const std::string& host, int port) {
 }
 
 void Http::apply_proxy_settings(Settings& settings, bool for_download) {
-  std::string option = settings.get_string("proxy_option");
+  const std::string option = settings.get_string("proxy_option");
   if (option == "on" || (for_download && option == "download")) {
-    std::string host = settings.get_string("proxy_host");
-    int port = settings.get_int("proxy_port");
+    const std::string host = settings.get_string("proxy_host");
+    const int port = settings.get_int("proxy_port");
     m_status.post("Using proxy: " + host + ":" + std::to_string(port));
     set_proxy(host, port);
   } else {
@@ -94,7 +106,7 @@ static void setup_common(zoe::Zoe& zoe, const std::string& proxy_host,
 #endif
 
   if (!proxy_host.empty() && proxy_port > 0) {
-    std::string proxy = proxy_host + ":" + std::to_string(proxy_port);
+    const std::string proxy = proxy_host + ":" + std::to_string(proxy_port);
     zoe.setProxy(proxy);
   } else {
     zoe.setProxy("");
@@ -113,11 +125,11 @@ bool Http::get(const std::string& url, const std::vector<std::string>& headers,
   // "Name: value" lines.
   cpr::Header header;
   for (const std::string& line : headers) {
-    size_t colon = line.find(':');
+    const size_t colon = line.find(':');
     if (colon == std::string::npos) {
       continue;
     }
-    size_t value_start = line.find(' ', colon + 1);
+    const size_t value_start = line.find(' ', colon + 1);
     std::string name = line.substr(0, colon);
     std::string value = line.substr(value_start);
     boost::algorithm::trim(name);
@@ -155,13 +167,13 @@ int64_t Http::remote_size(const std::string& url) {
   }
 
   // After the redirects, these are the headers of the file itself.
-  auto it = r.header.find("Content-Length");
+  const auto it = r.header.find("Content-Length");
   if (it == r.header.end()) {
     return -1;
   }
   char* end = nullptr;
   constexpr int base = 10;
-  int64_t size = std::strtoll(it->second.c_str(), &end, base);
+  const int64_t size = std::strtoll(it->second.c_str(), &end, base);
   if (end == it->second.c_str() || size < 0) {
     return -1;
   }
@@ -189,9 +201,9 @@ std::string Http::describe_download(Settings& settings,
                                     const std::string& filename) {
   // The same check as before the downloads: a cached archive is used instead.
   std::error_code ec;
-  fs::path cached = cache_dir / to_path(filename);
+  const fs::path cached = cache_dir / to_path(filename);
   if (!settings.get_bool("ignore_cache") && fs::exists(cached, ec)) {
-    uintmax_t size = fs::file_size(cached, ec);
+    const uintmax_t size = fs::file_size(cached, ec);
     return "Nothing to download: " + filename + " is already in the cache" +
            (ec ? std::string()
                : " (" + format_size(static_cast<double>(size)) + ")") +
@@ -199,7 +211,7 @@ std::string Http::describe_download(Settings& settings,
   }
 
   apply_proxy_settings(settings, true);
-  int64_t size = remote_size(url);
+  const int64_t size = remote_size(url);
   if (size < 0) {
     return "Download size: unknown, the server does not say.";
   }
@@ -213,7 +225,8 @@ double Http::calc_bps(int64_t delta_msecs, double delta_bytes) {
     return 0.0;
   }
 
-  double bps = delta_bytes / static_cast<double>(delta_msecs) * MSECS_PER_SEC;
+  const double bps =
+      delta_bytes / static_cast<double>(delta_msecs) * MSECS_PER_SEC;
   return bps;
 }
 
@@ -242,7 +255,7 @@ bool Http::download_file(const std::string& url, const fs::path& target_dir,
     return false;
   }
 
-  fs::path final_path = target_dir / to_path(target_filename);
+  const fs::path final_path = target_dir / to_path(target_filename);
 
   m_status.post("Downloading " + target_filename);
 
@@ -251,7 +264,7 @@ bool Http::download_file(const std::string& url, const fs::path& target_dir,
   // });
 
   setup_common(m_zoe, m_proxy_host, m_proxy_port);
-  auto future = m_zoe.start(
+  const auto future = m_zoe.start(
       url, final_path,
       [&](zoe::ZoeResult result) {
         switch (result) {
