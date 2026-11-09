@@ -55,7 +55,7 @@ const std::vector<std::string>& tips_of_the_day() {
   return tips;
 }
 
-std::string pick_tip(unsigned long seed) {
+std::string pick_tip(time_t seed) {
   const std::vector<std::string>& tips = tips_of_the_day();
-  return tips[seed % tips.size()];
+  return tips.at(seed % tips.size());
 }

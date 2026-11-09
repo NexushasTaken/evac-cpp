@@ -68,8 +68,7 @@ MainWindow::MainWindow(AppContext& ctx)
 
   m_ctx.status.post("Welcome to Evac!");
   if (m_ctx.settings.get_bool("print_tips_of_the_day")) {
-    m_ctx.status.post("Tip of the day: " +
-                      pick_tip(static_cast<unsigned long>(std::time(nullptr))));
+    m_ctx.status.post("Tip of the day: " + pick_tip(std::time(nullptr)));
   }
   m_tab_game->start();
 }
