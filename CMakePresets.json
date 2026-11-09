@@ -52,6 +52,16 @@
       }
     },
     {
+      "name": "clang",
+      "displayName": "Clang",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/clang",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++"
+      }
+    },
+    {
       "name": "ci-std",
       "description": "This preset makes sure the project actually builds with at least the specified standard",
       "hidden": true,
