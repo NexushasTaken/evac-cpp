@@ -8,12 +8,13 @@
 
 namespace fs = std::filesystem;
 
-static const char NAME_PREFIX[] = "VIEW: ";
-static const char DESC_PREFIX[] = "DESCRIPTION: ";
-static const char CONFIG_FILE[] = "soundpack.txt";
-static const char DISABLED_SUFFIX[] = ".disabled";
+static const std::string_view NAME_PREFIX = "VIEW: ";
+static const std::string_view DESC_PREFIX = "DESCRIPTION: ";
+static const std::string_view CONFIG_FILE = "soundpack.txt";
+static const std::string_view DISABLED_SUFFIX = ".disabled";
 
-static bool starts_with(const std::string& text, const char* prefix) {
+static bool starts_with(const std::string& text,
+                        const std::string_view& prefix) {
   return text.compare(0, std::string(prefix).size(), prefix) == 0;
 }
 
@@ -54,13 +55,13 @@ std::vector<InstalledSoundpack> SoundpackManager::parse_sound_dir(
     pack.enabled = enabled;
     std::string line;
     while (std::getline(f, line)) {
-      if (!line.empty() && line[line.size() - 1] == '\r') {
+      if (!line.empty() && line.at(line.size() - 1) == '\r') {
         line.erase(line.size() - 1);
       }
       if (starts_with(line, NAME_PREFIX)) {
-        pack.name = line.substr(sizeof(NAME_PREFIX) - 1);
+        pack.name = line.substr(NAME_PREFIX.size());
       } else if (starts_with(line, DESC_PREFIX)) {
-        pack.description = line.substr(sizeof(DESC_PREFIX) - 1);
+        pack.description = line.substr(DESC_PREFIX.size());
       }
     }
     if (pack.name.empty()) {
