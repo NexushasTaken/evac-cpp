@@ -16,7 +16,7 @@
 namespace git {
 
 // started is false if git could not be run at all.
-typedef process::Result Result;
+using process::Result;
 
 // args are the arguments after "git", passed as they are (no shell).
 Result run(const std::vector<std::string>& args);

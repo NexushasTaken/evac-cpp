@@ -19,5 +19,5 @@ Checks: "*,\
 WarningsAsErrors: ''
 CheckOptions:
 - key: cppcoreguidelines-pro-bounds-avoid-unchecked-container-access.ExcludeClasses
-  value: 'nlohmann::json'
+  value: 'nlohmann::basic_json'
 ...

@@ -19,7 +19,7 @@ struct StatusMessage {
 // so the UI is responsible for moving the message to its own thread.
 class Status {
  public:
-  typedef std::function<void(const StatusMessage&)> Listener;
+  using Listener = std::function<void(const StatusMessage&)>;
 
   void post(const std::string& msg, MessageType type = MSG_INFO);
   void set_listener(const Listener& listener);

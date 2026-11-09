@@ -1,6 +1,7 @@
 #include "core/trash.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <ctime>
 #include <filesystem>
@@ -9,14 +10,13 @@
 #include "core/fs.h"
 #include "core/helpers.h"
 #include "core/mod_manager.h"
-#include "core/platform.h"
 
 using std::uint64_t;
 
 namespace fs = std::filesystem;
 
-static const char INFO_FILE[] = "info.json";
-static const char ITEM_DIR[] = "item";
+static const std::string_view INFO_FILE = "info.json";
+static const std::string_view ITEM_DIR = "item";
 
 Trash::Trash(Settings& settings, Paths& paths, Status& status)
     : m_settings(settings), m_paths(paths), m_status(status) {}
@@ -55,10 +55,6 @@ static std::uint64_t measure(const fs::path& path) {
     }
   }
   return total;
-}
-
-static std::tm local_time(Trash::Clock::time_point when) {
-  return platform::local_time(Trash::Clock::to_time_t(when));
 }
 
 // An id from list(), and nothing that points outside the trash. Backslash is
@@ -127,25 +123,20 @@ static bool move_any(const fs::path& src, const fs::path& dest,
   return true;
 }
 
-static int millis(Trash::Clock::time_point when) {
-  return static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(
-                              when.time_since_epoch())
-                              .count() %
-                          1000);
-}
-
 std::string Trash::make_id(const std::string& kind, const std::string& name,
                            Clock::time_point when) {
-  std::tm tm = local_time(when);
-  char stamp[32];
-  std::snprintf(stamp, sizeof(stamp), "%04d%02d%02d-%02d%02d%02d-%03d",
-                tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour,
-                tm.tm_min, tm.tm_sec, millis(when));
+  static const size_t SAFE_NAME_MAX = 40;
+  namespace chr = std::chrono;
+  const auto secs = chr::floor<chr::seconds>(when);
+  const auto milli = chr::duration_cast<chr::milliseconds>(when - secs);
+
+  auto stamp = std::format("{:%Y%m%d-%H-%M-%S}-{:03}", secs, milli.count());
 
   // Only safe characters, and not too long: the id is a directory name.
   std::string safe_name;
-  for (size_t i = 0; i < name.size() && safe_name.size() < 40; ++i) {
-    char c = name[i];
+  safe_name.reserve(SAFE_NAME_MAX);
+  for (size_t i = 0; i < name.size() && safe_name.size() < SAFE_NAME_MAX; ++i) {
+    char c = name.at(i);
     bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
               (c >= '0' && c <= '9') || c == '-' || c == '.';
     safe_name += ok ? c : '_';
@@ -189,12 +180,12 @@ bool Trash::remove(const fs::path& path, const std::string& kind,
   }
   fs::path entry = m_paths.trash_dir() / to_path(id);
 
-  std::tm tm = local_time(when);
-  char deleted_at[40];
-  std::snprintf(deleted_at, sizeof(deleted_at),
-                "%04d-%02d-%02d %02d:%02d:%02d.%03d", tm.tm_year + 1900,
-                tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec,
-                millis(when));
+  namespace chr = std::chrono;
+  const auto secs = chr::floor<chr::seconds>(when);
+  const auto milli = chr::duration_cast<chr::milliseconds>(when - secs);
+
+  auto deleted_at =
+      std::format("{:%Y-%m-%d %H:%M:%S}.{:06}", secs, milli.count());
 
   nlohmann::json info;
   info["kind"] = kind;
@@ -326,9 +317,10 @@ bool Trash::empty() {
 
 std::vector<TrashItem> Trash::over_limit() {
   std::vector<TrashItem> items = list();  // Newest first.
+  constexpr int MiB = 1024 * 1024;
   std::uint64_t limit = static_cast<std::uint64_t>(std::max(
                             0, m_settings.get_int("trash_max_size_mb"))) *
-                        1024 * 1024;
+                        MiB;
   std::uint64_t total = 0;
   for (auto& item : items) {
     total += item.size;

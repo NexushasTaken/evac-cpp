@@ -47,7 +47,7 @@ struct RestorePlan {
 // worker thread.
 class Trash {
  public:
-  typedef std::chrono::system_clock Clock;
+  using Clock = std::chrono::system_clock;
 
   Trash(Settings& settings, Paths& paths, Status& status);
 
